@@ -16,14 +16,10 @@ case "$preset" in
     TESTS=(
       pts/compress-7zip
       pts/build-linux-kernel
-      pts/blender
       pts/nginx
       pts/phpbench
-      pts/x265
       pts/wireguard
       pts/geekbench
-      pts/dav1d
-      pts/ffmpeg
       pts/llama-cpp # runtime 15 minutes
       # pts/openssl # runtime 2 hours
       # pts/compilation # runtime 5 hours
