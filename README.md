@@ -20,13 +20,23 @@ without having to install packages globally.
    ```bash
    nix-shell
    ```
-3. Run phoronix test suite benchmarks. A convenience script is provided to
-   run a small set of common tests:
+3. Run phoronix test suite benchmarks using the convenience script. By default
+   it runs a set of common system tests:
    ```bash
    ./run-benchmarks.sh
    ```
-   This will execute benchmarks such as `openssl`, `nginx`, `python`,
-   `phpbench`, and `compress-7zip` using the `batch-benchmark` command.
+   For gaming focused benchmarks use the `gaming` preset:
+   ```bash
+   ./run-benchmarks.sh gaming
+   ```
+   To run all Steam game benchmarks supported by the test suite use the
+   `steam` preset:
+   ```bash
+   ./run-benchmarks.sh steam
+   ```
+   The default preset executes benchmarks such as `openssl`, `nginx`,
+   `python`, `phpbench`, and `compress-7zip` using the `batch-benchmark`
+   command.
 
 Feel free to adjust the `TESTS` array in `run-benchmarks.sh` to include
 other benchmarks available in the phoronix test suite.
