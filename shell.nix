@@ -10,6 +10,7 @@ in pkgs.mkShell {
     php
     python3
     yasm
+    x264
     pythonPackages.pip
     pythonPackages.distutils
     pythonPackages.pyyaml
@@ -17,5 +18,6 @@ in pkgs.mkShell {
     pythonPackages.cython
     pythonPackages.ninja
     pythonPackages.cmake
+    pythonPackages.meson
   ];
 }
