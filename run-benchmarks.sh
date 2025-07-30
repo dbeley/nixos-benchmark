@@ -23,7 +23,7 @@ case "$preset" in
       pts/hashcat
       pts/sqlite
       pts/x265
-      pts/paraview
+      # pts/paraview
       pts/fluidx3d
       pts/wireguard
       pts/geekbench
