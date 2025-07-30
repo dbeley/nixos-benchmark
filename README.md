@@ -36,7 +36,8 @@ The environment includes the following packages:
 - phoronix-test-suite
 - bison, flex
 - gmp, libaio, SDL2, zlib, openssl
-- python3, php, nginx
+- python3 with pip, distutils and the python-yaml package
+- php, nginx
 
 These dependencies cover a variety of test scenarios so the suite should
 run out-of-the-box on most systems.
