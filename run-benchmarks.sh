@@ -14,10 +14,24 @@ preset="${1:-default}"
 case "$preset" in
   default)
     TESTS=(
-      pts/openssl
+      pts/compress-7zip
+      pts/compress-zstd
+      pts/build-linux-kernel
+      pts/blender
       pts/nginx
       pts/phpbench
-      pts/compress-7zip
+      pts/hashcat
+      pts/sqlite
+      pts/x265
+      pts/paraview
+      pts/fluidx3d
+      pts/wireguard
+      pts/geekbench
+      pts/sysbench
+      pts/dav1d
+      pts/ffmpeg
+      pts/llama-cpp # runtime 15 minutes
+      # pts/openssl # runtime 2 hours
       # pts/compilation # runtime 5 hours
     )
     ;;
