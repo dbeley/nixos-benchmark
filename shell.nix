@@ -12,5 +12,6 @@ in pkgs.mkShell {
     pythonPackages.distutils
     pythonPackages.pyyaml
     pythonPackages.numpy
+    pythonPackages.cython
   ];
 }

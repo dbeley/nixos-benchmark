@@ -15,6 +15,7 @@ without having to install packages globally.
    ```bash
    cd nixos-benchmark
    direnv allow   # only needed once
+   phoronix-test-suite batch-setup   # to setup openbenchmarking or not
    ```
 2. Launch a shell manually (if not using direnv):
    ```bash

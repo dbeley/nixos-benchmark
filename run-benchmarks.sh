@@ -16,9 +16,9 @@ case "$preset" in
     TESTS=(
       pts/openssl
       pts/nginx
-      pts/python
       pts/phpbench
       pts/compress-7zip
+      # pts/compilation # runtime 5 hours
     )
     ;;
   gaming)
@@ -36,11 +36,9 @@ case "$preset" in
     )
     ;;
   steam)
-    mapfile -t TESTS < <(phoronix-test-suite list-tests | awk '/Steam/ {print $1}')
-    if [ ${#TESTS[@]} -eq 0 ]; then
-      echo "No Steam game benchmarks found in phoronix-test-suite." >&2
-      exit 1
-    fi
+    TESTS=(
+      pts/steam
+    )
     ;;
   *)
     echo "Unknown preset: $preset" >&2
