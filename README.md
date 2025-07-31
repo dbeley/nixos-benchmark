@@ -54,3 +54,16 @@ The environment includes the following packages:
 
 These dependencies cover a variety of test scenarios so the suite should
 run out-of-the-box on most systems.
+
+## Minimal Benchmark Runner
+A simple Python script `pts_nix.py` reimplements basic functionality of the Phoronix Test Suite. It supports running `phpbench`, the `7zip` compression test and an `openssl` speed benchmark. Results are written to the `results/` directory in JSON format.
+
+Run all benchmarks:
+```bash
+python pts_nix.py
+```
+Specify individual benchmarks:
+```bash
+python pts_nix.py phpbench 7zip
+```
+
