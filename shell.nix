@@ -9,5 +9,11 @@ in pkgs.mkShell {
     fio
     glmark2
     openssl
+    speedtest-cli
+    ffmpeg
+    x264
+    sqlite
+    php
+    gnumake
   ];
 }
