@@ -7,7 +7,6 @@ import json
 import os
 import platform
 import re
-import shlex
 import shutil
 import sqlite3
 import subprocess
@@ -17,7 +16,28 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Sequence, Tuple
+from typing import Callable, Dict, List, Sequence, Tuple
+
+
+DEFAULT_STRESS_NG_SECONDS = 5
+DEFAULT_STRESS_NG_METHOD = "fft"
+DEFAULT_FIO_SIZE_MB = 64
+DEFAULT_FIO_RUNTIME = 5
+DEFAULT_FIO_BLOCK_KB = 1024
+DEFAULT_FFMPEG_RESOLUTION = "1280x720"
+DEFAULT_FFMPEG_DURATION = 5
+DEFAULT_FFMPEG_CODEC = "libx264"
+DEFAULT_X264_RESOLUTION = "1280x720"
+DEFAULT_X264_FRAMES = 240
+DEFAULT_X264_PRESET = "medium"
+DEFAULT_X264_CRF = 23
+DEFAULT_SQLITE_ROWS = 50_000
+DEFAULT_SQLITE_SELECTS = 1_000
+DEFAULT_UNIGINE_HEAVEN_CMD = ("unigine-heaven", "-benchmark")
+DEFAULT_UNIGINE_VALLEY_CMD = ("unigine-valley", "-benchmark")
+DEFAULT_OPENSSL_SECONDS = 3
+DEFAULT_OPENSSL_ALGORITHM = "aes-256-cbc"
+DEFAULT_GLMARK2_SIZE = "1920x1080"
 
 
 @dataclass(frozen=True)
@@ -136,7 +156,10 @@ def parse_stress_ng_output(output: str) -> Dict[str, float]:
     raise ValueError("Unable to parse stress-ng metrics (try increasing runtime)")
 
 
-def run_openssl(seconds: int, algorithm: str) -> Dict[str, object]:
+def run_openssl(
+    seconds: int = DEFAULT_OPENSSL_SECONDS,
+    algorithm: str = DEFAULT_OPENSSL_ALGORITHM,
+) -> Dict[str, object]:
     command = ["openssl", "speed", "-elapsed", "-seconds", str(seconds), algorithm]
     stdout, duration = run_command(command)
     metrics = parse_openssl_output(stdout, algorithm)
@@ -254,7 +277,9 @@ def parse_glmark2_output(output: str) -> Dict[str, float]:
     return {"score": float(match.group(1))}
 
 
-def run_glmark2(size: str, offscreen: bool) -> Dict[str, object]:
+def run_glmark2(
+    size: str = DEFAULT_GLMARK2_SIZE, offscreen: bool = True
+) -> Dict[str, object]:
     command = ["glmark2", "-s", size]
     if offscreen:
         command.append("--off-screen")
@@ -270,10 +295,8 @@ def run_glmark2(size: str, offscreen: bool) -> Dict[str, object]:
     }
 
 
-def run_speedtest_cli(server_id: str | None) -> Dict[str, object]:
+def run_speedtest_cli() -> Dict[str, object]:
     command = ["speedtest-cli", "--json"]
-    if server_id:
-        command.extend(["--server", str(server_id)])
     stdout, duration = run_command(command)
     payload = json.loads(stdout)
     metrics = {
@@ -285,34 +308,8 @@ def run_speedtest_cli(server_id: str | None) -> Dict[str, object]:
     return {
         "name": "speedtest-cli",
         "command": " ".join(command),
-        "parameters": {"server": server_id or "auto"},
+        "parameters": {"selection": "auto"},
         "metrics": metrics,
-        "duration_seconds": duration,
-        "raw_output": stdout,
-    }
-
-
-def run_kernel_build(kernel_source: str, target: str, jobs: int) -> Dict[str, object]:
-    source_path = Path(kernel_source).expanduser().resolve()
-    if not source_path.exists():
-        raise FileNotFoundError(kernel_source)
-    command = [
-        "make",
-        "-C",
-        str(source_path),
-        f"-j{jobs}",
-        target,
-    ]
-    stdout, duration = run_command(command)
-    return {
-        "name": "linux-kernel-build",
-        "command": " ".join(command),
-        "parameters": {
-            "source": str(source_path),
-            "target": target,
-            "jobs": jobs,
-        },
-        "metrics": {"build_time_seconds": duration},
         "duration_seconds": duration,
         "raw_output": stdout,
     }
@@ -329,7 +326,9 @@ def parse_ffmpeg_progress(output: str) -> Dict[str, float]:
     return metrics
 
 
-def run_ffmpeg_benchmark(resolution: str, duration_secs: int, codec: str) -> Dict[str, object]:
+def run_ffmpeg_benchmark(
+    resolution: str, duration_secs: int, codec: str
+) -> Dict[str, object]:
     command = [
         "ffmpeg",
         "-hide_banner",
@@ -358,7 +357,11 @@ def run_ffmpeg_benchmark(resolution: str, duration_secs: int, codec: str) -> Dic
     return {
         "name": "ffmpeg-transcode",
         "command": " ".join(command),
-        "parameters": {"resolution": resolution, "duration": duration_secs, "codec": codec},
+        "parameters": {
+            "resolution": resolution,
+            "duration": duration_secs,
+            "codec": codec,
+        },
         "metrics": metrics,
         "duration_seconds": duration,
         "raw_output": stdout,
@@ -389,13 +392,17 @@ def generate_test_pattern(resolution: str, frames: int) -> Path:
 
 
 def parse_x264_output(output: str) -> Dict[str, float]:
-    match = re.search(r"encoded\s+\d+\s+frames,\s+([\d.]+)\s+fps,\s+([\d.]+)\s+kb/s", output)
+    match = re.search(
+        r"encoded\s+\d+\s+frames,\s+([\d.]+)\s+fps,\s+([\d.]+)\s+kb/s", output
+    )
     if not match:
         raise ValueError("Unable to parse x264 summary")
     return {"fps": float(match.group(1)), "kb_per_s": float(match.group(2))}
 
 
-def run_x264_benchmark(resolution: str, frames: int, preset: str, crf: int) -> Dict[str, object]:
+def run_x264_benchmark(
+    resolution: str, frames: int, preset: str, crf: int
+) -> Dict[str, object]:
     pattern_path = generate_test_pattern(resolution, frames)
     try:
         command = [
@@ -420,7 +427,12 @@ def run_x264_benchmark(resolution: str, frames: int, preset: str, crf: int) -> D
     return {
         "name": "x264-encode",
         "command": " ".join(command),
-        "parameters": {"resolution": resolution, "frames": frames, "preset": preset, "crf": crf},
+        "parameters": {
+            "resolution": resolution,
+            "frames": frames,
+            "preset": preset,
+            "crf": crf,
+        },
         "metrics": metrics,
         "duration_seconds": duration,
         "raw_output": stdout,
@@ -484,15 +496,15 @@ def parse_unigine_output(output: str) -> Dict[str, float]:
     return metrics
 
 
-def run_unigine_command(command_str: str, name: str) -> Dict[str, object]:
-    if not command_str:
+def run_unigine_command(command: Sequence[str], name: str) -> Dict[str, object]:
+    if not command:
         raise FileNotFoundError(f"No command configured for {name}")
-    command = shlex.split(command_str)
-    stdout, duration = run_command(command)
+    command_list = list(command)
+    stdout, duration = run_command(command_list)
     metrics = parse_unigine_output(stdout)
     return {
         "name": name,
-        "command": command_str,
+        "command": " ".join(command_list),
         "parameters": {},
         "metrics": metrics,
         "duration_seconds": duration,
@@ -514,20 +526,56 @@ PRESET_DEFINITIONS: Dict[str, Dict[str, object]] = {
     },
     "cpu": {"description": "CPU heavy synthetic workloads.", "categories": ("cpu",)},
     "io": {"description": "Disk and filesystem focused tests.", "categories": ("io",)},
-    "network": {"description": "Network throughput and latency tests.", "categories": ("network",)},
+    "network": {
+        "description": "Network throughput and latency tests.",
+        "categories": ("network",),
+    },
     "gpu": {"description": "GPU render benchmarks.", "categories": ("gpu",)},
-    "media": {"description": "Media encode/transcode workloads.", "categories": ("media",)},
-    "database": {"description": "Data and storage bound tests.", "categories": ("database",)},
+    "media": {
+        "description": "Media encode/transcode workloads.",
+        "categories": ("media",),
+    },
+    "database": {
+        "description": "Data and storage bound tests.",
+        "categories": ("database",),
+    },
     "extreme": {
-        "description": "Adds heavy compilation and encoding tests.",
-        "benchmarks": ("linux-kernel-build", "ffmpeg-transcode", "x264-encode"),
+        "description": "Adds heavy media encoding tests.",
+        "benchmarks": ("ffmpeg-transcode", "x264-encode"),
     },
     "all": {"description": "Run every available benchmark.", "all": True},
 }
 
 
-def _default_jobs() -> int:
-    return max(1, os.cpu_count() or 1)
+class CommaSeparatedListAction(argparse.Action):
+    """Parse comma-separated values and accumulate across repeated flags."""
+
+    def __init__(self, option_strings, dest, **kwargs):
+        self.valid_choices = kwargs.pop("choices", None)
+        super().__init__(option_strings, dest, **kwargs)
+        self.choices = self.valid_choices
+
+    def __call__(self, parser, namespace, values, option_string=None) -> None:
+        option_string = option_string or self.option_strings[0]
+        current = list(getattr(namespace, self.dest, []) or [])
+        raw_values = values if isinstance(values, list) else [values]
+        tokens = [
+            part.strip()
+            for token in raw_values
+            for part in token.split(",")
+            if part.strip()
+        ]
+        if not tokens:
+            parser.error(f"{option_string} requires at least one value.")
+        for token in tokens:
+            if self.valid_choices and token not in self.valid_choices:
+                choices = ", ".join(self.valid_choices)
+                parser.error(
+                    f"{option_string}: invalid choice: {token!r} "
+                    f"(choose from {choices})"
+                )
+            current.append(token)
+        setattr(namespace, self.dest, current)
 
 
 BENCHMARK_DEFINITIONS: List[BenchmarkDefinition] = [
@@ -536,7 +584,7 @@ BENCHMARK_DEFINITIONS: List[BenchmarkDefinition] = [
         categories=("cpu", "crypto"),
         presets=("balanced", "cpu", "all"),
         description="OpenSSL symmetric throughput test.",
-        runner=lambda args: run_openssl(args.openssl_seconds, args.openssl_algorithm),
+        runner=lambda args: run_openssl(),
         requires=("openssl",),
     ),
     BenchmarkDefinition(
@@ -552,7 +600,9 @@ BENCHMARK_DEFINITIONS: List[BenchmarkDefinition] = [
         categories=("cpu",),
         presets=("balanced", "cpu", "all"),
         description="stress-ng CPU saturation.",
-        runner=lambda args: run_stress_ng(args.stress_ng_seconds, args.stress_ng_method),
+        runner=lambda args: run_stress_ng(
+            DEFAULT_STRESS_NG_SECONDS, DEFAULT_STRESS_NG_METHOD
+        ),
         requires=("stress-ng",),
     ),
     BenchmarkDefinition(
@@ -560,7 +610,9 @@ BENCHMARK_DEFINITIONS: List[BenchmarkDefinition] = [
         categories=("io",),
         presets=("balanced", "io", "all"),
         description="fio sequential read/write.",
-        runner=lambda args: run_fio(args.fio_size_mb, args.fio_runtime, args.fio_block_kb),
+        runner=lambda args: run_fio(
+            DEFAULT_FIO_SIZE_MB, DEFAULT_FIO_RUNTIME, DEFAULT_FIO_BLOCK_KB
+        ),
         requires=("fio",),
     ),
     BenchmarkDefinition(
@@ -568,7 +620,7 @@ BENCHMARK_DEFINITIONS: List[BenchmarkDefinition] = [
         categories=("gpu",),
         presets=("gpu", "all"),
         description="glmark2 GPU renderer.",
-        runner=lambda args: run_glmark2(args.glmark2_size, args.glmark2_mode == "offscreen"),
+        runner=lambda args: run_glmark2(offscreen=args.glmark2_mode == "offscreen"),
         requires=("glmark2",),
     ),
     BenchmarkDefinition(
@@ -576,19 +628,8 @@ BENCHMARK_DEFINITIONS: List[BenchmarkDefinition] = [
         categories=("network",),
         presets=("balanced", "network", "all"),
         description="speedtest-cli throughput test.",
-        runner=lambda args: run_speedtest_cli(args.speedtest_server or None),
+        runner=lambda args: run_speedtest_cli(),
         requires=("speedtest-cli",),
-    ),
-    BenchmarkDefinition(
-        key="linux-kernel-build",
-        categories=("cpu",),
-        presets=("cpu", "extreme", "all"),
-        description="Parallel Linux kernel compilation.",
-        runner=lambda args: run_kernel_build(args.kernel_source, args.kernel_target, args.kernel_jobs),
-        requires=("make",),
-        availability_check=lambda args: (
-            (True, "") if args.kernel_source else (False, "Set --kernel-source to enable this benchmark.")
-        ),
     ),
     BenchmarkDefinition(
         key="ffmpeg-transcode",
@@ -596,9 +637,9 @@ BENCHMARK_DEFINITIONS: List[BenchmarkDefinition] = [
         presets=("media", "extreme", "all"),
         description="FFmpeg software transcode.",
         runner=lambda args: run_ffmpeg_benchmark(
-            args.ffmpeg_resolution,
-            args.ffmpeg_duration,
-            args.ffmpeg_codec,
+            DEFAULT_FFMPEG_RESOLUTION,
+            DEFAULT_FFMPEG_DURATION,
+            DEFAULT_FFMPEG_CODEC,
         ),
         requires=("ffmpeg",),
     ),
@@ -608,10 +649,10 @@ BENCHMARK_DEFINITIONS: List[BenchmarkDefinition] = [
         presets=("media", "extreme", "all"),
         description="Raw x264 encode throughput.",
         runner=lambda args: run_x264_benchmark(
-            args.x264_resolution,
-            args.x264_frames,
-            args.x264_preset,
-            args.x264_crf,
+            DEFAULT_X264_RESOLUTION,
+            DEFAULT_X264_FRAMES,
+            DEFAULT_X264_PRESET,
+            DEFAULT_X264_CRF,
         ),
         requires=("x264", "ffmpeg"),
     ),
@@ -620,34 +661,43 @@ BENCHMARK_DEFINITIONS: List[BenchmarkDefinition] = [
         categories=("io", "database"),
         presets=("balanced", "io", "database", "all"),
         description="SQLite insert/select mix.",
-        runner=lambda args: run_sqlite_benchmark(args.sqlite_rows, args.sqlite_selects),
+        runner=lambda args: run_sqlite_benchmark(
+            DEFAULT_SQLITE_ROWS, DEFAULT_SQLITE_SELECTS
+        ),
     ),
     BenchmarkDefinition(
         key="unigine-heaven",
         categories=("gpu",),
         presets=("gpu", "all"),
         description="Unigine Heaven GPU benchmark.",
-        runner=lambda args: run_unigine_command(args.unigine_heaven_cmd, "unigine-heaven"),
-        availability_check=lambda args: (
-            (True, "") if args.unigine_heaven_cmd else (False, "Provide --unigine-heaven-cmd")
+        runner=lambda args: run_unigine_command(
+            DEFAULT_UNIGINE_HEAVEN_CMD, "unigine-heaven"
         ),
+        requires=("unigine-heaven",),
     ),
     BenchmarkDefinition(
         key="unigine-valley",
         categories=("gpu",),
         presets=("gpu", "all"),
         description="Unigine Valley GPU benchmark.",
-        runner=lambda args: run_unigine_command(args.unigine_valley_cmd, "unigine-valley"),
-        availability_check=lambda args: (
-            (True, "") if args.unigine_valley_cmd else (False, "Provide --unigine-valley-cmd")
+        runner=lambda args: run_unigine_command(
+            DEFAULT_UNIGINE_VALLEY_CMD, "unigine-valley"
         ),
+        requires=("unigine-valley",),
     ),
 ]
 
 
 def preset_help_text() -> str:
-    rows = [f"{name}: {data['description']}" for name, data in sorted(PRESET_DEFINITIONS.items())]
+    rows = [
+        f"{name}: {data['description']}"
+        for name, data in sorted(PRESET_DEFINITIONS.items())
+    ]
     return "; ".join(rows)
+
+
+def unique_ordered(values: Sequence[str]) -> List[str]:
+    return list(dict.fromkeys(values))
 
 
 def expand_presets(presets: Sequence[str]) -> List[str]:
@@ -671,7 +721,9 @@ def expand_presets(presets: Sequence[str]) -> List[str]:
     return sorted(selected)
 
 
-def execute_definition(definition: BenchmarkDefinition, args: argparse.Namespace) -> Dict[str, object]:
+def execute_definition(
+    definition: BenchmarkDefinition, args: argparse.Namespace
+) -> Dict[str, object]:
     ok, reason = check_requirements(definition.requires)
     if not ok:
         return build_status_entry(definition, "skipped", reason)
@@ -753,10 +805,6 @@ def describe_benchmark(bench: Dict[str, object]) -> str:
         upload = metrics.get("upload_mbps")
         if download is not None and upload is not None:
             return f"D {download:.1f} / U {upload:.1f} Mbps"
-    elif name == "linux-kernel-build":
-        build_time = metrics.get("build_time_seconds")
-        if build_time is not None:
-            return f"{build_time:.1f} s"
     elif name == "ffmpeg-transcode":
         fps = metrics.get("calculated_fps")
         if fps is not None:
@@ -794,7 +842,9 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
             name = bench.get("name", "")
             if not name:
                 continue
-            meta = bench_metadata.setdefault(name, {"categories": set(), "presets": set()})
+            meta = bench_metadata.setdefault(
+                name, {"categories": set(), "presets": set()}
+            )
             meta["categories"].update(bench.get("categories", []))
             meta["presets"].update(bench.get("presets", []))
 
@@ -826,7 +876,7 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
         category_label = ", ".join(sorted(meta.get("categories", []))) or "unspecified"
         preset_label = ", ".join(sorted(meta.get("presets", []))) or "unspecified"
         header_cells += (
-            f"<th title=\"Presets: {html.escape(preset_label)}\">"
+            f'<th title="Presets: {html.escape(preset_label)}">'
             f"{html.escape(name)}<br><small>{html.escape(category_label)}</small>"
             "</th>"
         )
@@ -838,7 +888,7 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
         cell_html = "".join(f"<td>{html.escape(value)}</td>" for value in row["cells"])
         body_rows.append(
             "<tr>"
-            f"<td><a href=\"{html.escape(row['file'])}\">{html.escape(row['file'])}</a></td>"
+            f'<td><a href="{html.escape(row["file"])}">{html.escape(row["file"])}</a></td>'
             f"<td>{html.escape(row['generated'])}</td>"
             f"<td>{html.escape(system_label)}</td>"
             f"<td>{html.escape(preset_label)}</td>"
@@ -886,17 +936,6 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run a lightweight benchmark suite.")
     parser.add_argument(
-        "--openssl-seconds",
-        type=int,
-        default=3,
-        help="Duration to run openssl speed for each algorithm.",
-    )
-    parser.add_argument(
-        "--openssl-algorithm",
-        default="aes-256-cbc",
-        help="Algorithm to benchmark with openssl speed.",
-    )
-    parser.add_argument(
         "--output",
         default="",
         help="Where to write the benchmark results (JSON). Leave empty for timestamped filenames.",
@@ -914,22 +953,20 @@ def main() -> int:
     parser.add_argument(
         "--preset",
         dest="presets",
-        action="append",
+        action=CommaSeparatedListAction,
         choices=sorted(PRESET_DEFINITIONS.keys()),
+        metavar="PRESET",
         default=[],
-        help="Add a benchmark preset to run (defaults to 'balanced').",
+        help="Comma-separated preset names (defaults to 'balanced').",
     )
     parser.add_argument(
         "--benchmarks",
-        nargs="+",
-        default=None,
-        help="Explicit benchmark names to run (skips preset expansion).",
-    )
-    parser.add_argument(
-        "--skip-benchmark",
-        action="append",
+        dest="benchmarks",
+        action=CommaSeparatedListAction,
+        choices=sorted(definition.key for definition in BENCHMARK_DEFINITIONS),
+        metavar="BENCHMARK",
         default=[],
-        help="Benchmark name to skip from the current selection.",
+        help="Comma-separated benchmark names to run (skips preset expansion).",
     )
     parser.add_argument(
         "--list-presets",
@@ -941,137 +978,11 @@ def main() -> int:
         action="store_true",
         help="List available benchmarks and exit.",
     )
-    parser.add_argument("--skip-7zip", action="store_true", help="Skip the 7-Zip benchmark.")
-    parser.add_argument(
-        "--skip-openssl",
-        action="store_true",
-        help="Skip running the OpenSSL benchmark.",
-    )
-    parser.add_argument(
-        "--skip-stress-ng",
-        action="store_true",
-        help="Skip the stress-ng CPU saturation test.",
-    )
-    parser.add_argument(
-        "--stress-ng-seconds",
-        type=int,
-        default=5,
-        help="stress-ng runtime for the CPU test.",
-    )
-    parser.add_argument(
-        "--stress-ng-method",
-        default="fft",
-        help="stress-ng CPU method (see stress-ng --cpu-method help).",
-    )
-    parser.add_argument(
-        "--skip-fio",
-        action="store_true",
-        help="Skip the fio sequential read/write benchmark.",
-    )
-    parser.add_argument("--fio-size-mb", type=int, default=64, help="fio working-set size (MiB).")
-    parser.add_argument("--fio-runtime", type=int, default=5, help="fio runtime per job (seconds).")
-    parser.add_argument(
-        "--fio-block-kb",
-        type=int,
-        default=1024,
-        help="fio block size (KiB).",
-    )
-    parser.add_argument(
-        "--skip-glmark2",
-        action="store_true",
-        help="Skip the glmark2 GPU benchmark.",
-    )
-    parser.add_argument(
-        "--glmark2-size",
-        default="1920x1080",
-        help="Resolution for glmark2 runs (e.g. 1920x1080).",
-    )
     parser.add_argument(
         "--glmark2-mode",
         choices=("offscreen", "onscreen"),
         default="offscreen",
         help="Rendering mode for glmark2 (offscreen avoids taking over the display).",
-    )
-    parser.add_argument(
-        "--speedtest-server",
-        default="",
-        help="Optional server ID for speedtest-cli (defaults to automatic selection).",
-    )
-    parser.add_argument(
-        "--kernel-source",
-        default="",
-        help="Path to the Linux kernel sources for the compilation benchmark.",
-    )
-    parser.add_argument(
-        "--kernel-target",
-        default="bzImage",
-        help="Kernel make target (e.g. bzImage, vmlinux).",
-    )
-    parser.add_argument(
-        "--kernel-jobs",
-        type=int,
-        default=_default_jobs(),
-        help="Number of parallel make jobs for the kernel build.",
-    )
-    parser.add_argument(
-        "--ffmpeg-resolution",
-        default="1280x720",
-        help="Resolution for the FFmpeg benchmark (e.g. 1920x1080).",
-    )
-    parser.add_argument(
-        "--ffmpeg-duration",
-        type=int,
-        default=5,
-        help="Duration (seconds) for the FFmpeg test pattern clip.",
-    )
-    parser.add_argument(
-        "--ffmpeg-codec",
-        default="libx264",
-        help="Video codec to use for the FFmpeg benchmark.",
-    )
-    parser.add_argument(
-        "--x264-resolution",
-        default="1280x720",
-        help="Resolution for the standalone x264 benchmark.",
-    )
-    parser.add_argument(
-        "--x264-frames",
-        type=int,
-        default=240,
-        help="Number of frames to encode for x264.",
-    )
-    parser.add_argument(
-        "--x264-preset",
-        default="medium",
-        help="x264 preset to benchmark (e.g. veryfast, medium, slow).",
-    )
-    parser.add_argument(
-        "--x264-crf",
-        type=int,
-        default=23,
-        help="x264 constant rate factor (quality setting).",
-    )
-    parser.add_argument(
-        "--sqlite-rows",
-        type=int,
-        default=50000,
-        help="Number of rows to insert in the SQLite test.",
-    )
-    parser.add_argument(
-        "--sqlite-selects",
-        type=int,
-        default=1000,
-        help="Number of aggregate SELECT queries in the SQLite test.",
-    )
-    parser.add_argument(
-        "--unigine-heaven-cmd",
-        default="",
-        help="Command (including args) to run Unigine Heaven in benchmark mode.",
-    )
-    parser.add_argument(
-        "--unigine-valley-cmd",
-        default="",
-        help="Command (including args) to run Unigine Valley in benchmark mode.",
     )
     args = parser.parse_args()
 
@@ -1087,57 +998,30 @@ def main() -> int:
         for definition in BENCHMARK_DEFINITIONS:
             categories = ", ".join(definition.categories)
             presets = ", ".join(definition.presets)
-            print(f"  {definition.key:<20} [{categories}] presets: {presets} - {definition.description}")
+            print(
+                f"  {definition.key:<20} [{categories}] presets: {presets} - {definition.description}"
+            )
         return 0
 
-    requested_presets = list(args.presets)
-    selected_names: List[str]
-    if args.benchmarks:
-        selected_names = list(dict.fromkeys(args.benchmarks))
-    else:
-        if not requested_presets:
-            requested_presets = ["balanced"]
-        selected_names = expand_presets(requested_presets)
-
-    known_benchmarks = {definition.key for definition in BENCHMARK_DEFINITIONS}
-    invalid = [name for name in selected_names if name not in known_benchmarks]
-    if invalid:
-        print(f"Unknown benchmarks requested: {', '.join(invalid)}", file=sys.stderr)
-    selected_names = [name for name in selected_names if name in known_benchmarks]
-
-    skip_names = set(args.skip_benchmark or [])
-    legacy_skips = {
-        "skip_openssl": "openssl-speed",
-        "skip_7zip": "7zip-benchmark",
-        "skip_stress_ng": "stress-ng",
-        "skip_fio": "fio-seq",
-        "skip_glmark2": "glmark2",
-    }
-    for attr, bench_name in legacy_skips.items():
-        if getattr(args, attr, False):
-            skip_names.add(bench_name)
+    requested_presets = unique_ordered(args.presets)
+    if not args.benchmarks and not requested_presets:
+        requested_presets = ["balanced"]
+    selected_names = (
+        unique_ordered(args.benchmarks)
+        if args.benchmarks
+        else expand_presets(requested_presets)
+    )
 
     if not selected_names:
         print("No benchmarks requested.", file=sys.stderr)
         return 1
 
-    definition_map = {definition.key: definition for definition in BENCHMARK_DEFINITIONS}
+    definition_map = {
+        definition.key: definition for definition in BENCHMARK_DEFINITIONS
+    }
     results: List[Dict[str, object]] = []
     for name in selected_names:
         definition = definition_map[name]
-        if name in skip_names:
-            results.append(
-                {
-                    "name": name,
-                    "status": "skipped",
-                    "message": "Skipped via CLI flag",
-                    "categories": list(definition.categories),
-                    "presets": list(definition.presets),
-                    "metrics": {},
-                    "parameters": {},
-                }
-            )
-            continue
         results.append(execute_definition(definition, args))
 
     if not results:
@@ -1152,7 +1036,6 @@ def main() -> int:
         "benchmarks": results,
         "presets_requested": requested_presets,
         "benchmarks_requested": selected_names,
-        "skip_requests": sorted(skip_names),
     }
 
     if args.output:

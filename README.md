@@ -35,6 +35,8 @@ Use presets to quickly select a workload mix:
 python simple_benchmarks.py --list-presets
 # run a CPU + IO focused pass
 python simple_benchmarks.py --preset cpu --preset io
+# the same selection can be expressed as a single comma-separated flag
+python simple_benchmarks.py --preset cpu,io
 # run everything (may take a long time)
 python simple_benchmarks.py --preset all
 ```
@@ -58,20 +60,16 @@ The default `balanced` preset runs:
 
 Additional tools can be enabled via presets or explicit selection:
 
-- Linux kernel compilation timer (`--kernel-source /path/to/linux`)
-- FFmpeg synthetic transcode and standalone x264 encode tests
+- FFmpeg synthetic transcode and standalone x264 encode tests (fixed preset/resolution)
 - SQLite mixed workload via the Python `sqlite3` module
-- GPU tests (glmark2 by default, Unigine Heaven/Valley if you provide `--unigine-*-cmd`)
+- GPU tests (glmark2 by default, plus Unigine Heaven/Valley when those binaries are installed)
 
 Use `--list-benchmarks` to see the full catalog along with category and preset metadata.
 
 ## Notes on external tools
 
-- **Linux kernel build**: pass `--kernel-source` to the root of a configured kernel
-  tree. The command uses `make -C <path> -jN <target>` and measures the total runtime.
-- **Unigine Heaven / Valley**: supply fully qualified launch commands (including flags)
-  via `--unigine-heaven-cmd` and `--unigine-valley-cmd`. The runner parses the stdout
-  for FPS/score lines and records them in the report.
+- **Unigine Heaven / Valley**: if `unigine-heaven` or `unigine-valley` is in `PATH`, the suite
+  runs it with the built-in `-benchmark` preset and parses the resulting FPS/score lines.
 
 ## Reports and dashboard
 
