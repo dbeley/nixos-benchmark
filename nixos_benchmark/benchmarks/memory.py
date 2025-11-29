@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import subprocess
-from typing import ClassVar, Dict, Tuple
+from typing import ClassVar, Tuple
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
+from ..parsers import parse_sysbench_memory_output, parse_tinymembench_output
 from ..utils import command_exists, run_command
 from .base import (
     BenchmarkBase,
@@ -66,7 +66,7 @@ class SysbenchMemoryBenchmark(BenchmarkBase):
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
         try:
-            metrics_data = self._parse_output(stdout)
+            metrics_data = parse_sysbench_memory_output(stdout)
             metrics_data["threads"] = thread_count
             metrics_data["block_kb"] = self.block_kb
             metrics_data["total_mb"] = self.total_mb
@@ -98,28 +98,6 @@ class SysbenchMemoryBenchmark(BenchmarkBase):
             raw_output=stdout,
             message=message,
         )
-
-    def _parse_output(self, output: str) -> Dict[str, float]:
-        """Parse sysbench memory benchmark output."""
-        metrics: Dict[str, float] = {}
-        operations = re.search(
-            r"Total operations:\s+([\d.]+)\s+\(([\d.]+)\s+per second\)", output
-        )
-        throughput = re.search(
-            r"([\d.]+)\s+MiB transferred\s+\(([\d.]+)\s+MiB/sec\)", output
-        )
-        total_time = re.search(r"total time:\s+([\d.]+)s", output)
-        if operations:
-            metrics["operations"] = float(operations.group(1))
-            metrics["operations_per_sec"] = float(operations.group(2))
-        if throughput:
-            metrics["transferred_mib"] = float(throughput.group(1))
-            metrics["throughput_mib_per_s"] = float(throughput.group(2))
-        if total_time:
-            metrics["total_time_secs"] = float(total_time.group(1))
-        if not metrics:
-            raise ValueError("Unable to parse sysbench memory output")
-        return metrics
 
     def format_result(self, result: BenchmarkResult) -> str:
         """Format for display."""

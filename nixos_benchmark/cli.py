@@ -336,19 +336,20 @@ def main() -> int:
                 raw_output=raw_output,
             )
         
-        # Update result with categories and presets from definition
-        result = BenchmarkResult(
-            name=result.name,
-            status=result.status,
-            categories=definition.categories,
-            presets=definition.presets,
-            metrics=result.metrics,
-            parameters=result.parameters,
-            duration_seconds=result.duration_seconds,
-            command=result.command,
-            message=result.message,
-            raw_output=result.raw_output,
-        )
+        # Update result with categories and presets from definition if not already set
+        if result.categories != definition.categories or result.presets != definition.presets:
+            result = BenchmarkResult(
+                name=result.name,
+                status=result.status,
+                categories=definition.categories,
+                presets=definition.presets,
+                metrics=result.metrics,
+                parameters=result.parameters,
+                duration_seconds=result.duration_seconds,
+                command=result.command,
+                message=result.message,
+                raw_output=result.raw_output,
+            )
         results.append(result)
 
     if not results:

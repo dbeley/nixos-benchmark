@@ -61,7 +61,6 @@ DEFAULT_IPERF_DURATION = 3
 DEFAULT_NETPERF_DURATION = 3
 
 
-@dataclass
 class BenchmarkBase(ABC):
     """Abstract base class for all benchmarks."""
 

@@ -55,10 +55,10 @@ def initialize_benchmark_formatters() -> None:
     from ..output import register_benchmark_formatter
     
     # Register CPU benchmark formatters
-    register_benchmark_formatter(OpenSSLBenchmark())
-    register_benchmark_formatter(SevenZipBenchmark())
-    register_benchmark_formatter(StressNGBenchmark())
-    register_benchmark_formatter(SysbenchCPUBenchmark())
+    # Use class-level attributes for registration
+    for cls in [OpenSSLBenchmark, SevenZipBenchmark, StressNGBenchmark, SysbenchCPUBenchmark]:
+        instance = cls()
+        register_benchmark_formatter(instance)
     
     # Register Memory benchmark formatters
     register_benchmark_formatter(SysbenchMemoryBenchmark())
