@@ -42,8 +42,6 @@ DEFAULT_COMPRESS_SIZE_MB = 32
 # Default constants for database benchmarks
 DEFAULT_SQLITE_ROWS = 50_000
 DEFAULT_SQLITE_SELECTS = 1_000
-DEFAULT_PGBENCH_SCALE = 1
-DEFAULT_PGBENCH_TIME = 5
 
 # Default constants for media benchmarks
 DEFAULT_FFMPEG_RESOLUTION = "1280x720"
@@ -101,7 +99,7 @@ PRESET_DEFINITIONS: Dict[str, Dict[str, object]] = {
         "categories": ("crypto",),
     },
     "database": {
-        "description": "Database engines (SQLite and PostgreSQL).",
+        "description": "Database engines (SQLite only).",
         "categories": ("database",),
     },
     "gpu-light": {

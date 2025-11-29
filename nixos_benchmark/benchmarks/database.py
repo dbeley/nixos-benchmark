@@ -2,19 +2,13 @@
 from __future__ import annotations
 
 import argparse
-import os
-import shutil
 import sqlite3
-import subprocess
 import tempfile
 import time
 from pathlib import Path
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
-from ..utils import run_command
 from .base import (
-    DEFAULT_PGBENCH_SCALE,
-    DEFAULT_PGBENCH_TIME,
     DEFAULT_SQLITE_ROWS,
     DEFAULT_SQLITE_SELECTS,
 )
