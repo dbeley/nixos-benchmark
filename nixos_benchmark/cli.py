@@ -6,7 +6,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Sequence
+from typing import List, Sequence, Tuple
 
 from .benchmark_registry import PRESETS, get_all_benchmarks
 from .models import (
@@ -81,7 +81,7 @@ def expand_presets(presets: Sequence[str]) -> List[str]:
 
 def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
     """Execute a single benchmark instance."""
-    ok, reason = benchmark.validate()
+    ok, reason = benchmark.validate(args)
     if not ok:
         return BenchmarkResult(
             name=benchmark.key,
@@ -243,16 +243,18 @@ def main() -> int:
         return 1
 
     benchmark_map = {bench.key: bench for bench in ALL_BENCHMARKS}
-    results: List[BenchmarkResult] = []
+    results_with_benchmarks: List[Tuple[BenchmarkResult, BenchmarkBase]] = []
     for name in selected_names:
         print(f"Executing {name}")
         benchmark = benchmark_map[name]
-        results.append(execute_benchmark(benchmark, args))
+        result = execute_benchmark(benchmark, args)
+        results_with_benchmarks.append((result, benchmark))
 
-    if not results:
+    if not results_with_benchmarks:
         print("No benchmarks executed.", file=sys.stderr)
         return 1
 
+    results = [result for result, _ in results_with_benchmarks]
     generated_at = datetime.now(timezone.utc)
     system_info = gather_system_info(args.hostname or None)
 
@@ -277,13 +279,10 @@ def main() -> int:
     write_json_report(report, output_path)
 
     print(f"Wrote {output_path}")
-    for bench in results:
-        # Use the benchmark instance's format_result method
-        benchmark_inst = benchmark_map.get(bench.name)
-        if benchmark_inst:
-            summary = benchmark_inst.format_result(bench)
-            if summary:
-                print(f"{bench.name}: {summary}")
+    for result, benchmark in results_with_benchmarks:
+        summary = benchmark.format_result(result)
+        if summary:
+            print(f"{result.name}: {summary}")
 
     if args.html_summary:
         build_html_summary(output_path.parent, Path(args.html_summary))

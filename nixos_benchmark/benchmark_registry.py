@@ -14,6 +14,7 @@ from typing import ClassVar, Tuple
 from .benchmarks import cpu, memory, io, gpu, compression, crypto, database, media, network
 from .benchmarks.base import BenchmarkDefinition
 from .models import BenchmarkResult
+from .output import describe_benchmark
 from .utils import check_requirements
 
 
@@ -25,10 +26,14 @@ class BenchmarkBase(ABC):
     presets: ClassVar[Tuple[str, ...]]
     description: ClassVar[str]
 
-    def validate(self) -> Tuple[bool, str]:
+    def validate(self, args: argparse.Namespace = None) -> Tuple[bool, str]:
         """Check if benchmark can run."""
         if hasattr(self, '_required_commands'):
-            return check_requirements(self._required_commands)
+            ok, reason = check_requirements(self._required_commands)
+            if not ok:
+                return ok, reason
+        if hasattr(self, '_availability_check') and args is not None:
+            return self._availability_check(args)
         return True, ""
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
@@ -38,7 +43,6 @@ class BenchmarkBase(ABC):
 
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display - delegates to output module."""
-        from .output import describe_benchmark
         return describe_benchmark(result)
 
 
