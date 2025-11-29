@@ -17,6 +17,7 @@
           stress-ng
           fio
           glmark2
+          vkmark
           openssl
           ffmpeg
           x264

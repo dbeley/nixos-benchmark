@@ -33,11 +33,10 @@ DEFAULT_X264_PRESET = "medium"
 DEFAULT_X264_CRF = 23
 DEFAULT_SQLITE_ROWS = 50_000
 DEFAULT_SQLITE_SELECTS = 1_000
-DEFAULT_UNIGINE_HEAVEN_CMD = ("unigine-heaven", "-benchmark")
-DEFAULT_UNIGINE_VALLEY_CMD = ("unigine-valley", "-benchmark")
 DEFAULT_OPENSSL_SECONDS = 3
 DEFAULT_OPENSSL_ALGORITHM = "aes-256-cbc"
 DEFAULT_GLMARK2_SIZE = "1920x1080"
+DEFAULT_VKMARK_CMD = ("vkmark",)
 DEFAULT_SYSBENCH_CPU_MAX_PRIME = 20000
 DEFAULT_SYSBENCH_RUNTIME = 5
 DEFAULT_SYSBENCH_THREADS = 0
@@ -405,6 +404,42 @@ def run_glmark2(
     }
 
 
+def parse_vkmark_output(output: str) -> Dict[str, float]:
+    scene_pattern = re.compile(
+        r"(?P<scene>[\w-]+).*?(?P<frames>[\d.]+)\s+frames\s+in\s+[\d.]+\s+seconds\s*="
+        r"\s*(?P<fps>[\d.]+)\s*FPS",
+        flags=re.IGNORECASE,
+    )
+    fps_values = [float(match.group("fps")) for match in scene_pattern.finditer(output)]
+    if not fps_values:
+        fps_values = [
+            float(match)
+            for match in re.findall(r"FPS[:=]\s*([\d.]+)", output, flags=re.IGNORECASE)
+        ]
+    if not fps_values:
+        raise ValueError("Unable to parse vkmark FPS results")
+    return {
+        "fps_avg": sum(fps_values) / len(fps_values),
+        "fps_min": min(fps_values),
+        "fps_max": max(fps_values),
+        "samples": len(fps_values),
+    }
+
+
+def run_vkmark(command: Sequence[str] = DEFAULT_VKMARK_CMD) -> Dict[str, object]:
+    command_list = list(command)
+    stdout, duration = run_command(command_list)
+    metrics = parse_vkmark_output(stdout)
+    return {
+        "name": "vkmark",
+        "command": " ".join(command_list),
+        "parameters": {},
+        "metrics": metrics,
+        "duration_seconds": duration,
+        "raw_output": stdout,
+    }
+
+
 def parse_ffmpeg_progress(output: str) -> Dict[str, float]:
     fps_matches = re.findall(r"fps=\s*([\d.]+)", output)
     speed_matches = re.findall(r"speed=\s*([\d.]+)x", output)
@@ -573,35 +608,6 @@ def run_sqlite_benchmark(row_count: int, select_queries: int) -> Dict[str, objec
     }
 
 
-def parse_unigine_output(output: str) -> Dict[str, float]:
-    metrics: Dict[str, float] = {}
-    fps_match = re.search(r"FPS[:=]\s*([\d.]+)", output, re.IGNORECASE)
-    score_match = re.search(r"Score[:=]\s*([\d.]+)", output, re.IGNORECASE)
-    if fps_match:
-        metrics["fps"] = float(fps_match.group(1))
-    if score_match:
-        metrics["score"] = float(score_match.group(1))
-    if not metrics:
-        raise ValueError("Unable to parse Unigine output")
-    return metrics
-
-
-def run_unigine_command(command: Sequence[str], name: str) -> Dict[str, object]:
-    if not command:
-        raise FileNotFoundError(f"No command configured for {name}")
-    command_list = list(command)
-    stdout, duration = run_command(command_list)
-    metrics = parse_unigine_output(stdout)
-    return {
-        "name": name,
-        "command": " ".join(command_list),
-        "parameters": {},
-        "metrics": metrics,
-        "duration_seconds": duration,
-        "raw_output": stdout,
-    }
-
-
 PRESET_DEFINITIONS: Dict[str, Dict[str, object]] = {
     "balanced": {
         "description": "Quick mix of CPU and IO tests.",
@@ -621,7 +627,14 @@ PRESET_DEFINITIONS: Dict[str, Dict[str, object]] = {
         "description": "Memory bandwidth and latency tests.",
         "categories": ("memory",),
     },
-    "gpu": {"description": "GPU render benchmarks.", "categories": ("gpu",)},
+    "gpu-light": {
+        "description": "Lightweight GPU render sanity checks.",
+        "benchmarks": ("glmark2", "vkmark"),
+    },
+    "gpu": {
+        "description": "GPU render benchmarks (glmark2 and vkmark).",
+        "categories": ("gpu",),
+    },
     "all": {"description": "Run every available benchmark.", "all": True},
 }
 
@@ -722,10 +735,18 @@ BENCHMARK_DEFINITIONS: List[BenchmarkDefinition] = [
     BenchmarkDefinition(
         key="glmark2",
         categories=("gpu",),
-        presets=("gpu", "all"),
+        presets=("gpu-light", "gpu", "all"),
         description="glmark2 GPU renderer.",
         runner=lambda args: run_glmark2(offscreen=args.glmark2_mode == "offscreen"),
         requires=("glmark2",),
+    ),
+    BenchmarkDefinition(
+        key="vkmark",
+        categories=("gpu",),
+        presets=("gpu-light", "gpu", "all"),
+        description="vkmark Vulkan renderer.",
+        runner=lambda args: run_vkmark(),
+        requires=("vkmark",),
     ),
     BenchmarkDefinition(
         key="ffmpeg-transcode",
@@ -760,26 +781,6 @@ BENCHMARK_DEFINITIONS: List[BenchmarkDefinition] = [
         runner=lambda args: run_sqlite_benchmark(
             DEFAULT_SQLITE_ROWS, DEFAULT_SQLITE_SELECTS
         ),
-    ),
-    BenchmarkDefinition(
-        key="unigine-heaven",
-        categories=("gpu",),
-        presets=("gpu", "all"),
-        description="Unigine Heaven GPU benchmark.",
-        runner=lambda args: run_unigine_command(
-            DEFAULT_UNIGINE_HEAVEN_CMD, "unigine-heaven"
-        ),
-        requires=("unigine-heaven",),
-    ),
-    BenchmarkDefinition(
-        key="unigine-valley",
-        categories=("gpu",),
-        presets=("gpu", "all"),
-        description="Unigine Valley GPU benchmark.",
-        runner=lambda args: run_unigine_command(
-            DEFAULT_UNIGINE_VALLEY_CMD, "unigine-valley"
-        ),
-        requires=("unigine-valley",),
     ),
 ]
 
@@ -904,6 +905,10 @@ def describe_benchmark(bench: Dict[str, object]) -> str:
         score = metrics.get("score")
         if score is not None:
             return f"{score:.0f} pts"
+    elif name == "vkmark":
+        fps = metrics.get("fps_avg") or metrics.get("fps_max")
+        if fps is not None:
+            return f"{fps:.1f} fps"
     elif name == "ffmpeg-transcode":
         fps = metrics.get("calculated_fps")
         if fps is not None:
@@ -917,13 +922,6 @@ def describe_benchmark(bench: Dict[str, object]) -> str:
         selects = metrics.get("selects_per_s")
         if inserts is not None and selects is not None:
             return f"Ins {inserts:.0f}/s Sel {selects:.0f}/s"
-    elif name in {"unigine-heaven", "unigine-valley"}:
-        score = metrics.get("score")
-        fps = metrics.get("fps")
-        if score is not None:
-            return f"{score:.0f} score"
-        if fps is not None:
-            return f"{fps:.1f} fps"
     return ""
 
 

@@ -40,6 +40,9 @@ python simple_benchmarks.py --preset cpu --preset io
 python simple_benchmarks.py --preset cpu,io
 # target the memory-focused preset
 python simple_benchmarks.py --preset memory
+# GPU-only runs (lightweight or full Unigine suite)
+python simple_benchmarks.py --preset gpu-light
+python simple_benchmarks.py --preset gpu
 # run everything (may take a long time)
 python simple_benchmarks.py --preset all
 ```
@@ -64,14 +67,16 @@ Additional tools can be enabled via the `all` preset or explicit selection:
 
 - FFmpeg synthetic transcode and standalone x264 encode tests (fixed preset/resolution; not part of the standard presets)
 - SQLite mixed workload via the Python `sqlite3` module
-- GPU tests (glmark2 by default, plus Unigine Heaven/Valley when those binaries are installed)
+- GPU tests (glmark2 + vkmark; both run in the GPU presets)
 
 Use `--list-benchmarks` to see the full catalog along with category and preset metadata.
 
 ## Notes on external tools
 
-- **Unigine Heaven / Valley**: if `unigine-heaven` or `unigine-valley` is in `PATH`, the suite
-  runs it with the built-in `-benchmark` preset and parses the resulting FPS/score lines.
+- **GPU sanity checks**: glmark2 uses the offscreen renderer by default to avoid hijacking the display.
+  Use `--glmark2-mode onscreen` to flip that behavior when you want visible output. vkmark always renders onscreen.
+- **Unigine**: the commercial Unigine benchmarks aren’t included because their Linux binaries don’t expose
+  a reliable CLI to auto-start runs and capture results.
 
 ## Reports and dashboard
 
