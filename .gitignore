@@ -1,6 +1,13 @@
 .direnv
 venv/
 results/
-__pycache__
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
 result
 *.txt
+*.egg-info/
+dist/
+build/
