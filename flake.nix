@@ -18,7 +18,6 @@
           clpeak
           zstd
           pigz
-          hashcat
           cryptsetup
           stress-ng
           fio

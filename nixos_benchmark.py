@@ -673,9 +673,7 @@ def run_sqlite_benchmark(row_count: int, select_queries: int) -> Dict[str, objec
 def parse_tinymembench_output(output: str) -> Dict[str, float]:
     metrics: Dict[str, float] = {}
     for line in output.splitlines():
-        match = re.match(
-            r"\s*([A-Za-z0-9 +/_-]+?)\s*:?\s+([\d.,]+)\s+M(?:i)?B/s", line
-        )
+        match = re.match(r"\s*([A-Za-z0-9 +/_-]+?)\s*:?\s+([\d.,]+)\s+M(?:i)?B/s", line)
         if not match:
             continue
         label = re.sub(r"\s+", "_", match.group(1).strip().lower())
@@ -753,14 +751,30 @@ def run_zstd_benchmark(
     try:
         start = time.perf_counter()
         run_command(
-            ["zstd", "-q", "-f", f"-{level}", str(data_path), "-o", str(compressed_path)]
+            [
+                "zstd",
+                "-q",
+                "-f",
+                f"-{level}",
+                str(data_path),
+                "-o",
+                str(compressed_path),
+            ]
         )
         compress_duration = time.perf_counter() - start
 
         data_path.unlink(missing_ok=True)
         start = time.perf_counter()
         run_command(
-            ["zstd", "-d", "-q", "-f", str(compressed_path), "-o", str(decompressed_path)]
+            [
+                "zstd",
+                "-d",
+                "-q",
+                "-f",
+                str(compressed_path),
+                "-o",
+                str(decompressed_path),
+            ]
         )
         decompress_duration = time.perf_counter() - start
     finally:
@@ -793,9 +807,7 @@ def run_pigz_benchmark(
     decompressed_path = compressed_path.with_suffix("")
     try:
         start = time.perf_counter()
-        run_command(
-            ["pigz", "-f", "-k", "-p", "0", f"-{level}", str(data_path)]
-        )
+        run_command(["pigz", "-f", "-k", "-p", "0", f"-{level}", str(data_path)])
         compress_duration = time.perf_counter() - start
 
         data_path.unlink(missing_ok=True)
@@ -821,50 +833,6 @@ def run_pigz_benchmark(
         "metrics": metrics,
         "duration_seconds": compress_duration + decompress_duration,
         "raw_output": "",
-    }
-
-
-def parse_hashcat_output(output: str) -> Dict[str, float]:
-    metrics: Dict[str, float] = {}
-    for line in output.splitlines():
-        match = re.search(r"([\d.]+)\s*(G|M|k)?H/s", line)
-        if not match:
-            continue
-        value = float(match.group(1))
-        unit = match.group(2) or ""
-        if unit == "G":
-            value *= 1_000_000_000
-        elif unit == "M":
-            value *= 1_000_000
-        elif unit == "k":
-            value *= 1_000
-        metrics.setdefault("throughput_hps", 0.0)
-        metrics["throughput_hps"] = max(metrics["throughput_hps"], value)
-    if not metrics:
-        raise ValueError("Unable to parse hashcat benchmark output")
-    return metrics
-
-
-def run_hashcat_benchmark() -> Dict[str, object]:
-    stdout, duration = run_command(
-        [
-            "hashcat",
-            "--benchmark",
-            "--benchmark-all",
-            "--machine-readable",
-            "--potfile-disable",
-            "--quiet",
-            "--force",
-        ]
-    )
-    metrics = parse_hashcat_output(stdout)
-    return {
-        "name": "hashcat-benchmark",
-        "command": "hashcat --benchmark --benchmark-all --machine-readable --potfile-disable --quiet --force",
-        "parameters": {},
-        "metrics": metrics,
-        "duration_seconds": duration,
-        "raw_output": stdout,
     }
 
 
@@ -903,7 +871,9 @@ def run_cryptsetup_benchmark() -> Dict[str, object]:
 
 
 def parse_ioping_output(output: str) -> Dict[str, float]:
-    match = re.search(r"min/avg/max/mdev = ([\d.]+)/([\d.]+)/([\d.]+)/([\d.]+) ms", output)
+    match = re.search(
+        r"min/avg/max/mdev = ([\d.]+)/([\d.]+)/([\d.]+)/([\d.]+) ms", output
+    )
     if not match:
         raise ValueError("Unable to parse ioping summary")
     return {
@@ -930,7 +900,10 @@ def run_ioping(count: int = DEFAULT_IOPING_COUNT) -> Dict[str, object]:
 
 def parse_hdparm_output(output: str) -> Dict[str, float]:
     metrics: Dict[str, float] = {}
-    cached = re.search(r"Timing cached reads:\s+[\d.]+\s+MB in\s+[\d.]+\s+seconds\s+=\s+([\d.]+)\s+MB/sec", output)
+    cached = re.search(
+        r"Timing cached reads:\s+[\d.]+\s+MB in\s+[\d.]+\s+seconds\s+=\s+([\d.]+)\s+MB/sec",
+        output,
+    )
     buffered = re.search(
         r"Timing buffered disk reads:\s+[\d.]+\s+MB in\s+[\d.]+\s+seconds\s+=\s+([\d.]+)\s+MB/sec",
         output,
@@ -1055,7 +1028,9 @@ def parse_pgbench_output(output: str) -> Dict[str, float]:
     return metrics
 
 
-def run_pgbench(scale: int = DEFAULT_PGBENCH_SCALE, seconds: int = DEFAULT_PGBENCH_TIME) -> Dict[str, object]:
+def run_pgbench(
+    scale: int = DEFAULT_PGBENCH_SCALE, seconds: int = DEFAULT_PGBENCH_TIME
+) -> Dict[str, object]:
     data_dir = Path(tempfile.mkdtemp(prefix="pgbench-"))
     port = find_free_tcp_port()
     socket_dir = data_dir / "socket"
@@ -1064,11 +1039,34 @@ def run_pgbench(scale: int = DEFAULT_PGBENCH_SCALE, seconds: int = DEFAULT_PGBEN
     env["PGHOST"] = str(socket_dir)
     env["PGPORT"] = str(port)
     try:
-        run_command(["initdb", "-D", str(data_dir), "-A", "trust", "--no-locale", "--encoding", "UTF8"])
-        run_command(["pg_ctl", "-D", str(data_dir), "-o", f"-F -k {socket_dir} -p {port}", "-w", "start"])
+        run_command(
+            [
+                "initdb",
+                "-D",
+                str(data_dir),
+                "-A",
+                "trust",
+                "--no-locale",
+                "--encoding",
+                "UTF8",
+            ]
+        )
+        run_command(
+            [
+                "pg_ctl",
+                "-D",
+                str(data_dir),
+                "-o",
+                f"-F -k {socket_dir} -p {port}",
+                "-w",
+                "start",
+            ]
+        )
         run_command(["createdb", "benchdb"], env=env)
         run_command(["pgbench", "-i", "-s", str(scale), "benchdb"], env=env)
-        stdout, duration = run_command(["pgbench", "-T", str(seconds), "benchdb"], env=env)
+        stdout, duration = run_command(
+            ["pgbench", "-T", str(seconds), "benchdb"], env=env
+        )
         metrics = parse_pgbench_output(stdout)
     finally:
         try:
@@ -1118,7 +1116,9 @@ def run_sqlite_speedtest(
         db_path.unlink(missing_ok=True)
     metrics = {
         "insert_rows_per_s": row_count / insert_duration if insert_duration else 0.0,
-        "indexed_selects_per_s": select_queries / query_duration if query_duration else 0.0,
+        "indexed_selects_per_s": select_queries / query_duration
+        if query_duration
+        else 0.0,
         "row_count": row_count,
         "select_queries": select_queries,
     }
@@ -1171,7 +1171,11 @@ def run_iperf3_loopback(duration: int = DEFAULT_IPERF_DURATION) -> Dict[str, obj
 
 
 def parse_netperf_output(output: str) -> Dict[str, float]:
-    values = [float(token) for token in re.findall(r"([\d.]+)\s*$", output, flags=re.MULTILINE) if token]
+    values = [
+        float(token)
+        for token in re.findall(r"([\d.]+)\s*$", output, flags=re.MULTILINE)
+        if token
+    ]
     if not values:
         raise ValueError("Unable to parse netperf throughput")
     throughput_mbps = values[-1]
@@ -1191,7 +1195,17 @@ def run_netperf(duration: int = DEFAULT_NETPERF_DURATION) -> Dict[str, object]:
         raise RuntimeError("netserver failed to start")
     try:
         stdout, client_duration = run_command(
-            ["netperf", "-H", "127.0.0.1", "-p", str(port), "-l", str(duration), "-t", "TCP_STREAM"]
+            [
+                "netperf",
+                "-H",
+                "127.0.0.1",
+                "-p",
+                str(port),
+                "-l",
+                str(duration),
+                "-t",
+                "TCP_STREAM",
+            ]
         )
         metrics = parse_netperf_output(stdout)
     finally:
@@ -1207,6 +1221,7 @@ def run_netperf(duration: int = DEFAULT_NETPERF_DURATION) -> Dict[str, object]:
         "duration_seconds": client_duration,
         "raw_output": stdout,
     }
+
 
 PRESET_DEFINITIONS: Dict[str, Dict[str, object]] = {
     "balanced": {
@@ -1435,14 +1450,6 @@ BENCHMARK_DEFINITIONS: List[BenchmarkDefinition] = [
         requires=("pigz",),
     ),
     BenchmarkDefinition(
-        key="hashcat-benchmark",
-        categories=("cpu", "crypto", "gpu"),
-        presets=("cpu", "crypto", "all"),
-        description="hashcat self-contained benchmark.",
-        runner=lambda args: run_hashcat_benchmark(),
-        requires=("hashcat",),
-    ),
-    BenchmarkDefinition(
         key="cryptsetup-benchmark",
         categories=("crypto", "io"),
         presets=("crypto", "io", "all"),
@@ -1499,7 +1506,9 @@ BENCHMARK_DEFINITIONS: List[BenchmarkDefinition] = [
         categories=("io", "database"),
         presets=("database", "io", "all"),
         description="SQLite speedtest-style insert/select.",
-        runner=lambda args: run_sqlite_speedtest(DEFAULT_SQLITE_ROWS, DEFAULT_SQLITE_SELECTS),
+        runner=lambda args: run_sqlite_speedtest(
+            DEFAULT_SQLITE_ROWS, DEFAULT_SQLITE_SELECTS
+        ),
     ),
     BenchmarkDefinition(
         key="iperf3-loopback",
@@ -1676,12 +1685,10 @@ def describe_benchmark(bench: Dict[str, object]) -> str:
         decomp = metrics.get("decompress_mb_per_s")
         if comp is not None and decomp is not None:
             return f"C {comp:.0f}/D {decomp:.0f} MB/s"
-    elif name == "hashcat-benchmark":
-        throughput = metrics.get("throughput_hps")
-        if throughput is not None:
-            return f"{throughput/1_000_000:.1f} MH/s"
     elif name == "cryptsetup-benchmark":
-        speeds = [value for key, value in metrics.items() if key.endswith("_enc_mib_per_s")]
+        speeds = [
+            value for key, value in metrics.items() if key.endswith("_enc_mib_per_s")
+        ]
         if speeds:
             peak = max(speeds)
             return f"{peak:,.0f} MiB/s"
@@ -1726,6 +1733,7 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
     json_files = sorted(results_dir.glob("*.json"))
     reports = []
     bench_metadata: Dict[str, Dict[str, set[str]]] = {}
+
     for path in json_files:
         try:
             data = json.loads(path.read_text())
@@ -1764,16 +1772,21 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
         )
 
     html_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Build header cells for benchmark columns
     header_cells = ""
     for name in bench_columns:
         meta = bench_metadata.get(name, {"categories": set(), "presets": set()})
         category_label = ", ".join(sorted(meta.get("categories", []))) or "unspecified"
         preset_label = ", ".join(sorted(meta.get("presets", []))) or "unspecified"
         header_cells += (
-            f'<th title="Presets: {html.escape(preset_label)}">'
+            f'<th class="sortable" data-type="text" '
+            f'title="Presets: {html.escape(preset_label)}">'
             f"{html.escape(name)}<br><small>{html.escape(category_label)}</small>"
             "</th>"
         )
+
+    # Build body rows
     body_rows = []
     for row in rows:
         system = row["system"]
@@ -1791,6 +1804,7 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
         )
 
     table_html = "\n".join(body_rows)
+
     document = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -1802,17 +1816,40 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
     th, td {{ border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }}
     th {{ background: #f3f3f3; }}
     tr:nth-child(even) {{ background: #fafafa; }}
+
+    /* Sortable headers */
+    th.sortable {{
+      cursor: pointer;
+      user-select: none;
+      position: relative;
+    }}
+
+    th.sortable::after {{
+      content: "";
+      position: absolute;
+      right: 0.4rem;
+      font-size: 0.7rem;
+      opacity: 0.4;
+    }}
+
+    th.sortable[data-order="asc"]::after {{
+      content: "▲";
+    }}
+
+    th.sortable[data-order="desc"]::after {{
+      content: "▼";
+    }}
   </style>
 </head>
 <body>
   <h1>Benchmark Runs</h1>
-  <table>
+  <table id="benchmark-table">
     <thead>
       <tr>
-        <th>Result</th>
-        <th>Generated</th>
-        <th>System</th>
-        <th>Presets</th>
+        <th class="sortable" data-type="text">Result</th>
+        <th class="sortable" data-type="date">Generated</th>
+        <th class="sortable" data-type="text">System</th>
+        <th class="sortable" data-type="text">Presets</th>
         {header_cells}
       </tr>
     </thead>
@@ -1820,6 +1857,68 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
       {table_html}
     </tbody>
   </table>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {{
+      const table = document.getElementById('benchmark-table');
+      const headers = table.querySelectorAll('thead th');
+      const tbody = table.querySelector('tbody');
+
+      function getCellValue(row, index) {{
+        return row.children[index].textContent.trim();
+      }}
+
+      function parseValue(value, type) {{
+        if (type === 'date') {{
+          const t = Date.parse(value);
+          return isNaN(t) ? 0 : t;
+        }}
+
+        if (type === 'number') {{
+          const m = value.match(/-?\\d+(\\.\\d+)?/);
+          if (m) return parseFloat(m[0]);
+        }}
+
+        // default: text
+        return value.toLowerCase();
+      }}
+
+      function sortByColumn(index, type, order) {{
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.sort((a, b) => {{
+          const va = parseValue(getCellValue(a, index), type);
+          const vb = parseValue(getCellValue(b, index), type);
+
+          if (va < vb) return order === 'asc' ? -1 : 1;
+          if (va > vb) return order === 'asc' ? 1 : -1;
+          return 0;
+        }});
+
+        rows.forEach(row => tbody.appendChild(row));
+      }}
+
+      headers.forEach((header, index) => {{
+        if (!header.classList.contains('sortable')) return;
+        header.addEventListener('click', () => {{
+          const currentOrder = header.getAttribute('data-order') === 'asc' ? 'asc' : 'desc';
+          const newOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+          const type = header.getAttribute('data-type') || 'text';
+
+          // reset other headers
+          headers.forEach(h => {{
+            if (h !== header) h.removeAttribute('data-order');
+          }});
+
+          header.setAttribute('data-order', newOrder);
+          sortByColumn(index, type, newOrder);
+        }});
+      }});
+
+      // Default sort: by Generated (2nd col = index 1), newest first
+      const generatedHeader = headers[1];
+      generatedHeader.setAttribute('data-order', 'desc');
+      sortByColumn(1, generatedHeader.getAttribute('data-type') || 'date', 'desc');
+    }});
+  </script>
 </body>
 </html>
 """
@@ -1915,6 +2014,7 @@ def main() -> int:
     }
     results: List[Dict[str, object]] = []
     for name in selected_names:
+        print(f"Executing {name}")
         definition = definition_map[name]
         results.append(execute_definition(definition, args))
 
