@@ -188,7 +188,7 @@ def run_pgbench(
     finally:
         try:
             command = ["pg_ctl", "-D", str(data_dir), "-m", "fast", "stop"]
-            run_command(command)
+            _, _, _ = run_command(command)
         except Exception:
             pass
         shutil.rmtree(data_dir, ignore_errors=True)
