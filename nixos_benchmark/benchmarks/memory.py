@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
+from typing import ClassVar, Dict, Tuple
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
-from ..parsers import parse_sysbench_memory_output, parse_tinymembench_output
-from ..utils import run_command
+from ..utils import command_exists, run_command
 from .base import (
+    BenchmarkBase,
     DEFAULT_SYSBENCH_MEMORY_BLOCK_KB,
     DEFAULT_SYSBENCH_MEMORY_OPERATION,
     DEFAULT_SYSBENCH_MEMORY_TOTAL_MB,
@@ -16,6 +18,122 @@ from .base import (
 )
 
 
+class SysbenchMemoryBenchmark(BenchmarkBase):
+    """sysbench memory benchmark."""
+
+    key: ClassVar[str] = "sysbench-memory"
+    categories: ClassVar[Tuple[str, ...]] = ("memory",)
+    presets: ClassVar[Tuple[str, ...]] = ("balanced", "memory", "all")
+    description: ClassVar[str] = "sysbench memory throughput."
+
+    def __init__(
+        self,
+        threads: int = DEFAULT_SYSBENCH_THREADS,
+        block_kb: int = DEFAULT_SYSBENCH_MEMORY_BLOCK_KB,
+        total_mb: int = DEFAULT_SYSBENCH_MEMORY_TOTAL_MB,
+        operation: str = DEFAULT_SYSBENCH_MEMORY_OPERATION,
+    ):
+        self.threads = threads
+        self.block_kb = block_kb
+        self.total_mb = total_mb
+        self.operation = operation
+
+    def get_required_commands(self) -> Tuple[str, ...]:
+        return ("sysbench",)
+
+    def validate(self) -> Tuple[bool, str]:
+        """Pre-flight check before execution."""
+        for cmd in self.get_required_commands():
+            if not command_exists(cmd):
+                return False, f"Command {cmd!r} not found in PATH"
+        return True, ""
+
+    def execute(self, args: argparse.Namespace) -> BenchmarkResult:
+        """Run the benchmark."""
+        thread_count = self.threads if self.threads > 0 else (os.cpu_count() or 1)
+        command = [
+            "sysbench",
+            "memory",
+            f"--memory-block-size={self.block_kb}K",
+            f"--memory-total-size={self.total_mb}M",
+            f"--memory-oper={self.operation}",
+            f"--threads={thread_count}",
+            "run",
+        ]
+        stdout, duration, returncode = run_command(command)
+
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, command, stdout)
+
+        try:
+            metrics_data = self._parse_output(stdout)
+            metrics_data["threads"] = thread_count
+            metrics_data["block_kb"] = self.block_kb
+            metrics_data["total_mb"] = self.total_mb
+            metrics_data["operation"] = self.operation
+            status = "ok"
+            metrics = BenchmarkMetrics(metrics_data)
+            message = ""
+        except ValueError as e:
+            status = "error"
+            metrics = BenchmarkMetrics({})
+            message = str(e)
+
+        return BenchmarkResult(
+            name=self.key,
+            status=status,
+            categories=self.categories,
+            presets=self.presets,
+            metrics=metrics,
+            parameters=BenchmarkParameters(
+                {
+                    "threads": thread_count,
+                    "block_kb": self.block_kb,
+                    "total_mb": self.total_mb,
+                    "operation": self.operation,
+                }
+            ),
+            duration_seconds=duration,
+            command=" ".join(command),
+            raw_output=stdout,
+            message=message,
+        )
+
+    def _parse_output(self, output: str) -> Dict[str, float]:
+        """Parse sysbench memory benchmark output."""
+        metrics: Dict[str, float] = {}
+        operations = re.search(
+            r"Total operations:\s+([\d.]+)\s+\(([\d.]+)\s+per second\)", output
+        )
+        throughput = re.search(
+            r"([\d.]+)\s+MiB transferred\s+\(([\d.]+)\s+MiB/sec\)", output
+        )
+        total_time = re.search(r"total time:\s+([\d.]+)s", output)
+        if operations:
+            metrics["operations"] = float(operations.group(1))
+            metrics["operations_per_sec"] = float(operations.group(2))
+        if throughput:
+            metrics["transferred_mib"] = float(throughput.group(1))
+            metrics["throughput_mib_per_s"] = float(throughput.group(2))
+        if total_time:
+            metrics["total_time_secs"] = float(total_time.group(1))
+        if not metrics:
+            raise ValueError("Unable to parse sysbench memory output")
+        return metrics
+
+    def format_result(self, result: BenchmarkResult) -> str:
+        """Format for display."""
+        if result.status != "ok":
+            prefix = "Skipped" if result.status == "skipped" else "Error"
+            return f"{prefix}: {result.message}"
+
+        throughput = result.metrics.get("throughput_mib_per_s")
+        if throughput is not None:
+            return f"{throughput:,.0f} MiB/s"
+        return ""
+
+
+# Legacy function wrapper for backward compatibility
 def run_sysbench_memory(
     threads: int = DEFAULT_SYSBENCH_THREADS,
     block_kb: int = DEFAULT_SYSBENCH_MEMORY_BLOCK_KB,
@@ -23,58 +141,14 @@ def run_sysbench_memory(
     operation: str = DEFAULT_SYSBENCH_MEMORY_OPERATION,
 ) -> BenchmarkResult:
     """Run sysbench memory benchmark."""
-    thread_count = threads if threads > 0 else (os.cpu_count() or 1)
-    command = [
-        "sysbench",
-        "memory",
-        f"--memory-block-size={block_kb}K",
-        f"--memory-total-size={total_mb}M",
-        f"--memory-oper={operation}",
-        f"--threads={thread_count}",
-        "run",
-    ]
-    stdout, duration, returncode = run_command(command)
-    if returncode != 0:
-        raise subprocess.CalledProcessError(returncode, command, stdout)
-    
-    try:
-        metrics_data = parse_sysbench_memory_output(stdout)
-        metrics_data["threads"] = thread_count
-        metrics_data["block_kb"] = block_kb
-        metrics_data["total_mb"] = total_mb
-        metrics_data["operation"] = operation
-        status = "ok"
-        metrics = BenchmarkMetrics(metrics_data)
-        message = ""
-    except ValueError as e:
-        # Preserve output even when parsing fails
-        status = "error"
-        metrics = BenchmarkMetrics({})
-        message = str(e)
-
-    return BenchmarkResult(
-        name="sysbench-memory",
-        status=status,
-        categories=(),
-        presets=(),
-        metrics=metrics,
-        parameters=BenchmarkParameters(
-            {
-                "threads": thread_count,
-                "block_kb": block_kb,
-                "total_mb": total_mb,
-                "operation": operation,
-            }
-        ),
-        duration_seconds=duration,
-        command=" ".join(command),
-        raw_output=stdout,
-        message=message,
-    )
+    benchmark = SysbenchMemoryBenchmark(threads, block_kb, total_mb, operation)
+    return benchmark.execute(argparse.Namespace())
 
 
 def run_tinymembench() -> BenchmarkResult:
     """Run tinymembench memory throughput test."""
+    from ..parsers import parse_tinymembench_output
+    
     command = ["tinymembench"]
     stdout, duration, returncode = run_command(command)
     if returncode != 0:
@@ -133,3 +207,10 @@ def get_memory_benchmarks():
             requires=("tinymembench",),
         ),
     ]
+
+
+# Registry of benchmark classes
+MEMORY_BENCHMARK_CLASSES = [
+    SysbenchMemoryBenchmark,
+]
+

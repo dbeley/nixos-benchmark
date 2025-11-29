@@ -18,7 +18,11 @@ from .database import get_database_benchmarks
 from .gpu import get_gpu_benchmarks
 from .io import get_io_benchmarks
 from .media import get_media_benchmarks
-from .memory import get_memory_benchmarks
+from .memory import (
+    MEMORY_BENCHMARK_CLASSES,
+    get_memory_benchmarks,
+    SysbenchMemoryBenchmark,
+)
 from .network import get_network_benchmarks
 
 
@@ -41,6 +45,7 @@ def get_all_benchmark_classes() -> List[Type[BenchmarkBase]]:
     """Get all registered benchmark classes."""
     classes: List[Type[BenchmarkBase]] = []
     classes.extend(CPU_BENCHMARK_CLASSES)
+    classes.extend(MEMORY_BENCHMARK_CLASSES)
     # Other modules will be converted incrementally
     return classes
 
@@ -54,6 +59,9 @@ def initialize_benchmark_formatters() -> None:
     register_benchmark_formatter(SevenZipBenchmark())
     register_benchmark_formatter(StressNGBenchmark())
     register_benchmark_formatter(SysbenchCPUBenchmark())
+    
+    # Register Memory benchmark formatters
+    register_benchmark_formatter(SysbenchMemoryBenchmark())
 
 
 __all__ = [
@@ -64,5 +72,6 @@ __all__ = [
     "get_all_benchmark_classes",
     "initialize_benchmark_formatters",
 ]
+
 
 
