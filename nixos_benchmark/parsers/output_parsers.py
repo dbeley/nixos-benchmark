@@ -247,36 +247,6 @@ def parse_ioping_output(output: str) -> Dict[str, float]:
     }
 
 
-def parse_fsmark_output(output: str) -> Dict[str, float]:
-    """Parse fsmark filesystem benchmark output."""
-    match = re.search(r"Throughput\s*=\s*([\d.]+)\s+files/sec", output)
-    if not match:
-        raise ValueError("Unable to parse fsmark throughput")
-    return {"files_per_sec": float(match.group(1))}
-
-
-def parse_filebench_output(output: str) -> Dict[str, float]:
-    """Parse filebench output."""
-    match = re.search(r"IO Summary:\s+([\d.]+)\s+ops/s", output)
-    if not match:
-        raise ValueError("Unable to parse filebench IO summary")
-    return {"ops_per_sec": float(match.group(1))}
-
-
-def parse_pgbench_output(output: str) -> Dict[str, float]:
-    """Parse PostgreSQL pgbench output."""
-    tps_match = re.search(r"tps = ([\d.]+)", output)
-    latency_match = re.search(r"latency average = ([\d.]+) ms", output)
-    metrics: Dict[str, float] = {}
-    if tps_match:
-        metrics["tps"] = float(tps_match.group(1))
-    if latency_match:
-        metrics["latency_ms"] = float(latency_match.group(1))
-    if not metrics:
-        raise ValueError("Unable to parse pgbench output")
-    return metrics
-
-
 def parse_netperf_output(output: str) -> Dict[str, float]:
     """Parse netperf TCP_STREAM output."""
     values = [
