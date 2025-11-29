@@ -187,6 +187,8 @@ def run_pgbench(
         
         try:
             metrics_data = parse_pgbench_output(stdout)
+            metrics_data["scale"] = scale
+            metrics_data["duration_s"] = seconds
             status = "ok"
             metrics = BenchmarkMetrics(metrics_data)
             message = ""
@@ -202,10 +204,6 @@ def run_pgbench(
         except Exception:
             pass
         shutil.rmtree(data_dir, ignore_errors=True)
-
-    if status == "ok":
-        metrics_data["scale"] = scale
-        metrics_data["duration_s"] = seconds
 
     return BenchmarkResult(
         name="pgbench",

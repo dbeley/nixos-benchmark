@@ -128,7 +128,7 @@ def run_ioping(count: int = DEFAULT_IOPING_COUNT) -> BenchmarkResult:
     )
 
 
-def run_filebench() -> BenchmarkResult:
+def run_fsmark() -> BenchmarkResult:
     """Run fsmark filesystem benchmark."""
     workdir = Path("results/fsmark")
     workdir.mkdir(parents=True, exist_ok=True)
