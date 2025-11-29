@@ -5,7 +5,7 @@ import html
 import json
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from .models import (
     BenchmarkMetrics,
@@ -13,6 +13,24 @@ from .models import (
     BenchmarkReport,
     BenchmarkResult,
 )
+
+
+# Registry of benchmark instances for format_result lookups
+_benchmark_formatters: Dict[str, object] = {}
+
+
+def register_benchmark_formatter(benchmark_instance: object) -> None:
+    """Register a benchmark instance for its format_result method."""
+    if hasattr(benchmark_instance, 'key') and hasattr(benchmark_instance, 'format_result'):
+        _benchmark_formatters[benchmark_instance.key] = benchmark_instance
+
+
+def _try_benchmark_formatter(bench: BenchmarkResult) -> Optional[str]:
+    """Try to use a registered benchmark formatter if available."""
+    formatter = _benchmark_formatters.get(bench.name)
+    if formatter and hasattr(formatter, 'format_result'):
+        return formatter.format_result(bench)
+    return None
 
 
 def sanitize_for_filename(value: str) -> str:
@@ -23,6 +41,12 @@ def sanitize_for_filename(value: str) -> str:
 
 def describe_benchmark(bench: BenchmarkResult) -> str:
     """Generate a short human-readable description of benchmark results."""
+    # Try to use registered benchmark formatter first
+    formatted = _try_benchmark_formatter(bench)
+    if formatted is not None:
+        return formatted
+    
+    # Fallback to legacy name-based formatting
     if bench.status != "ok":
         prefix = "Skipped" if bench.status == "skipped" else "Error"
         return f"{prefix}: {bench.message}"

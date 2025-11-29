@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import argparse
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Callable, Dict, Tuple
+from typing import Callable, ClassVar, Dict, Tuple
 
 from ..models import BenchmarkResult
+from ..utils import check_requirements
 
 # Default constants for CPU benchmarks
 DEFAULT_STRESS_NG_SECONDS = 5
@@ -59,9 +61,39 @@ DEFAULT_IPERF_DURATION = 3
 DEFAULT_NETPERF_DURATION = 3
 
 
+@dataclass
+class BenchmarkBase(ABC):
+    """Abstract base class for all benchmarks."""
+
+    # Class-level metadata (overridden in subclasses)
+    key: ClassVar[str] = ""
+    categories: ClassVar[Tuple[str, ...]] = ()
+    presets: ClassVar[Tuple[str, ...]] = ()
+    description: ClassVar[str] = ""
+
+    @abstractmethod
+    def validate(self) -> Tuple[bool, str]:
+        """Check if benchmark can run (dependencies available, etc.)."""
+        pass
+
+    @abstractmethod
+    def execute(self, args: argparse.Namespace) -> BenchmarkResult:
+        """Execute the benchmark and return results."""
+        pass
+
+    @abstractmethod
+    def format_result(self, result: BenchmarkResult) -> str:
+        """Format result for display."""
+        pass
+
+    def get_required_commands(self) -> Tuple[str, ...]:
+        """Return list of required command-line tools."""
+        return ()
+
+
 @dataclass(frozen=True)
 class BenchmarkDefinition:
-    """Definition of a single benchmark."""
+    """Definition of a single benchmark (legacy compatibility)."""
 
     key: str
     categories: Tuple[str, ...]

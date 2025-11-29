@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Sequence
 
-from .benchmarks import PRESET_DEFINITIONS, get_all_benchmarks
+from .benchmarks import PRESET_DEFINITIONS, get_all_benchmarks, initialize_benchmark_formatters
 from .models import (
     BenchmarkMetrics,
     BenchmarkParameters,
@@ -18,6 +18,10 @@ from .models import (
 from .output import build_html_summary, describe_benchmark, sanitize_for_filename, write_json_report
 from .system_info import gather_system_info
 from .utils import check_requirements
+
+
+# Initialize benchmark formatters at module load
+initialize_benchmark_formatters()
 
 
 class CommaSeparatedListAction(argparse.Action):
@@ -256,11 +260,96 @@ def main() -> int:
         return 1
 
     definition_map = {definition.key: definition for definition in all_benchmarks}
-    results: List[BenchmarkResult] = []
+    
+    # PHASE 1: Validate all benchmarks upfront
+    print("Validating benchmarks...")
+    validated_definitions = []
+    skipped_results = []
+    
     for name in selected_names:
-        print(f"Executing {name}")
         definition = definition_map[name]
-        results.append(execute_definition(definition, args))
+        ok, reason = check_requirements(definition.requires)
+        if ok and definition.availability_check:
+            ok, reason = definition.availability_check(args)
+        
+        if ok:
+            validated_definitions.append(definition)
+            print(f"  ✓ {name}")
+        else:
+            print(f"  ✗ {name}: {reason}")
+            skipped_results.append(BenchmarkResult(
+                name=definition.key,
+                status="skipped",
+                categories=definition.categories,
+                presets=definition.presets,
+                metrics=BenchmarkMetrics({}),
+                parameters=BenchmarkParameters({}),
+                message=reason,
+            ))
+    
+    # PHASE 2: Execute only validated benchmarks
+    results: List[BenchmarkResult] = skipped_results[:]
+    for definition in validated_definitions:
+        print(f"Executing {definition.key}")
+        try:
+            result = definition.runner(args)
+        except FileNotFoundError as exc:
+            result = BenchmarkResult(
+                name=definition.key,
+                status="skipped",
+                categories=definition.categories,
+                presets=definition.presets,
+                metrics=BenchmarkMetrics({}),
+                parameters=BenchmarkParameters({}),
+                message=f"Missing file or path: {exc}",
+            )
+        except subprocess.CalledProcessError as exc:
+            raw_output = exc.stdout if exc.stdout else ""
+            command = " ".join(exc.cmd) if isinstance(exc.cmd, list) else str(exc.cmd)
+            result = BenchmarkResult(
+                name=definition.key,
+                status="error",
+                categories=definition.categories,
+                presets=definition.presets,
+                metrics=BenchmarkMetrics({}),
+                parameters=BenchmarkParameters({}),
+                message=f"Command failed with exit code {exc.returncode}",
+                command=command,
+                raw_output=raw_output,
+            )
+        except Exception as exc:
+            raw_output = ""
+            command = ""
+            if hasattr(exc, "__context__") and isinstance(exc.__context__, subprocess.CalledProcessError):
+                context = exc.__context__
+                raw_output = context.stdout if context.stdout else ""
+                command = " ".join(context.cmd) if isinstance(context.cmd, list) else str(context.cmd)
+            result = BenchmarkResult(
+                name=definition.key,
+                status="error",
+                categories=definition.categories,
+                presets=definition.presets,
+                metrics=BenchmarkMetrics({}),
+                parameters=BenchmarkParameters({}),
+                message=str(exc),
+                command=command,
+                raw_output=raw_output,
+            )
+        
+        # Update result with categories and presets from definition
+        result = BenchmarkResult(
+            name=result.name,
+            status=result.status,
+            categories=definition.categories,
+            presets=definition.presets,
+            metrics=result.metrics,
+            parameters=result.parameters,
+            duration_seconds=result.duration_seconds,
+            command=result.command,
+            message=result.message,
+            raw_output=result.raw_output,
+        )
+        results.append(result)
 
     if not results:
         print("No benchmarks executed.", file=sys.stderr)
