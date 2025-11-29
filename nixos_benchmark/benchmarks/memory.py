@@ -1,0 +1,107 @@
+"""Memory benchmarks."""
+from __future__ import annotations
+
+import argparse
+import os
+
+from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
+from ..parsers import parse_sysbench_memory_output, parse_tinymembench_output
+from ..utils import run_command
+from .base import (
+    DEFAULT_SYSBENCH_MEMORY_BLOCK_KB,
+    DEFAULT_SYSBENCH_MEMORY_OPERATION,
+    DEFAULT_SYSBENCH_MEMORY_TOTAL_MB,
+    DEFAULT_SYSBENCH_THREADS,
+)
+
+
+def run_sysbench_memory(
+    threads: int = DEFAULT_SYSBENCH_THREADS,
+    block_kb: int = DEFAULT_SYSBENCH_MEMORY_BLOCK_KB,
+    total_mb: int = DEFAULT_SYSBENCH_MEMORY_TOTAL_MB,
+    operation: str = DEFAULT_SYSBENCH_MEMORY_OPERATION,
+) -> BenchmarkResult:
+    """Run sysbench memory benchmark."""
+    thread_count = threads if threads > 0 else (os.cpu_count() or 1)
+    command = [
+        "sysbench",
+        "memory",
+        f"--memory-block-size={block_kb}K",
+        f"--memory-total-size={total_mb}M",
+        f"--memory-oper={operation}",
+        f"--threads={thread_count}",
+        "run",
+    ]
+    stdout, duration = run_command(command)
+    metrics_data = parse_sysbench_memory_output(stdout)
+    metrics_data["threads"] = thread_count
+    metrics_data["block_kb"] = block_kb
+    metrics_data["total_mb"] = total_mb
+    metrics_data["operation"] = operation
+
+    return BenchmarkResult(
+        name="sysbench-memory",
+        status="ok",
+        categories=(),
+        presets=(),
+        metrics=BenchmarkMetrics(metrics_data),
+        parameters=BenchmarkParameters(
+            {
+                "threads": thread_count,
+                "block_kb": block_kb,
+                "total_mb": total_mb,
+                "operation": operation,
+            }
+        ),
+        duration_seconds=duration,
+        command=" ".join(command),
+        raw_output=stdout,
+    )
+
+
+def run_tinymembench() -> BenchmarkResult:
+    """Run tinymembench memory throughput test."""
+    stdout, duration = run_command(["tinymembench"])
+    metrics_data = parse_tinymembench_output(stdout)
+
+    return BenchmarkResult(
+        name="tinymembench",
+        status="ok",
+        categories=(),
+        presets=(),
+        metrics=BenchmarkMetrics(metrics_data),
+        parameters=BenchmarkParameters({}),
+        duration_seconds=duration,
+        command="tinymembench",
+        raw_output=stdout,
+    )
+
+
+# Benchmark definitions for registration
+def get_memory_benchmarks():
+    """Get list of memory benchmark definitions."""
+    from .base import BenchmarkDefinition
+
+    return [
+        BenchmarkDefinition(
+            key="sysbench-memory",
+            categories=("memory",),
+            presets=("balanced", "memory", "all"),
+            description="sysbench memory throughput.",
+            runner=lambda args: run_sysbench_memory(
+                DEFAULT_SYSBENCH_THREADS,
+                DEFAULT_SYSBENCH_MEMORY_BLOCK_KB,
+                DEFAULT_SYSBENCH_MEMORY_TOTAL_MB,
+                DEFAULT_SYSBENCH_MEMORY_OPERATION,
+            ),
+            requires=("sysbench",),
+        ),
+        BenchmarkDefinition(
+            key="tinymembench",
+            categories=("memory",),
+            presets=("memory", "all"),
+            description="TinyMemBench memory throughput.",
+            runner=lambda args: run_tinymembench(),
+            requires=("tinymembench",),
+        ),
+    ]
