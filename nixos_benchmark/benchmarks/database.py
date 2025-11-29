@@ -153,9 +153,9 @@ def run_pgbench(
             "--encoding",
             "UTF8",
         ]
-        _, _, returncode = run_command(command)
+        stdout, _, returncode = run_command(command)
         if returncode != 0:
-            raise subprocess.CalledProcessError(returncode, command)
+            raise subprocess.CalledProcessError(returncode, command, stdout)
         
         command = [
             "pg_ctl",
@@ -166,19 +166,19 @@ def run_pgbench(
             "-w",
             "start",
         ]
-        _, _, returncode = run_command(command)
+        stdout, _, returncode = run_command(command)
         if returncode != 0:
-            raise subprocess.CalledProcessError(returncode, command)
+            raise subprocess.CalledProcessError(returncode, command, stdout)
         
         command = ["createdb", "benchdb"]
-        _, _, returncode = run_command(command, env=env)
+        stdout, _, returncode = run_command(command, env=env)
         if returncode != 0:
-            raise subprocess.CalledProcessError(returncode, command)
+            raise subprocess.CalledProcessError(returncode, command, stdout)
         
         command = ["pgbench", "-i", "-s", str(scale), "benchdb"]
-        _, _, returncode = run_command(command, env=env)
+        stdout, _, returncode = run_command(command, env=env)
         if returncode != 0:
-            raise subprocess.CalledProcessError(returncode, command)
+            raise subprocess.CalledProcessError(returncode, command, stdout)
         
         command = ["pgbench", "-T", str(seconds), "benchdb"]
         stdout, duration, returncode = run_command(command, env=env)

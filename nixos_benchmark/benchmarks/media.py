@@ -93,9 +93,9 @@ def generate_test_pattern(resolution: str, frames: int) -> Path:
         "yuv420p",
         tmp.name,
     ]
-    _, _, returncode = run_command(command)
+    stdout, _, returncode = run_command(command)
     if returncode != 0:
-        raise subprocess.CalledProcessError(returncode, command)
+        raise subprocess.CalledProcessError(returncode, command, stdout)
     return Path(tmp.name)
 
 

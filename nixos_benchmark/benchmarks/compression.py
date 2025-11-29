@@ -33,9 +33,9 @@ def run_zstd_benchmark(
             "-o",
             str(compressed_path),
         ]
-        _, _, returncode = run_command(command)
+        stdout, _, returncode = run_command(command)
         if returncode != 0:
-            raise subprocess.CalledProcessError(returncode, command)
+            raise subprocess.CalledProcessError(returncode, command, stdout)
         compress_duration = time.perf_counter() - start
 
         data_path.unlink(missing_ok=True)
@@ -49,9 +49,9 @@ def run_zstd_benchmark(
             "-o",
             str(decompressed_path),
         ]
-        _, _, returncode = run_command(command)
+        stdout, _, returncode = run_command(command)
         if returncode != 0:
-            raise subprocess.CalledProcessError(returncode, command)
+            raise subprocess.CalledProcessError(returncode, command, stdout)
         decompress_duration = time.perf_counter() - start
     finally:
         data_path.unlink(missing_ok=True)
@@ -90,17 +90,17 @@ def run_pigz_benchmark(
     try:
         start = time.perf_counter()
         command = ["pigz", "-f", "-k", "-p", "0", f"-{level}", str(data_path)]
-        _, _, returncode = run_command(command)
+        stdout, _, returncode = run_command(command)
         if returncode != 0:
-            raise subprocess.CalledProcessError(returncode, command)
+            raise subprocess.CalledProcessError(returncode, command, stdout)
         compress_duration = time.perf_counter() - start
 
         data_path.unlink(missing_ok=True)
         start = time.perf_counter()
         command = ["pigz", "-d", "-f", "-k", str(compressed_path)]
-        _, _, returncode = run_command(command)
+        stdout, _, returncode = run_command(command)
         if returncode != 0:
-            raise subprocess.CalledProcessError(returncode, command)
+            raise subprocess.CalledProcessError(returncode, command, stdout)
         decompress_duration = time.perf_counter() - start
     finally:
         data_path.unlink(missing_ok=True)
