@@ -49,12 +49,12 @@ def run_command(
 def write_temp_data_file(size_mb: int, randomize: bool = True) -> Path:
     """Create a temporary file with random or zero data."""
     block_size = 1024 * 1024
-    block = os.urandom(block_size) if randomize else b"\0" * block_size
     tmp = tempfile.NamedTemporaryFile(delete=False)
     tmp.close()
     with open(tmp.name, "wb") as handle:
         for _ in range(size_mb):
-            handle.write(os.urandom(block_size) if randomize else block)
+            block = os.urandom(block_size) if randomize else b"\0" * block_size
+            handle.write(block)
     return Path(tmp.name)
 
 

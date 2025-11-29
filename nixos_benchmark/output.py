@@ -7,7 +7,12 @@ import re
 from pathlib import Path
 from typing import Dict, List
 
-from .models import BenchmarkReport, BenchmarkResult
+from .models import (
+    BenchmarkMetrics,
+    BenchmarkParameters,
+    BenchmarkReport,
+    BenchmarkResult,
+)
 
 
 def sanitize_for_filename(value: str) -> str:
@@ -76,13 +81,17 @@ def describe_benchmark(bench: BenchmarkResult) -> str:
         if memcpy is None:
             memcpy = metrics.get("memcpy_-_aligned_mb_per_s")
         if memcpy is None and metrics.data:
-            memcpy = max(v for v in metrics.data.values() if isinstance(v, (int, float)))
+            numeric_values = [v for v in metrics.data.values() if isinstance(v, (int, float))]
+            if numeric_values:
+                memcpy = max(numeric_values)
         if memcpy is not None:
             return f"{memcpy:,.0f} MB/s"
     elif name == "clpeak":
         bandwidth = metrics.get("global_mem_bandwidth_gbps_float")
         if bandwidth is None and metrics.data:
-            bandwidth = max(v for v in metrics.data.values() if isinstance(v, (int, float)))
+            numeric_values = [v for v in metrics.data.values() if isinstance(v, (int, float))]
+            if numeric_values:
+                bandwidth = max(numeric_values)
         if bandwidth is not None:
             return f"{bandwidth:.1f} GB/s"
     elif name == "zstd-compress" or name == "pigz-compress":
@@ -176,8 +185,6 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
             bench_dict = bench_map.get(bench_name, {})
             # Convert dict to BenchmarkResult for describe_benchmark
             if bench_dict:
-                from .models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
-
                 bench_result = BenchmarkResult(
                     name=bench_dict.get("name", ""),
                     status=bench_dict.get("status", "ok"),
