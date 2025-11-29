@@ -55,6 +55,10 @@ DEFAULT_PGBENCH_SCALE = 1
 DEFAULT_PGBENCH_TIME = 5
 
 
+def _parse_float(token: str) -> float:
+    return float(token.replace(",", "."))
+
+
 @dataclass(frozen=True)
 class BenchmarkDefinition:
     key: str
@@ -669,11 +673,13 @@ def run_sqlite_benchmark(row_count: int, select_queries: int) -> Dict[str, objec
 def parse_tinymembench_output(output: str) -> Dict[str, float]:
     metrics: Dict[str, float] = {}
     for line in output.splitlines():
-        match = re.match(r"\s*([A-Za-z0-9 +/_-]+?)\s+([\d.]+)\s+MB/s", line)
+        match = re.match(
+            r"\s*([A-Za-z0-9 +/_-]+?)\s*:?\s+([\d.,]+)\s+M(?:i)?B/s", line
+        )
         if not match:
             continue
         label = re.sub(r"\s+", "_", match.group(1).strip().lower())
-        metrics[f"{label}_mb_per_s"] = float(match.group(2))
+        metrics[f"{label}_mb_per_s"] = _parse_float(match.group(2))
     if not metrics:
         raise ValueError("Unable to parse tinymembench throughput")
     return metrics
@@ -693,6 +699,8 @@ def run_tinymembench() -> Dict[str, object]:
 
 
 def parse_clpeak_output(output: str) -> Dict[str, float]:
+    if "no platforms found" in output.lower() or "clgetplatformids" in output.lower():
+        raise ValueError("OpenCL platform not available for clpeak")
     metrics: Dict[str, float] = {}
     section = ""
     for line in output.splitlines():
