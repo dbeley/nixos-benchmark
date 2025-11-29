@@ -184,7 +184,17 @@ def run_pgbench(
         stdout, duration, returncode = run_command(command, env=env)
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
-        metrics_data = parse_pgbench_output(stdout)
+        
+        try:
+            metrics_data = parse_pgbench_output(stdout)
+            status = "ok"
+            metrics = BenchmarkMetrics(metrics_data)
+            message = ""
+        except ValueError as e:
+            # Preserve output even when parsing fails
+            status = "error"
+            metrics = BenchmarkMetrics({})
+            message = str(e)
     finally:
         try:
             command = ["pg_ctl", "-D", str(data_dir), "-m", "fast", "stop"]
@@ -193,19 +203,21 @@ def run_pgbench(
             pass
         shutil.rmtree(data_dir, ignore_errors=True)
 
-    metrics_data["scale"] = scale
-    metrics_data["duration_s"] = seconds
+    if status == "ok":
+        metrics_data["scale"] = scale
+        metrics_data["duration_s"] = seconds
 
     return BenchmarkResult(
         name="pgbench",
-        status="ok",
+        status=status,
         categories=(),
         presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
+        metrics=metrics,
         parameters=BenchmarkParameters({"scale": scale, "duration_s": seconds}),
         duration_seconds=duration,
         command=f"pgbench -T {seconds} benchdb",
         raw_output=stdout,
+        message=message,
     )
 
 

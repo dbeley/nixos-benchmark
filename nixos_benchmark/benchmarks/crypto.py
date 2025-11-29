@@ -15,18 +15,29 @@ def run_cryptsetup_benchmark() -> BenchmarkResult:
     stdout, duration, returncode = run_command(command)
     if returncode != 0:
         raise subprocess.CalledProcessError(returncode, command, stdout)
-    metrics_data = parse_cryptsetup_output(stdout)
+    
+    try:
+        metrics_data = parse_cryptsetup_output(stdout)
+        status = "ok"
+        metrics = BenchmarkMetrics(metrics_data)
+        message = ""
+    except ValueError as e:
+        # Preserve output even when parsing fails
+        status = "error"
+        metrics = BenchmarkMetrics({})
+        message = str(e)
 
     return BenchmarkResult(
         name="cryptsetup-benchmark",
-        status="ok",
+        status=status,
         categories=(),
         presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
+        metrics=metrics,
         parameters=BenchmarkParameters({}),
         duration_seconds=duration,
         command="cryptsetup benchmark",
         raw_output=stdout,
+        message=message,
     )
 
 

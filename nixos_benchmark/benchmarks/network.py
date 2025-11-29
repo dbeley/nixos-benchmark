@@ -81,24 +81,34 @@ def run_netperf(duration: int = DEFAULT_NETPERF_DURATION) -> BenchmarkResult:
                 "TCP_STREAM",
             ]
         )
-        metrics_data = parse_netperf_output(stdout)
+        
+        try:
+            metrics_data = parse_netperf_output(stdout)
+            metrics_data["duration_s"] = duration
+            status = "ok"
+            metrics = BenchmarkMetrics(metrics_data)
+            message = ""
+        except ValueError as e:
+            # Preserve output even when parsing fails
+            status = "error"
+            metrics = BenchmarkMetrics({})
+            message = str(e)
     finally:
         server.terminate()
         with contextlib.suppress(Exception):
             server.wait(timeout=5)
 
-    metrics_data["duration_s"] = duration
-
     return BenchmarkResult(
         name="netperf",
-        status="ok",
+        status=status,
         categories=(),
         presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
+        metrics=metrics,
         parameters=BenchmarkParameters({"duration_s": duration}),
         duration_seconds=client_duration,
         command=f"netperf -H 127.0.0.1 -p {port} -l {duration} -t TCP_STREAM",
         raw_output=stdout,
+        message=message,
     )
 
 

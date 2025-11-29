@@ -12,10 +12,9 @@ from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..parsers import (
     parse_filebench_output,
     parse_fsmark_output,
-    parse_hdparm_output,
     parse_ioping_output,
 )
-from ..utils import find_first_block_device, run_command
+from ..utils import run_command
 from .base import (
     DEFAULT_FIO_BLOCK_KB,
     DEFAULT_FIO_RUNTIME,
@@ -102,48 +101,34 @@ def run_ioping(count: int = DEFAULT_IOPING_COUNT) -> BenchmarkResult:
     stdout, duration, returncode = run_command(command)
     if returncode != 0:
         raise subprocess.CalledProcessError(returncode, command, stdout)
-    metrics_data = parse_ioping_output(stdout)
-    metrics_data["requests"] = count
+    
+    try:
+        metrics_data = parse_ioping_output(stdout)
+        metrics_data["requests"] = count
+        status = "ok"
+        metrics = BenchmarkMetrics(metrics_data)
+        message = ""
+    except ValueError as e:
+        # Preserve output even when parsing fails
+        status = "error"
+        metrics = BenchmarkMetrics({})
+        message = str(e)
 
     return BenchmarkResult(
         name="ioping",
-        status="ok",
+        status=status,
         categories=(),
         presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
+        metrics=metrics,
         parameters=BenchmarkParameters({"count": count}),
         duration_seconds=duration,
         command=f"ioping -c {count} .",
         raw_output=stdout,
+        message=message,
     )
 
 
-def run_hdparm(device: str | None = None) -> BenchmarkResult:
-    """Run hdparm disk read speed test."""
-    target = device or find_first_block_device()
-    if not target:
-        raise FileNotFoundError("No suitable block device found for hdparm")
-    command = ["hdparm", "-Tt", target]
-    stdout, duration, returncode = run_command(command)
-    if returncode != 0:
-        raise subprocess.CalledProcessError(returncode, command, stdout)
-    metrics_data = parse_hdparm_output(stdout)
-    metrics_data["device"] = target
-
-    return BenchmarkResult(
-        name="hdparm",
-        status="ok",
-        categories=(),
-        presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
-        parameters=BenchmarkParameters({"device": target}),
-        duration_seconds=duration,
-        command=f"hdparm -Tt {target}",
-        raw_output=stdout,
-    )
-
-
-def run_fsmark() -> BenchmarkResult:
+def run_filebench() -> BenchmarkResult:
     """Run fsmark filesystem benchmark."""
     workdir = Path("results/fsmark")
     workdir.mkdir(parents=True, exist_ok=True)
@@ -163,20 +148,31 @@ def run_fsmark() -> BenchmarkResult:
         stdout, duration, returncode = run_command(command)
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
-        metrics_data = parse_fsmark_output(stdout)
+        
+        try:
+            metrics_data = parse_fsmark_output(stdout)
+            status = "ok"
+            metrics = BenchmarkMetrics(metrics_data)
+            message = ""
+        except ValueError as e:
+            # Preserve output even when parsing fails
+            status = "error"
+            metrics = BenchmarkMetrics({})
+            message = str(e)
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
 
     return BenchmarkResult(
         name="fsmark",
-        status="ok",
+        status=status,
         categories=(),
         presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
+        metrics=metrics,
         parameters=BenchmarkParameters({"files": 200, "size_kb": 1024}),
         duration_seconds=duration,
         command=f"fs_mark -d {workdir} -n 200 -s 1024 -t 1 -k",
         raw_output=stdout,
+        message=message,
     )
 
 
@@ -207,21 +203,32 @@ def run_filebench() -> BenchmarkResult:
         stdout, duration, returncode = run_command(command)
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
-        metrics_data = parse_filebench_output(stdout)
+        
+        try:
+            metrics_data = parse_filebench_output(stdout)
+            status = "ok"
+            metrics = BenchmarkMetrics(metrics_data)
+            message = ""
+        except ValueError as e:
+            # Preserve output even when parsing fails
+            status = "error"
+            metrics = BenchmarkMetrics({})
+            message = str(e)
     finally:
         workload_path.unlink(missing_ok=True)
         shutil.rmtree(workdir, ignore_errors=True)
 
     return BenchmarkResult(
         name="filebench",
-        status="ok",
+        status=status,
         categories=(),
         presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
+        metrics=metrics,
         parameters=BenchmarkParameters({"runtime_s": 5}),
         duration_seconds=duration,
         command=f"filebench -f {workload_path}",
         raw_output=stdout,
+        message=message,
     )
 
 
@@ -248,18 +255,6 @@ def get_io_benchmarks():
             description="ioping latency probe.",
             runner=lambda args: run_ioping(DEFAULT_IOPING_COUNT),
             requires=("ioping",),
-        ),
-        BenchmarkDefinition(
-            key="hdparm",
-            categories=("io",),
-            presets=("io", "all"),
-            description="hdparm cached/buffered read speed.",
-            runner=lambda args: run_hdparm(),
-            requires=("hdparm",),
-            availability_check=lambda args: (
-                find_first_block_device() is not None,
-                "No readable block device found",
-            ),
         ),
         BenchmarkDefinition(
             key="fsmark",
