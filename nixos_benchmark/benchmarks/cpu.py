@@ -153,7 +153,6 @@ class SevenZipBenchmark(BenchmarkBase):
             message=message,
         )
 
-
     def format_result(self, result: BenchmarkResult) -> str:
         """Format for display."""
         if result.status != "ok":
@@ -233,7 +232,6 @@ class StressNGBenchmark(BenchmarkBase):
             raw_output=stdout,
             message=message,
         )
-
 
     def format_result(self, result: BenchmarkResult) -> str:
         """Format for display."""
@@ -321,7 +319,6 @@ class SysbenchCPUBenchmark(BenchmarkBase):
             raw_output=stdout,
             message=message,
         )
-
 
     def format_result(self, result: BenchmarkResult) -> str:
         """Format for display."""

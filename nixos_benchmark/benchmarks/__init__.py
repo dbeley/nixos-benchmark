@@ -72,6 +72,3 @@ __all__ = [
     "get_all_benchmark_classes",
     "initialize_benchmark_formatters",
 ]
-
-
-

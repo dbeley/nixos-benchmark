@@ -8,6 +8,7 @@ from typing import ClassVar, Tuple
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..parsers import parse_sysbench_memory_output, parse_tinymembench_output
+from ..parsers import parse_tinymembench_output
 from ..utils import command_exists, run_command
 from .base import (
     BenchmarkBase,
@@ -125,7 +126,6 @@ def run_sysbench_memory(
 
 def run_tinymembench() -> BenchmarkResult:
     """Run tinymembench memory throughput test."""
-    from ..parsers import parse_tinymembench_output
     
     command = ["tinymembench"]
     stdout, duration, returncode = run_command(command)
