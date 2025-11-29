@@ -38,6 +38,12 @@ DEFAULT_UNIGINE_VALLEY_CMD = ("unigine-valley", "-benchmark")
 DEFAULT_OPENSSL_SECONDS = 3
 DEFAULT_OPENSSL_ALGORITHM = "aes-256-cbc"
 DEFAULT_GLMARK2_SIZE = "1920x1080"
+DEFAULT_SYSBENCH_CPU_MAX_PRIME = 20000
+DEFAULT_SYSBENCH_RUNTIME = 5
+DEFAULT_SYSBENCH_THREADS = 0
+DEFAULT_SYSBENCH_MEMORY_BLOCK_KB = 1024
+DEFAULT_SYSBENCH_MEMORY_TOTAL_MB = 512
+DEFAULT_SYSBENCH_MEMORY_OPERATION = "read"
 
 
 @dataclass(frozen=True)
@@ -135,25 +141,65 @@ def parse_7zip_output(output: str) -> Dict[str, float]:
 
 
 def parse_stress_ng_output(output: str) -> Dict[str, float]:
+    pattern = re.compile(
+        r"stress-ng:\s+\w+:\s+\[\d+\]\s+(\S+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"
+        r"\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"
+    )
     for line in output.splitlines():
-        if "stress-ng: metrc:" not in line:
+        match = pattern.search(line)
+        if not match:
             continue
-        tokens = line.split()
-        if len(tokens) < 10:
-            continue
-        stressor_name = tokens[3]
+        stressor_name = match.group(1)
         if stressor_name == "stressor" or stressor_name.startswith("("):
             continue
         return {
             "stressor": stressor_name,
-            "bogo_ops": float(tokens[4]),
-            "real_time_secs": float(tokens[5]),
-            "user_time_secs": float(tokens[6]),
-            "system_time_secs": float(tokens[7]),
-            "bogo_ops_per_sec_real": float(tokens[8]),
-            "bogo_ops_per_sec_cpu": float(tokens[9]),
+            "bogo_ops": float(match.group(2)),
+            "real_time_secs": float(match.group(3)),
+            "user_time_secs": float(match.group(4)),
+            "system_time_secs": float(match.group(5)),
+            "bogo_ops_per_sec_real": float(match.group(6)),
+            "bogo_ops_per_sec_cpu": float(match.group(7)),
         }
     raise ValueError("Unable to parse stress-ng metrics (try increasing runtime)")
+
+
+def parse_sysbench_cpu_output(output: str) -> Dict[str, float]:
+    metrics: Dict[str, float] = {}
+    events_per_sec = re.search(r"events per second:\s+([\d.]+)", output)
+    total_time = re.search(r"total time:\s+([\d.]+)s", output)
+    total_events = re.search(r"total number of events:\s+([\d.]+)", output)
+    if events_per_sec:
+        metrics["events_per_sec"] = float(events_per_sec.group(1))
+    if total_time:
+        metrics["total_time_secs"] = float(total_time.group(1))
+    if total_events:
+        metrics["total_events"] = float(total_events.group(1))
+    if not metrics:
+        raise ValueError("Unable to parse sysbench CPU output")
+    return metrics
+
+
+def parse_sysbench_memory_output(output: str) -> Dict[str, float]:
+    metrics: Dict[str, float] = {}
+    operations = re.search(
+        r"Total operations:\s+([\d.]+)\s+\(([\d.]+)\s+per second\)", output
+    )
+    throughput = re.search(
+        r"([\d.]+)\s+MiB transferred\s+\(([\d.]+)\s+MiB/sec\)", output
+    )
+    total_time = re.search(r"total time:\s+([\d.]+)s", output)
+    if operations:
+        metrics["operations"] = float(operations.group(1))
+        metrics["operations_per_sec"] = float(operations.group(2))
+    if throughput:
+        metrics["transferred_mib"] = float(throughput.group(1))
+        metrics["throughput_mib_per_s"] = float(throughput.group(2))
+    if total_time:
+        metrics["total_time_secs"] = float(total_time.group(1))
+    if not metrics:
+        raise ValueError("Unable to parse sysbench memory output")
+    return metrics
 
 
 def run_openssl(
@@ -204,6 +250,70 @@ def run_stress_ng(seconds: int, method: str) -> Dict[str, object]:
         "name": "stress-ng",
         "command": " ".join(command),
         "parameters": {"seconds": seconds, "cpu_method": method},
+        "metrics": metrics,
+        "duration_seconds": duration,
+        "raw_output": stdout,
+    }
+
+
+def run_sysbench_cpu(
+    threads: int, max_prime: int, runtime_secs: int
+) -> Dict[str, object]:
+    thread_count = threads if threads > 0 else (os.cpu_count() or 1)
+    command = [
+        "sysbench",
+        "cpu",
+        f"--cpu-max-prime={max_prime}",
+        f"--threads={thread_count}",
+        f"--time={runtime_secs}",
+        "run",
+    ]
+    stdout, duration = run_command(command)
+    metrics = parse_sysbench_cpu_output(stdout)
+    metrics["threads"] = thread_count
+    metrics["cpu_max_prime"] = max_prime
+    return {
+        "name": "sysbench-cpu",
+        "command": " ".join(command),
+        "parameters": {
+            "threads": thread_count,
+            "cpu_max_prime": max_prime,
+            "runtime_secs": runtime_secs,
+        },
+        "metrics": metrics,
+        "duration_seconds": duration,
+        "raw_output": stdout,
+    }
+
+
+def run_sysbench_memory(
+    threads: int, block_kb: int, total_mb: int, operation: str
+) -> Dict[str, object]:
+    thread_count = threads if threads > 0 else (os.cpu_count() or 1)
+    command = [
+        "sysbench",
+        "memory",
+        f"--memory-block-size={block_kb}K",
+        f"--memory-total-size={total_mb}M",
+        f"--memory-oper={operation}",
+        f"--threads={thread_count}",
+        "run",
+    ]
+    stdout, duration = run_command(command)
+    metrics = parse_sysbench_memory_output(stdout)
+    metrics["threads"] = thread_count
+    metrics["block_kb"] = block_kb
+    metrics["total_mb"] = total_mb
+    metrics["operation"] = operation
+    return {
+        "name": "sysbench-memory",
+        "command": " ".join(command),
+        "parameters": {
+            "threads": thread_count,
+            "block_kb": block_kb,
+            "total_mb": total_mb,
+            "operation": operation,
+        },
         "metrics": metrics,
         "duration_seconds": duration,
         "raw_output": stdout,
@@ -289,26 +399,6 @@ def run_glmark2(
         "name": "glmark2",
         "command": " ".join(command),
         "parameters": {"size": size, "mode": "offscreen" if offscreen else "onscreen"},
-        "metrics": metrics,
-        "duration_seconds": duration,
-        "raw_output": stdout,
-    }
-
-
-def run_speedtest_cli() -> Dict[str, object]:
-    command = ["speedtest-cli", "--json"]
-    stdout, duration = run_command(command)
-    payload = json.loads(stdout)
-    metrics = {
-        "download_mbps": float(payload.get("download", 0.0)) / 1_000_000,
-        "upload_mbps": float(payload.get("upload", 0.0)) / 1_000_000,
-        "ping_ms": float(payload.get("ping", 0.0)),
-        "server": payload.get("server", {}).get("host", ""),
-    }
-    return {
-        "name": "speedtest-cli",
-        "command": " ".join(command),
-        "parameters": {"selection": "auto"},
         "metrics": metrics,
         "duration_seconds": duration,
         "raw_output": stdout,
@@ -514,35 +604,24 @@ def run_unigine_command(command: Sequence[str], name: str) -> Dict[str, object]:
 
 PRESET_DEFINITIONS: Dict[str, Dict[str, object]] = {
     "balanced": {
-        "description": "Quick mix of CPU, IO, and network tests.",
+        "description": "Quick mix of CPU and IO tests.",
         "benchmarks": (
             "openssl-speed",
             "7zip-benchmark",
             "stress-ng",
+            "sysbench-cpu",
+            "sysbench-memory",
             "fio-seq",
-            "speedtest-cli",
             "sqlite-mixed",
         ),
     },
     "cpu": {"description": "CPU heavy synthetic workloads.", "categories": ("cpu",)},
     "io": {"description": "Disk and filesystem focused tests.", "categories": ("io",)},
-    "network": {
-        "description": "Network throughput and latency tests.",
-        "categories": ("network",),
+    "memory": {
+        "description": "Memory bandwidth and latency tests.",
+        "categories": ("memory",),
     },
     "gpu": {"description": "GPU render benchmarks.", "categories": ("gpu",)},
-    "media": {
-        "description": "Media encode/transcode workloads.",
-        "categories": ("media",),
-    },
-    "database": {
-        "description": "Data and storage bound tests.",
-        "categories": ("database",),
-    },
-    "extreme": {
-        "description": "Adds heavy media encoding tests.",
-        "benchmarks": ("ffmpeg-transcode", "x264-encode"),
-    },
     "all": {"description": "Run every available benchmark.", "all": True},
 }
 
@@ -606,6 +685,31 @@ BENCHMARK_DEFINITIONS: List[BenchmarkDefinition] = [
         requires=("stress-ng",),
     ),
     BenchmarkDefinition(
+        key="sysbench-cpu",
+        categories=("cpu",),
+        presets=("balanced", "cpu", "all"),
+        description="sysbench prime calculation throughput.",
+        runner=lambda args: run_sysbench_cpu(
+            DEFAULT_SYSBENCH_THREADS,
+            DEFAULT_SYSBENCH_CPU_MAX_PRIME,
+            DEFAULT_SYSBENCH_RUNTIME,
+        ),
+        requires=("sysbench",),
+    ),
+    BenchmarkDefinition(
+        key="sysbench-memory",
+        categories=("memory", "io"),
+        presets=("balanced", "io", "memory", "all"),
+        description="sysbench memory bandwidth test.",
+        runner=lambda args: run_sysbench_memory(
+            DEFAULT_SYSBENCH_THREADS,
+            DEFAULT_SYSBENCH_MEMORY_BLOCK_KB,
+            DEFAULT_SYSBENCH_MEMORY_TOTAL_MB,
+            DEFAULT_SYSBENCH_MEMORY_OPERATION,
+        ),
+        requires=("sysbench",),
+    ),
+    BenchmarkDefinition(
         key="fio-seq",
         categories=("io",),
         presets=("balanced", "io", "all"),
@@ -624,17 +728,9 @@ BENCHMARK_DEFINITIONS: List[BenchmarkDefinition] = [
         requires=("glmark2",),
     ),
     BenchmarkDefinition(
-        key="speedtest-cli",
-        categories=("network",),
-        presets=("balanced", "network", "all"),
-        description="speedtest-cli throughput test.",
-        runner=lambda args: run_speedtest_cli(),
-        requires=("speedtest-cli",),
-    ),
-    BenchmarkDefinition(
         key="ffmpeg-transcode",
         categories=("cpu", "media"),
-        presets=("media", "extreme", "all"),
+        presets=("all",),
         description="FFmpeg software transcode.",
         runner=lambda args: run_ffmpeg_benchmark(
             DEFAULT_FFMPEG_RESOLUTION,
@@ -646,7 +742,7 @@ BENCHMARK_DEFINITIONS: List[BenchmarkDefinition] = [
     BenchmarkDefinition(
         key="x264-encode",
         categories=("cpu", "media"),
-        presets=("media", "extreme", "all"),
+        presets=("all",),
         description="Raw x264 encode throughput.",
         runner=lambda args: run_x264_benchmark(
             DEFAULT_X264_RESOLUTION,
@@ -659,7 +755,7 @@ BENCHMARK_DEFINITIONS: List[BenchmarkDefinition] = [
     BenchmarkDefinition(
         key="sqlite-mixed",
         categories=("io", "database"),
-        presets=("balanced", "io", "database", "all"),
+        presets=("balanced", "io", "all"),
         description="SQLite insert/select mix.",
         runner=lambda args: run_sqlite_benchmark(
             DEFAULT_SQLITE_ROWS, DEFAULT_SQLITE_SELECTS
@@ -791,6 +887,14 @@ def describe_benchmark(bench: Dict[str, object]) -> str:
         ops = metrics.get("bogo_ops_per_sec_real")
         if ops is not None:
             return f"{ops:,.0f} bogo-ops/s"
+    elif name == "sysbench-cpu":
+        events = metrics.get("events_per_sec")
+        if events is not None:
+            return f"{events:,.1f} events/s"
+    elif name == "sysbench-memory":
+        throughput = metrics.get("throughput_mib_per_s")
+        if throughput is not None:
+            return f"{throughput:,.0f} MiB/s"
     elif name == "fio-seq":
         read_bw = metrics.get("seqread_mib_per_s")
         write_bw = metrics.get("seqwrite_mib_per_s")
@@ -800,11 +904,6 @@ def describe_benchmark(bench: Dict[str, object]) -> str:
         score = metrics.get("score")
         if score is not None:
             return f"{score:.0f} pts"
-    elif name == "speedtest-cli":
-        download = metrics.get("download_mbps")
-        upload = metrics.get("upload_mbps")
-        if download is not None and upload is not None:
-            return f"D {download:.1f} / U {upload:.1f} Mbps"
     elif name == "ffmpeg-transcode":
         fps = metrics.get("calculated_fps")
         if fps is not None:

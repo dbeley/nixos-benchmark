@@ -8,27 +8,28 @@ tools. Use it to quickly benchmark your system and compare results with others.
 - Optional: [direnv](https://direnv.net/) if you prefer automatic shell loading
 
 ## Quick start
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/<your-user>/nixos-benchmark.git
-   ```
+All workflows now use flakes (Nix 2.4+ with flakes enabled).
 
-2. Change into the project directory:
-   ```bash
-   cd nixos-benchmark
-   ```
+```bash
+# enter a dev shell with all tools on PATH
+nix develop
 
-3. Run the benchmark suite from a Nix shell:
-   ```bash
-   nix-shell --run 'python simple_benchmarks.py'
-   ```
+# list available presets/benchmarks
+nix run . -- --list-presets
+nix run . -- --list-benchmarks
 
-The script prints each benchmark name as it runs and finishes with a summary of the
-recorded timings.
+# run the default (balanced) suite
+nix run . -- --preset balanced
+
+# run with ad-hoc options while inside the dev shell
+nix develop -c python simple_benchmarks.py --preset cpu,io --html-summary ''
+```
+
+The runner prints each benchmark name as it executes and finishes with a short summary.
 
 ## Benchmark presets
 
-The suite now groups benchmarks by what they test (CPU, IO, GPU, network, media, etc.).
+The suite now groups benchmarks by what they test (CPU, IO, memory, GPU, etc.).
 Use presets to quickly select a workload mix:
 
 ```bash
@@ -37,6 +38,8 @@ python simple_benchmarks.py --list-presets
 python simple_benchmarks.py --preset cpu --preset io
 # the same selection can be expressed as a single comma-separated flag
 python simple_benchmarks.py --preset cpu,io
+# target the memory-focused preset
+python simple_benchmarks.py --preset memory
 # run everything (may take a long time)
 python simple_benchmarks.py --preset all
 ```
@@ -44,7 +47,7 @@ python simple_benchmarks.py --preset all
 You can also target individual benchmarks:
 
 ```bash
-python simple_benchmarks.py --benchmarks openssl-speed speedtest-cli sqlite-mixed
+python simple_benchmarks.py --benchmarks openssl-speed fio-seq sqlite-mixed
 ```
 
 Each benchmark entry records its categories and which presets include it. This metadata
@@ -54,13 +57,12 @@ is persisted in the JSON report and rendered in the HTML dashboard.
 
 The default `balanced` preset runs:
 
-- OpenSSL, 7-Zip, stress-ng (CPU)
-- fio, sqlite (IO / storage)
-- speedtest-cli (network)
+- OpenSSL, 7-Zip, stress-ng, sysbench CPU (CPU)
+- sysbench memory, fio, sqlite (IO / storage / memory)
 
-Additional tools can be enabled via presets or explicit selection:
+Additional tools can be enabled via the `all` preset or explicit selection:
 
-- FFmpeg synthetic transcode and standalone x264 encode tests (fixed preset/resolution)
+- FFmpeg synthetic transcode and standalone x264 encode tests (fixed preset/resolution; not part of the standard presets)
 - SQLite mixed workload via the Python `sqlite3` module
 - GPU tests (glmark2 by default, plus Unigine Heaven/Valley when those binaries are installed)
 
