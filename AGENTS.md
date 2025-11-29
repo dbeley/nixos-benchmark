@@ -1,15 +1,15 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- Root contains the main runner `simple_benchmarks.py`; no packages beyond the standard library are imported at runtime.
+- Root contains the main runner `nixos_benchmark.py`; no packages beyond the standard library are imported at runtime.
 - `shell.nix` defines the reproducible toolchain (Python, ffmpeg, fio, glmark2, stress-ng, etc.). Load it directly or via direnv.
 - `results/` is generated output (JSON reports and optional `index.html`) and is git-ignored; keep it that way when sharing changes.
 
 ## Build, Test, and Development Commands
 - Start a dev shell with all tools: `nix-shell` (or `direnv allow` if using direnv).
-- List presets/benchmarks: `python simple_benchmarks.py --list-presets` and `--list-benchmarks`.
-- Run the default suite: `python simple_benchmarks.py` (uses the `balanced` preset; writes `results/<timestamp>-<host>.json`).
-- Targeted runs: `python simple_benchmarks.py --preset cpu --preset io` or `python simple_benchmarks.py --benchmarks openssl-speed,fio-seq`.
+- List presets/benchmarks: `python nixos_benchmark.py --list-presets` and `--list-benchmarks`.
+- Run the default suite: `python nixos_benchmark.py` (uses the `balanced` preset; writes `results/<timestamp>-<host>.json`).
+- Targeted runs: `python nixos_benchmark.py --preset cpu --preset io` or `python nixos_benchmark.py --benchmarks openssl-speed,fio-seq`.
 - Update the HTML dashboard while running: add `--html-summary results/index.html`. Disable HTML generation with `--html-summary ''`.
 
 ## Coding Style & Naming Conventions
@@ -18,7 +18,7 @@
 - Prefer small, pure helpers; avoid hard-coding paths beyond `results/` and temp files.
 
 ## Testing Guidelines
-- There is no separate test suite; validate changes by running a minimal preset: `python simple_benchmarks.py --preset cpu --output results/smoke.json --html-summary ''`.
+- There is no separate test suite; validate changes by running a minimal preset: `python nixos_benchmark.py --preset cpu --output results/smoke.json --html-summary ''`.
 - For parsing changes, run the specific benchmark the parser targets and inspect the JSON output for expected keys/metrics.
 - Keep `results/` outputs local; do not commit benchmark artifacts.
 

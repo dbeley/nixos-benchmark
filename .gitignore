@@ -2,3 +2,5 @@
 venv/
 results/
 __pycache__
+result
+*.txt

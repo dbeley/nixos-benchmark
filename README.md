@@ -22,7 +22,7 @@ nix run . -- --list-benchmarks
 nix run . -- --preset balanced
 
 # run with ad-hoc options while inside the dev shell
-nix develop -c python simple_benchmarks.py --preset cpu,io --html-summary ''
+nix develop -c python nixos_benchmark.py --preset cpu,io --html-summary ''
 ```
 
 The runner prints each benchmark name as it executes and finishes with a short summary.
@@ -33,24 +33,24 @@ The suite now groups benchmarks by what they test (CPU, IO, memory, GPU, etc.).
 Use presets to quickly select a workload mix:
 
 ```bash
-python simple_benchmarks.py --list-presets
+python nixos_benchmark.py --list-presets
 # run a CPU + IO focused pass
-python simple_benchmarks.py --preset cpu --preset io
+python nixos_benchmark.py --preset cpu --preset io
 # the same selection can be expressed as a single comma-separated flag
-python simple_benchmarks.py --preset cpu,io
+python nixos_benchmark.py --preset cpu,io
 # target the memory-focused preset
-python simple_benchmarks.py --preset memory
+python nixos_benchmark.py --preset memory
 # GPU-only runs (lightweight or full Unigine suite)
-python simple_benchmarks.py --preset gpu-light
-python simple_benchmarks.py --preset gpu
+python nixos_benchmark.py --preset gpu-light
+python nixos_benchmark.py --preset gpu
 # run everything (may take a long time)
-python simple_benchmarks.py --preset all
+python nixos_benchmark.py --preset all
 ```
 
 You can also target individual benchmarks:
 
 ```bash
-python simple_benchmarks.py --benchmarks openssl-speed fio-seq sqlite-mixed
+python nixos_benchmark.py --benchmarks openssl-speed fio-seq sqlite-mixed
 ```
 
 Each benchmark entry records its categories and which presets include it. This metadata
