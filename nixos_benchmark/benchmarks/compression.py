@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import time
 from pathlib import Path
 
@@ -23,32 +24,34 @@ def run_zstd_benchmark(
     decompressed_path = data_path.with_suffix(".out")
     try:
         start = time.perf_counter()
-        run_command(
-            [
-                "zstd",
-                "-q",
-                "-f",
-                f"-{level}",
-                str(data_path),
-                "-o",
-                str(compressed_path),
-            ]
-        )
+        command = [
+            "zstd",
+            "-q",
+            "-f",
+            f"-{level}",
+            str(data_path),
+            "-o",
+            str(compressed_path),
+        ]
+        _, _, returncode = run_command(command)
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, command)
         compress_duration = time.perf_counter() - start
 
         data_path.unlink(missing_ok=True)
         start = time.perf_counter()
-        run_command(
-            [
-                "zstd",
-                "-d",
-                "-q",
-                "-f",
-                str(compressed_path),
-                "-o",
-                str(decompressed_path),
-            ]
-        )
+        command = [
+            "zstd",
+            "-d",
+            "-q",
+            "-f",
+            str(compressed_path),
+            "-o",
+            str(decompressed_path),
+        ]
+        _, _, returncode = run_command(command)
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, command)
         decompress_duration = time.perf_counter() - start
     finally:
         data_path.unlink(missing_ok=True)
@@ -86,12 +89,18 @@ def run_pigz_benchmark(
     decompressed_path = compressed_path.with_suffix("")
     try:
         start = time.perf_counter()
-        run_command(["pigz", "-f", "-k", "-p", "0", f"-{level}", str(data_path)])
+        command = ["pigz", "-f", "-k", "-p", "0", f"-{level}", str(data_path)]
+        _, _, returncode = run_command(command)
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, command)
         compress_duration = time.perf_counter() - start
 
         data_path.unlink(missing_ok=True)
         start = time.perf_counter()
-        run_command(["pigz", "-d", "-f", "-k", str(compressed_path)])
+        command = ["pigz", "-d", "-f", "-k", str(compressed_path)]
+        _, _, returncode = run_command(command)
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, command)
         decompress_duration = time.perf_counter() - start
     finally:
         data_path.unlink(missing_ok=True)

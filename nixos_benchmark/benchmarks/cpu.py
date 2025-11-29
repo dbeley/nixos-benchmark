@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..parsers import (
@@ -29,7 +30,9 @@ def run_openssl(
 ) -> BenchmarkResult:
     """Run OpenSSL speed benchmark."""
     command = ["openssl", "speed", "-elapsed", "-seconds", str(seconds), algorithm]
-    stdout, duration = run_command(command)
+    stdout, duration, returncode = run_command(command)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command, stdout)
     metrics_data = parse_openssl_output(stdout, algorithm)
 
     return BenchmarkResult(
@@ -48,7 +51,9 @@ def run_openssl(
 def run_7zip() -> BenchmarkResult:
     """Run 7-Zip benchmark."""
     command = ["7z", "b"]
-    stdout, duration = run_command(command)
+    stdout, duration, returncode = run_command(command)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command, stdout)
     metrics_data = parse_7zip_output(stdout)
 
     return BenchmarkResult(
@@ -79,7 +84,9 @@ def run_stress_ng(
         f"{seconds}s",
         "--metrics-brief",
     ]
-    stdout, duration = run_command(command)
+    stdout, duration, returncode = run_command(command)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command, stdout)
     metrics_data = parse_stress_ng_output(stdout)
 
     return BenchmarkResult(
@@ -110,7 +117,9 @@ def run_sysbench_cpu(
         f"--time={runtime_secs}",
         "run",
     ]
-    stdout, duration = run_command(command)
+    stdout, duration, returncode = run_command(command)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command, stdout)
     metrics_data = parse_sysbench_cpu_output(stdout)
     metrics_data["threads"] = thread_count
     metrics_data["cpu_max_prime"] = max_prime

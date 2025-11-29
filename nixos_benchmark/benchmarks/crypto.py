@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..parsers import parse_cryptsetup_output
@@ -10,7 +11,10 @@ from ..utils import run_command
 
 def run_cryptsetup_benchmark() -> BenchmarkResult:
     """Run cryptsetup cipher benchmark."""
-    stdout, duration = run_command(["cryptsetup", "benchmark"])
+    command = ["cryptsetup", "benchmark"]
+    stdout, duration, returncode = run_command(command)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command, stdout)
     metrics_data = parse_cryptsetup_output(stdout)
 
     return BenchmarkResult(

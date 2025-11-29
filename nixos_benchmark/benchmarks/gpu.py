@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 from typing import Sequence
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
@@ -17,7 +18,9 @@ def run_glmark2(
     command = ["glmark2", "-s", size]
     if offscreen:
         command.append("--off-screen")
-    stdout, duration = run_command(command)
+    stdout, duration, returncode = run_command(command)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command, stdout)
     metrics_data = parse_glmark2_output(stdout)
 
     return BenchmarkResult(
@@ -38,7 +41,9 @@ def run_glmark2(
 def run_vkmark(command: Sequence[str] = DEFAULT_VKMARK_CMD) -> BenchmarkResult:
     """Run vkmark Vulkan benchmark."""
     command_list = list(command)
-    stdout, duration = run_command(command_list)
+    stdout, duration, returncode = run_command(command_list)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command_list, stdout)
     metrics_data = parse_vkmark_output(stdout)
 
     return BenchmarkResult(
@@ -56,7 +61,10 @@ def run_vkmark(command: Sequence[str] = DEFAULT_VKMARK_CMD) -> BenchmarkResult:
 
 def run_clpeak() -> BenchmarkResult:
     """Run clpeak OpenCL benchmark."""
-    stdout, duration = run_command(["clpeak"])
+    command = ["clpeak"]
+    stdout, duration, returncode = run_command(command)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command, stdout)
     metrics_data = parse_clpeak_output(stdout)
 
     return BenchmarkResult(

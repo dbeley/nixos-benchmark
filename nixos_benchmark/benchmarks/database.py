@@ -5,6 +5,7 @@ import argparse
 import os
 import shutil
 import sqlite3
+import subprocess
 import tempfile
 import time
 from pathlib import Path
@@ -142,38 +143,52 @@ def run_pgbench(
     env["PGHOST"] = str(socket_dir)
     env["PGPORT"] = str(port)
     try:
-        run_command(
-            [
-                "initdb",
-                "-D",
-                str(data_dir),
-                "-A",
-                "trust",
-                "--no-locale",
-                "--encoding",
-                "UTF8",
-            ]
-        )
-        run_command(
-            [
-                "pg_ctl",
-                "-D",
-                str(data_dir),
-                "-o",
-                f"-F -k {socket_dir} -p {port}",
-                "-w",
-                "start",
-            ]
-        )
-        run_command(["createdb", "benchdb"], env=env)
-        run_command(["pgbench", "-i", "-s", str(scale), "benchdb"], env=env)
-        stdout, duration = run_command(
-            ["pgbench", "-T", str(seconds), "benchdb"], env=env
-        )
+        command = [
+            "initdb",
+            "-D",
+            str(data_dir),
+            "-A",
+            "trust",
+            "--no-locale",
+            "--encoding",
+            "UTF8",
+        ]
+        _, _, returncode = run_command(command)
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, command)
+        
+        command = [
+            "pg_ctl",
+            "-D",
+            str(data_dir),
+            "-o",
+            f"-F -k {socket_dir} -p {port}",
+            "-w",
+            "start",
+        ]
+        _, _, returncode = run_command(command)
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, command)
+        
+        command = ["createdb", "benchdb"]
+        _, _, returncode = run_command(command, env=env)
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, command)
+        
+        command = ["pgbench", "-i", "-s", str(scale), "benchdb"]
+        _, _, returncode = run_command(command, env=env)
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, command)
+        
+        command = ["pgbench", "-T", str(seconds), "benchdb"]
+        stdout, duration, returncode = run_command(command, env=env)
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, command, stdout)
         metrics_data = parse_pgbench_output(stdout)
     finally:
         try:
-            run_command(["pg_ctl", "-D", str(data_dir), "-m", "fast", "stop"])
+            command = ["pg_ctl", "-D", str(data_dir), "-m", "fast", "stop"]
+            run_command(command)
         except Exception:
             pass
         shutil.rmtree(data_dir, ignore_errors=True)

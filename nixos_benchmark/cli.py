@@ -119,6 +119,9 @@ def execute_definition(definition, args: argparse.Namespace) -> BenchmarkResult:
             message=f"Missing file or path: {exc}",
         )
     except subprocess.CalledProcessError as exc:
+        # Preserve command output for debugging
+        raw_output = exc.stdout if exc.stdout else ""
+        command = " ".join(exc.cmd) if isinstance(exc.cmd, list) else str(exc.cmd)
         return BenchmarkResult(
             name=definition.key,
             status="error",
@@ -127,8 +130,17 @@ def execute_definition(definition, args: argparse.Namespace) -> BenchmarkResult:
             metrics=BenchmarkMetrics({}),
             parameters=BenchmarkParameters({}),
             message=f"Command failed with exit code {exc.returncode}",
+            command=command,
+            raw_output=raw_output,
         )
     except Exception as exc:
+        # Try to preserve raw_output if it's a parsing error on a valid result
+        raw_output = ""
+        command = ""
+        if hasattr(exc, "__context__") and isinstance(exc.__context__, subprocess.CalledProcessError):
+            context = exc.__context__
+            raw_output = context.stdout if context.stdout else ""
+            command = " ".join(context.cmd) if isinstance(context.cmd, list) else str(context.cmd)
         return BenchmarkResult(
             name=definition.key,
             status="error",
@@ -137,6 +149,8 @@ def execute_definition(definition, args: argparse.Namespace) -> BenchmarkResult:
             metrics=BenchmarkMetrics({}),
             parameters=BenchmarkParameters({}),
             message=str(exc),
+            command=command,
+            raw_output=raw_output,
         )
 
     # Update result with categories and presets from definition

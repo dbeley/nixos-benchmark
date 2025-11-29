@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -56,7 +57,9 @@ def run_fio(
         tmp.write(job_text.encode("utf-8"))
 
     try:
-        stdout, duration = run_command(["fio", "--output-format=json", str(job_path)])
+        stdout, duration, returncode = run_command(["fio", "--output-format=json", str(job_path)])
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, ["fio", "--output-format=json", str(job_path)], stdout)
         data = json.loads(stdout)
     finally:
         job_path.unlink(missing_ok=True)
@@ -95,7 +98,10 @@ def run_fio(
 
 def run_ioping(count: int = DEFAULT_IOPING_COUNT) -> BenchmarkResult:
     """Run ioping latency benchmark."""
-    stdout, duration = run_command(["ioping", "-c", str(count), "."])
+    command = ["ioping", "-c", str(count), "."]
+    stdout, duration, returncode = run_command(command)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command, stdout)
     metrics_data = parse_ioping_output(stdout)
     metrics_data["requests"] = count
 
@@ -117,7 +123,10 @@ def run_hdparm(device: str | None = None) -> BenchmarkResult:
     target = device or find_first_block_device()
     if not target:
         raise FileNotFoundError("No suitable block device found for hdparm")
-    stdout, duration = run_command(["hdparm", "-Tt", target])
+    command = ["hdparm", "-Tt", target]
+    stdout, duration, returncode = run_command(command)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command, stdout)
     metrics_data = parse_hdparm_output(stdout)
     metrics_data["device"] = target
 
@@ -138,21 +147,22 @@ def run_fsmark() -> BenchmarkResult:
     """Run fsmark filesystem benchmark."""
     workdir = Path("results/fsmark")
     workdir.mkdir(parents=True, exist_ok=True)
+    command = [
+        "fs_mark",
+        "-d",
+        str(workdir),
+        "-n",
+        "200",
+        "-s",
+        "1024",
+        "-t",
+        "1",
+        "-k",
+    ]
     try:
-        stdout, duration = run_command(
-            [
-                "fs_mark",
-                "-d",
-                str(workdir),
-                "-n",
-                "200",
-                "-s",
-                "1024",
-                "-t",
-                "1",
-                "-k",
-            ]
-        )
+        stdout, duration, returncode = run_command(command)
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, command, stdout)
         metrics_data = parse_fsmark_output(stdout)
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
@@ -192,8 +202,11 @@ def run_filebench() -> BenchmarkResult:
         workload_path = Path(tmp.name)
         tmp.write(workload.encode("utf-8"))
 
+    command = ["filebench", "-f", str(workload_path)]
     try:
-        stdout, duration = run_command(["filebench", "-f", str(workload_path)])
+        stdout, duration, returncode = run_command(command)
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, command, stdout)
         metrics_data = parse_filebench_output(stdout)
     finally:
         workload_path.unlink(missing_ok=True)

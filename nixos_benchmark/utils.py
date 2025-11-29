@@ -31,19 +31,19 @@ def check_requirements(commands: Sequence[str]) -> Tuple[bool, str]:
 
 def run_command(
     command: List[str], *, env: Dict[str, str] | None = None
-) -> Tuple[str, float]:
-    """Run a command and return its output and duration."""
+) -> Tuple[str, float, int]:
+    """Run a command and return its output, duration, and return code."""
     start = time.perf_counter()
     completed = subprocess.run(
         command,
-        check=True,
+        check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
         env=env,
     )
     duration = time.perf_counter() - start
-    return completed.stdout, duration
+    return completed.stdout, duration, completed.returncode
 
 
 def write_temp_data_file(size_mb: int, randomize: bool = True) -> Path:

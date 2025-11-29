@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -44,7 +45,9 @@ def run_ffmpeg_benchmark(
         "null",
         "-",
     ]
-    stdout, duration = run_command(command)
+    stdout, duration, returncode = run_command(command)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command, stdout)
     metrics_data = parse_ffmpeg_progress(stdout)
     total_frames = duration_secs * 30
     metrics_data["calculated_fps"] = total_frames / duration if duration else 0.0
@@ -90,7 +93,9 @@ def generate_test_pattern(resolution: str, frames: int) -> Path:
         "yuv420p",
         tmp.name,
     ]
-    run_command(command)
+    _, _, returncode = run_command(command)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command)
     return Path(tmp.name)
 
 
@@ -115,7 +120,9 @@ def run_x264_benchmark(
             "-o",
             "/dev/null",
         ]
-        stdout, duration = run_command(command)
+        stdout, duration, returncode = run_command(command)
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, command, stdout)
         metrics_data = parse_x264_output(stdout)
     finally:
         pattern_path.unlink(missing_ok=True)

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..parsers import parse_sysbench_memory_output, parse_tinymembench_output
@@ -32,7 +33,9 @@ def run_sysbench_memory(
         f"--threads={thread_count}",
         "run",
     ]
-    stdout, duration = run_command(command)
+    stdout, duration, returncode = run_command(command)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command, stdout)
     metrics_data = parse_sysbench_memory_output(stdout)
     metrics_data["threads"] = thread_count
     metrics_data["block_kb"] = block_kb
@@ -61,7 +64,10 @@ def run_sysbench_memory(
 
 def run_tinymembench() -> BenchmarkResult:
     """Run tinymembench memory throughput test."""
-    stdout, duration = run_command(["tinymembench"])
+    command = ["tinymembench"]
+    stdout, duration, returncode = run_command(command)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command, stdout)
     metrics_data = parse_tinymembench_output(stdout)
 
     return BenchmarkResult(
