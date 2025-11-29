@@ -140,6 +140,19 @@ def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
             raw_output=raw_output,
         )
 
+    # Update result with categories and presets from benchmark instance
+    result = BenchmarkResult(
+        name=result.name,
+        status=result.status,
+        categories=benchmark.categories,
+        presets=benchmark.presets,
+        metrics=result.metrics,
+        parameters=result.parameters,
+        duration_seconds=result.duration_seconds,
+        command=result.command,
+        message=result.message,
+        raw_output=result.raw_output,
+    )
     return result
 
 
