@@ -1,1 +1,4 @@
 .direnv
+venv/
+results/
+__pycache__

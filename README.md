@@ -1,56 +1,81 @@
 # nixos-benchmark
 
-This repository provides an all‑in‑one `nix-shell` with the
-[phoronix-test-suite](https://www.phoronix-test-suite.com/) and a set of
-common build dependencies. It is useful for quickly benchmarking a system
-without having to install packages globally.
+This repository provides an all‑in‑one `nix-shell` with a curated set of benchmarking
+tools. Use it to quickly benchmark your system and compare results with others.
 
 ## Requirements
-- [Nix](https://nixos.org/) installed
-- Optionally [direnv](https://direnv.net/) for automatic shell loading
+- [Nix](https://nixos.org/) installed on your machine
+- Optional: [direnv](https://direnv.net/) if you prefer automatic shell loading
 
-## Usage
-1. Enter the repository and run `direnv allow` if using direnv. This will
-   automatically load the `shell.nix` environment.
-   ```bash
-   cd nixos-benchmark
-   direnv allow   # only needed once
-   python -m venv venv
-   cd ..; cd nixos-benchmark   # to reload the environment
-   phoronix-test-suite batch-setup   # to setup openbenchmarking or not
-   ```
-2. Launch a shell manually (if not using direnv):
-   ```bash
-   nix-shell
-   ```
-3. Run phoronix test suite benchmarks using the convenience script. By default
-   it runs a set of common system tests:
-   ```bash
-   ./run-benchmarks.sh
-   ```
-   For gaming focused benchmarks use the `gaming` preset:
-   ```bash
-   ./run-benchmarks.sh gaming
-   ```
-   To run all Steam game benchmarks supported by the test suite use the
-   `steam` preset:
-   ```bash
-   ./run-benchmarks.sh steam
-   ```
-   The default preset executes benchmarks such as `openssl`, `nginx`,
-   `python`, `phpbench`, and `compress-7zip` using the `batch-benchmark`
-   command.
+## Quick start
+All workflows now use flakes (Nix 2.4+ with flakes enabled).
 
-Feel free to adjust the `TESTS` array in `run-benchmarks.sh` to include
-other benchmarks available in the phoronix test suite.
+```bash
+# enter a dev shell with all tools on PATH
+nix develop
 
-## Provided Packages
-The environment includes the following packages:
-- phoronix-test-suite
-- bison, flex
-- gmp, libaio, SDL2, zlib, openssl
-- python3 with pip, distutils and the python-yaml package
-- php, nginx
+# list available presets/benchmarks
+nix run . -- --list-presets
+nix run . -- --list-benchmarks
 
-These dependencies cover a variety of test scenarios so the suite should
-run out-of-the-box on most systems.
+# run the default (balanced) suite
+nix run . -- --preset balanced
+
+# run with ad-hoc options while inside the dev shell
+nix develop -c python simple_benchmarks.py --preset cpu,io --html-summary ''
+```
+
+The runner prints each benchmark name as it executes and finishes with a short summary.
+
+## Benchmark presets
+
+The suite now groups benchmarks by what they test (CPU, IO, memory, GPU, etc.).
+Use presets to quickly select a workload mix:
+
+```bash
+python simple_benchmarks.py --list-presets
+# run a CPU + IO focused pass
+python simple_benchmarks.py --preset cpu --preset io
+# the same selection can be expressed as a single comma-separated flag
+python simple_benchmarks.py --preset cpu,io
+# target the memory-focused preset
+python simple_benchmarks.py --preset memory
+# run everything (may take a long time)
+python simple_benchmarks.py --preset all
+```
+
+You can also target individual benchmarks:
+
+```bash
+python simple_benchmarks.py --benchmarks openssl-speed fio-seq sqlite-mixed
+```
+
+Each benchmark entry records its categories and which presets include it. This metadata
+is persisted in the JSON report and rendered in the HTML dashboard.
+
+## Included tools
+
+The default `balanced` preset runs:
+
+- OpenSSL, 7-Zip, stress-ng, sysbench CPU (CPU)
+- sysbench memory, fio, sqlite (IO / storage / memory)
+
+Additional tools can be enabled via the `all` preset or explicit selection:
+
+- FFmpeg synthetic transcode and standalone x264 encode tests (fixed preset/resolution; not part of the standard presets)
+- SQLite mixed workload via the Python `sqlite3` module
+- GPU tests (glmark2 by default, plus Unigine Heaven/Valley when those binaries are installed)
+
+Use `--list-benchmarks` to see the full catalog along with category and preset metadata.
+
+## Notes on external tools
+
+- **Unigine Heaven / Valley**: if `unigine-heaven` or `unigine-valley` is in `PATH`, the suite
+  runs it with the built-in `-benchmark` preset and parses the resulting FPS/score lines.
+
+## Reports and dashboard
+
+Each run emits a JSON file (see `results/`) capturing system info, requested presets,
+explicit benchmark selections, and per-benchmark metadata. When `--html-summary` is set
+the `results/index.html` dashboard is also updated. It now displays the presets used for
+each run and annotates every benchmark column with its categories and preset coverage.
