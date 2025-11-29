@@ -14,14 +14,27 @@
 
         benchmarkTools = with pkgs; [
           p7zip
+          tinymembench
+          clpeak
+          zstd
+          pigz
+          hashcat
+          cryptsetup
           stress-ng
           fio
+          ioping
+          hdparm
+          fsmark
+          filebench
           glmark2
           vkmark
           openssl
+          iperf3
+          netperf
           ffmpeg
           x264
           sqlite
+          postgresql
           php
           gnumake
           sysbench

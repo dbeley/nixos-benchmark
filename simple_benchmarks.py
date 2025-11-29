@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import html
 import json
 import os
 import platform
 import re
 import shutil
+import socket
 import sqlite3
 import subprocess
 import sys
@@ -43,6 +45,14 @@ DEFAULT_SYSBENCH_THREADS = 0
 DEFAULT_SYSBENCH_MEMORY_BLOCK_KB = 1024
 DEFAULT_SYSBENCH_MEMORY_TOTAL_MB = 512
 DEFAULT_SYSBENCH_MEMORY_OPERATION = "read"
+DEFAULT_IOPING_COUNT = 5
+DEFAULT_ZSTD_LEVEL = 5
+DEFAULT_PIGZ_LEVEL = 3
+DEFAULT_COMPRESS_SIZE_MB = 32
+DEFAULT_IPERF_DURATION = 3
+DEFAULT_NETPERF_DURATION = 3
+DEFAULT_PGBENCH_SCALE = 1
+DEFAULT_PGBENCH_TIME = 5
 
 
 @dataclass(frozen=True)
@@ -67,6 +77,51 @@ def check_requirements(commands: Sequence[str]) -> Tuple[bool, str]:
     return True, ""
 
 
+def write_temp_data_file(size_mb: int, randomize: bool = True) -> Path:
+    block_size = 1024 * 1024
+    block = os.urandom(block_size) if randomize else b"\0" * block_size
+    tmp = tempfile.NamedTemporaryFile(delete=False)
+    tmp.close()
+    with open(tmp.name, "wb") as handle:
+        for _ in range(size_mb):
+            handle.write(os.urandom(block_size) if randomize else block)
+    return Path(tmp.name)
+
+
+def find_free_tcp_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+def wait_for_port(host: str, port: int, timeout: float = 5.0) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(0.5)
+            try:
+                sock.connect((host, port))
+                return True
+            except OSError:
+                time.sleep(0.05)
+    return False
+
+
+def find_first_block_device() -> str | None:
+    skip_prefixes = ("loop", "ram", "dm-", "zd", "nbd", "sr", "md")
+    sys_block = Path("/sys/block")
+    if not sys_block.exists():
+        return None
+    for path in sorted(sys_block.iterdir()):
+        name = path.name
+        if name.startswith(skip_prefixes):
+            continue
+        device = Path("/dev") / name
+        if device.exists():
+            return str(device)
+    return None
+
+
 def build_status_entry(
     definition: BenchmarkDefinition,
     status: str,
@@ -83,7 +138,9 @@ def build_status_entry(
     }
 
 
-def run_command(command: List[str]) -> Tuple[str, float]:
+def run_command(
+    command: List[str], *, env: Dict[str, str] | None = None
+) -> Tuple[str, float]:
     start = time.perf_counter()
     completed = subprocess.run(
         command,
@@ -91,6 +148,7 @@ def run_command(command: List[str]) -> Tuple[str, float]:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        env=env,
     )
     duration = time.perf_counter() - start
     return completed.stdout, duration
@@ -608,6 +666,540 @@ def run_sqlite_benchmark(row_count: int, select_queries: int) -> Dict[str, objec
     }
 
 
+def parse_tinymembench_output(output: str) -> Dict[str, float]:
+    metrics: Dict[str, float] = {}
+    for line in output.splitlines():
+        match = re.match(r"\s*([A-Za-z0-9 +/_-]+?)\s+([\d.]+)\s+MB/s", line)
+        if not match:
+            continue
+        label = re.sub(r"\s+", "_", match.group(1).strip().lower())
+        metrics[f"{label}_mb_per_s"] = float(match.group(2))
+    if not metrics:
+        raise ValueError("Unable to parse tinymembench throughput")
+    return metrics
+
+
+def run_tinymembench() -> Dict[str, object]:
+    stdout, duration = run_command(["tinymembench"])
+    metrics = parse_tinymembench_output(stdout)
+    return {
+        "name": "tinymembench",
+        "command": "tinymembench",
+        "parameters": {},
+        "metrics": metrics,
+        "duration_seconds": duration,
+        "raw_output": stdout,
+    }
+
+
+def parse_clpeak_output(output: str) -> Dict[str, float]:
+    metrics: Dict[str, float] = {}
+    section = ""
+    for line in output.splitlines():
+        if "Global memory bandwidth" in line:
+            section = "global_mem_bandwidth_gbps"
+            continue
+        if "Single-precision compute" in line:
+            section = "single_precision_gflops"
+            continue
+        if "Double-precision compute" in line:
+            section = "double_precision_gflops"
+            continue
+        if "Integer compute" in line:
+            section = "integer_compute_giops"
+            continue
+        if "Kernel launch latency" in line:
+            section = "kernel_launch_latency_us"
+            continue
+        match = re.match(r"\s*(float|double|half|int\d*|long)\s*:\s*([\d.]+)", line)
+        if match and section:
+            key = f"{section}_{match.group(1)}"
+            metrics[key] = float(match.group(2))
+        latency_match = re.match(r"\s*([\d.]+)\s*us", line)
+        if section == "kernel_launch_latency_us" and latency_match:
+            metrics[section] = float(latency_match.group(1))
+    if not metrics:
+        raise ValueError("Unable to parse clpeak output (check OpenCL drivers)")
+    return metrics
+
+
+def run_clpeak() -> Dict[str, object]:
+    stdout, duration = run_command(["clpeak"])
+    metrics = parse_clpeak_output(stdout)
+    return {
+        "name": "clpeak",
+        "command": "clpeak",
+        "parameters": {},
+        "metrics": metrics,
+        "duration_seconds": duration,
+        "raw_output": stdout,
+    }
+
+
+def run_zstd_benchmark(
+    level: int = DEFAULT_ZSTD_LEVEL, size_mb: int = DEFAULT_COMPRESS_SIZE_MB
+) -> Dict[str, object]:
+    data_path = write_temp_data_file(size_mb)
+    compressed_path = data_path.with_suffix(data_path.suffix + ".zst")
+    decompressed_path = data_path.with_suffix(".out")
+    try:
+        start = time.perf_counter()
+        run_command(
+            ["zstd", "-q", "-f", f"-{level}", str(data_path), "-o", str(compressed_path)]
+        )
+        compress_duration = time.perf_counter() - start
+
+        data_path.unlink(missing_ok=True)
+        start = time.perf_counter()
+        run_command(
+            ["zstd", "-d", "-q", "-f", str(compressed_path), "-o", str(decompressed_path)]
+        )
+        decompress_duration = time.perf_counter() - start
+    finally:
+        data_path.unlink(missing_ok=True)
+        compressed_path.unlink(missing_ok=True)
+        decompressed_path.unlink(missing_ok=True)
+    metrics = {
+        "compress_mb_per_s": size_mb / compress_duration if compress_duration else 0.0,
+        "decompress_mb_per_s": size_mb / decompress_duration
+        if decompress_duration
+        else 0.0,
+        "level": level,
+        "size_mb": size_mb,
+    }
+    return {
+        "name": "zstd-compress",
+        "command": f"zstd -q -f -{level} {data_path} -o {compressed_path}",
+        "parameters": {"level": level, "size_mb": size_mb},
+        "metrics": metrics,
+        "duration_seconds": compress_duration + decompress_duration,
+        "raw_output": "",
+    }
+
+
+def run_pigz_benchmark(
+    level: int = DEFAULT_PIGZ_LEVEL, size_mb: int = DEFAULT_COMPRESS_SIZE_MB
+) -> Dict[str, object]:
+    data_path = write_temp_data_file(size_mb)
+    compressed_path = Path(f"{data_path}.gz")
+    decompressed_path = compressed_path.with_suffix("")
+    try:
+        start = time.perf_counter()
+        run_command(
+            ["pigz", "-f", "-k", "-p", "0", f"-{level}", str(data_path)]
+        )
+        compress_duration = time.perf_counter() - start
+
+        data_path.unlink(missing_ok=True)
+        start = time.perf_counter()
+        run_command(["pigz", "-d", "-f", "-k", str(compressed_path)])
+        decompress_duration = time.perf_counter() - start
+    finally:
+        data_path.unlink(missing_ok=True)
+        compressed_path.unlink(missing_ok=True)
+        decompressed_path.unlink(missing_ok=True)
+    metrics = {
+        "compress_mb_per_s": size_mb / compress_duration if compress_duration else 0.0,
+        "decompress_mb_per_s": size_mb / decompress_duration
+        if decompress_duration
+        else 0.0,
+        "level": level,
+        "size_mb": size_mb,
+    }
+    return {
+        "name": "pigz-compress",
+        "command": f"pigz -f -k -p 0 -{level} {data_path}",
+        "parameters": {"level": level, "size_mb": size_mb},
+        "metrics": metrics,
+        "duration_seconds": compress_duration + decompress_duration,
+        "raw_output": "",
+    }
+
+
+def parse_hashcat_output(output: str) -> Dict[str, float]:
+    metrics: Dict[str, float] = {}
+    for line in output.splitlines():
+        match = re.search(r"([\d.]+)\s*(G|M|k)?H/s", line)
+        if not match:
+            continue
+        value = float(match.group(1))
+        unit = match.group(2) or ""
+        if unit == "G":
+            value *= 1_000_000_000
+        elif unit == "M":
+            value *= 1_000_000
+        elif unit == "k":
+            value *= 1_000
+        metrics.setdefault("throughput_hps", 0.0)
+        metrics["throughput_hps"] = max(metrics["throughput_hps"], value)
+    if not metrics:
+        raise ValueError("Unable to parse hashcat benchmark output")
+    return metrics
+
+
+def run_hashcat_benchmark() -> Dict[str, object]:
+    stdout, duration = run_command(
+        [
+            "hashcat",
+            "--benchmark",
+            "--benchmark-all",
+            "--machine-readable",
+            "--potfile-disable",
+            "--quiet",
+            "--force",
+        ]
+    )
+    metrics = parse_hashcat_output(stdout)
+    return {
+        "name": "hashcat-benchmark",
+        "command": "hashcat --benchmark --benchmark-all --machine-readable --potfile-disable --quiet --force",
+        "parameters": {},
+        "metrics": metrics,
+        "duration_seconds": duration,
+        "raw_output": stdout,
+    }
+
+
+def parse_cryptsetup_output(output: str) -> Dict[str, float]:
+    metrics: Dict[str, float] = {}
+    pattern = re.compile(
+        r"^(?P<cipher>[a-z0-9-]+)\s+(?P<keybits>\d+)b\s+(?P<enc>[\d.]+)\s+MiB/s\s+(?P<dec>[\d.]+)\s+MiB/s",
+        flags=re.IGNORECASE,
+    )
+    for line in output.splitlines():
+        match = pattern.search(line)
+        if not match:
+            continue
+        cipher = match.group("cipher")
+        keybits = int(match.group("keybits"))
+        enc = float(match.group("enc"))
+        dec = float(match.group("dec"))
+        metrics[f"{cipher}_{keybits}_enc_mib_per_s"] = enc
+        metrics[f"{cipher}_{keybits}_dec_mib_per_s"] = dec
+    if not metrics:
+        raise ValueError("Unable to parse cryptsetup benchmark results")
+    return metrics
+
+
+def run_cryptsetup_benchmark() -> Dict[str, object]:
+    stdout, duration = run_command(["cryptsetup", "benchmark"])
+    metrics = parse_cryptsetup_output(stdout)
+    return {
+        "name": "cryptsetup-benchmark",
+        "command": "cryptsetup benchmark",
+        "parameters": {},
+        "metrics": metrics,
+        "duration_seconds": duration,
+        "raw_output": stdout,
+    }
+
+
+def parse_ioping_output(output: str) -> Dict[str, float]:
+    match = re.search(r"min/avg/max/mdev = ([\d.]+)/([\d.]+)/([\d.]+)/([\d.]+) ms", output)
+    if not match:
+        raise ValueError("Unable to parse ioping summary")
+    return {
+        "latency_min_ms": float(match.group(1)),
+        "latency_avg_ms": float(match.group(2)),
+        "latency_max_ms": float(match.group(3)),
+        "latency_mdev_ms": float(match.group(4)),
+    }
+
+
+def run_ioping(count: int = DEFAULT_IOPING_COUNT) -> Dict[str, object]:
+    stdout, duration = run_command(["ioping", "-c", str(count), "."])
+    metrics = parse_ioping_output(stdout)
+    metrics["requests"] = count
+    return {
+        "name": "ioping",
+        "command": f"ioping -c {count} .",
+        "parameters": {"count": count},
+        "metrics": metrics,
+        "duration_seconds": duration,
+        "raw_output": stdout,
+    }
+
+
+def parse_hdparm_output(output: str) -> Dict[str, float]:
+    metrics: Dict[str, float] = {}
+    cached = re.search(r"Timing cached reads:\s+[\d.]+\s+MB in\s+[\d.]+\s+seconds\s+=\s+([\d.]+)\s+MB/sec", output)
+    buffered = re.search(
+        r"Timing buffered disk reads:\s+[\d.]+\s+MB in\s+[\d.]+\s+seconds\s+=\s+([\d.]+)\s+MB/sec",
+        output,
+    )
+    if cached:
+        metrics["cached_read_mb_per_s"] = float(cached.group(1))
+    if buffered:
+        metrics["buffered_read_mb_per_s"] = float(buffered.group(1))
+    if not metrics:
+        raise ValueError("Unable to parse hdparm output")
+    return metrics
+
+
+def run_hdparm(device: str | None = None) -> Dict[str, object]:
+    target = device or find_first_block_device()
+    if not target:
+        raise FileNotFoundError("No suitable block device found for hdparm")
+    stdout, duration = run_command(["hdparm", "-Tt", target])
+    metrics = parse_hdparm_output(stdout)
+    metrics["device"] = target
+    return {
+        "name": "hdparm",
+        "command": f"hdparm -Tt {target}",
+        "parameters": {"device": target},
+        "metrics": metrics,
+        "duration_seconds": duration,
+        "raw_output": stdout,
+    }
+
+
+def parse_fsmark_output(output: str) -> Dict[str, float]:
+    match = re.search(r"Throughput\s*=\s*([\d.]+)\s+files/sec", output)
+    if not match:
+        raise ValueError("Unable to parse fsmark throughput")
+    return {"files_per_sec": float(match.group(1))}
+
+
+def run_fsmark() -> Dict[str, object]:
+    workdir = Path("results/fsmark")
+    workdir.mkdir(parents=True, exist_ok=True)
+    try:
+        stdout, duration = run_command(
+            [
+                "fs_mark",
+                "-d",
+                str(workdir),
+                "-n",
+                "200",
+                "-s",
+                "1024",
+                "-t",
+                "1",
+                "-k",
+            ]
+        )
+        metrics = parse_fsmark_output(stdout)
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+    return {
+        "name": "fsmark",
+        "command": f"fs_mark -d {workdir} -n 200 -s 1024 -t 1 -k",
+        "parameters": {"files": 200, "size_kb": 1024},
+        "metrics": metrics,
+        "duration_seconds": duration,
+        "raw_output": stdout,
+    }
+
+
+def parse_filebench_output(output: str) -> Dict[str, float]:
+    match = re.search(r"IO Summary:\s+([\d.]+)\s+ops/s", output)
+    if not match:
+        raise ValueError("Unable to parse filebench IO summary")
+    return {"ops_per_sec": float(match.group(1))}
+
+
+def run_filebench() -> Dict[str, object]:
+    workdir = Path(tempfile.mkdtemp(prefix="filebench-"))
+    workload = (
+        f"set $dir={workdir}\n"
+        "set $filesize=1m\n"
+        "set $nfiles=100\n"
+        "define fileset name=fileset1, path=$dir, size=$filesize, entries=$nfiles, prealloc=100\n"
+        "define process name=seqwriter {\n"
+        "  thread name=writer thread_count=1 {\n"
+        "    flowop createfile name=create, filesetname=fileset1\n"
+        "    flowop writewholefile name=write, filesetname=fileset1\n"
+        "    flowop closefile name=close, filesetname=fileset1\n"
+        "    flowop deletefile name=delete, filesetname=fileset1\n"
+        "  }\n"
+        "}\n"
+        "run 5\n"
+    )
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".f") as tmp:
+        workload_path = Path(tmp.name)
+        tmp.write(workload.encode("utf-8"))
+    try:
+        stdout, duration = run_command(["filebench", "-f", str(workload_path)])
+        metrics = parse_filebench_output(stdout)
+    finally:
+        workload_path.unlink(missing_ok=True)
+        shutil.rmtree(workdir, ignore_errors=True)
+    return {
+        "name": "filebench",
+        "command": f"filebench -f {workload_path}",
+        "parameters": {"files": 100, "filesize": "1m"},
+        "metrics": metrics,
+        "duration_seconds": duration,
+        "raw_output": stdout,
+    }
+
+
+def parse_pgbench_output(output: str) -> Dict[str, float]:
+    tps_match = re.search(r"tps = ([\d.]+)", output)
+    latency_match = re.search(r"latency average = ([\d.]+) ms", output)
+    metrics: Dict[str, float] = {}
+    if tps_match:
+        metrics["tps"] = float(tps_match.group(1))
+    if latency_match:
+        metrics["latency_ms"] = float(latency_match.group(1))
+    if not metrics:
+        raise ValueError("Unable to parse pgbench output")
+    return metrics
+
+
+def run_pgbench(scale: int = DEFAULT_PGBENCH_SCALE, seconds: int = DEFAULT_PGBENCH_TIME) -> Dict[str, object]:
+    data_dir = Path(tempfile.mkdtemp(prefix="pgbench-"))
+    port = find_free_tcp_port()
+    socket_dir = data_dir / "socket"
+    socket_dir.mkdir(parents=True, exist_ok=True)
+    env = os.environ.copy()
+    env["PGHOST"] = str(socket_dir)
+    env["PGPORT"] = str(port)
+    try:
+        run_command(["initdb", "-D", str(data_dir), "-A", "trust", "--no-locale", "--encoding", "UTF8"])
+        run_command(["pg_ctl", "-D", str(data_dir), "-o", f"-F -k {socket_dir} -p {port}", "-w", "start"])
+        run_command(["createdb", "benchdb"], env=env)
+        run_command(["pgbench", "-i", "-s", str(scale), "benchdb"], env=env)
+        stdout, duration = run_command(["pgbench", "-T", str(seconds), "benchdb"], env=env)
+        metrics = parse_pgbench_output(stdout)
+    finally:
+        try:
+            run_command(["pg_ctl", "-D", str(data_dir), "-m", "fast", "stop"])
+        except Exception:
+            pass
+        shutil.rmtree(data_dir, ignore_errors=True)
+    metrics["scale"] = scale
+    metrics["duration_s"] = seconds
+    return {
+        "name": "pgbench",
+        "command": f"pgbench -T {seconds} benchdb",
+        "parameters": {"scale": scale, "duration_s": seconds},
+        "metrics": metrics,
+        "duration_seconds": duration,
+        "raw_output": stdout,
+    }
+
+
+def run_sqlite_speedtest(
+    row_count: int = DEFAULT_SQLITE_ROWS, select_queries: int = DEFAULT_SQLITE_SELECTS
+) -> Dict[str, object]:
+    tmp_db = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+    tmp_db.close()
+    db_path = Path(tmp_db.name)
+    conn = sqlite3.connect(db_path)
+    insert_start = time.perf_counter()
+    try:
+        conn.execute("PRAGMA synchronous = OFF;")
+        conn.execute("PRAGMA journal_mode = MEMORY;")
+        conn.execute("CREATE TABLE bench (id INTEGER PRIMARY KEY, value INTEGER);")
+        with conn:
+            conn.executemany(
+                "INSERT INTO bench(value) VALUES (?)",
+                ((i % 1000,) for i in range(row_count)),
+            )
+        insert_duration = time.perf_counter() - insert_start
+        conn.execute("CREATE INDEX idx_value ON bench(value);")
+        query_start = time.perf_counter()
+        cursor = conn.cursor()
+        for i in range(select_queries):
+            cursor.execute("SELECT COUNT(*) FROM bench WHERE value = ?", (i % 1000,))
+            cursor.fetchone()
+        query_duration = time.perf_counter() - query_start
+    finally:
+        conn.close()
+        db_path.unlink(missing_ok=True)
+    metrics = {
+        "insert_rows_per_s": row_count / insert_duration if insert_duration else 0.0,
+        "indexed_selects_per_s": select_queries / query_duration if query_duration else 0.0,
+        "row_count": row_count,
+        "select_queries": select_queries,
+    }
+    total_duration = insert_duration + query_duration
+    return {
+        "name": "sqlite-speedtest",
+        "command": "python-sqlite3-speedtest",
+        "parameters": {"row_count": row_count, "select_queries": select_queries},
+        "metrics": metrics,
+        "duration_seconds": total_duration,
+        "raw_output": "",
+    }
+
+
+def run_iperf3_loopback(duration: int = DEFAULT_IPERF_DURATION) -> Dict[str, object]:
+    port = find_free_tcp_port()
+    server = subprocess.Popen(
+        ["iperf3", "-s", "-1", "-p", str(port)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if not wait_for_port("127.0.0.1", port):
+        server.kill()
+        raise RuntimeError("iperf3 server failed to start")
+    try:
+        stdout, client_duration = run_command(
+            ["iperf3", "-c", "127.0.0.1", "-p", str(port), "-t", str(duration), "-J"]
+        )
+        data = json.loads(stdout)
+    finally:
+        with contextlib.suppress(Exception):
+            server.wait(timeout=5)
+    end = data.get("end", {})
+    sum_received = end.get("sum_received", {})
+    bits_per_second = float(sum_received.get("bits_per_second", 0.0))
+    metrics = {
+        "throughput_mib_per_s": bits_per_second / (8 * 1024 * 1024),
+        "retransmits": float(sum_received.get("retransmits", 0)),
+        "duration_s": duration,
+    }
+    return {
+        "name": "iperf3-loopback",
+        "command": f"iperf3 -c 127.0.0.1 -p {port} -t {duration} -J",
+        "parameters": {"duration_s": duration},
+        "metrics": metrics,
+        "duration_seconds": client_duration,
+        "raw_output": stdout,
+    }
+
+
+def parse_netperf_output(output: str) -> Dict[str, float]:
+    values = [float(token) for token in re.findall(r"([\d.]+)\s*$", output, flags=re.MULTILINE) if token]
+    if not values:
+        raise ValueError("Unable to parse netperf throughput")
+    throughput_mbps = values[-1]
+    return {"throughput_mbps": throughput_mbps}
+
+
+def run_netperf(duration: int = DEFAULT_NETPERF_DURATION) -> Dict[str, object]:
+    port = find_free_tcp_port()
+    server = subprocess.Popen(
+        ["netserver", "-p", str(port)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if not wait_for_port("127.0.0.1", port):
+        server.kill()
+        raise RuntimeError("netserver failed to start")
+    try:
+        stdout, client_duration = run_command(
+            ["netperf", "-H", "127.0.0.1", "-p", str(port), "-l", str(duration), "-t", "TCP_STREAM"]
+        )
+        metrics = parse_netperf_output(stdout)
+    finally:
+        server.terminate()
+        with contextlib.suppress(Exception):
+            server.wait(timeout=5)
+    metrics["duration_s"] = duration
+    return {
+        "name": "netperf",
+        "command": f"netperf -H 127.0.0.1 -p {port} -l {duration} -t TCP_STREAM",
+        "parameters": {"duration_s": duration},
+        "metrics": metrics,
+        "duration_seconds": client_duration,
+        "raw_output": stdout,
+    }
+
 PRESET_DEFINITIONS: Dict[str, Dict[str, object]] = {
     "balanced": {
         "description": "Quick mix of CPU and IO tests.",
@@ -627,6 +1219,18 @@ PRESET_DEFINITIONS: Dict[str, Dict[str, object]] = {
         "description": "Memory bandwidth and latency tests.",
         "categories": ("memory",),
     },
+    "compression": {
+        "description": "Compression and decompression throughput.",
+        "categories": ("compression",),
+    },
+    "crypto": {
+        "description": "Cryptography focused benchmarks.",
+        "categories": ("crypto",),
+    },
+    "database": {
+        "description": "Database engines (SQLite and PostgreSQL).",
+        "categories": ("database",),
+    },
     "gpu-light": {
         "description": "Lightweight GPU render sanity checks.",
         "benchmarks": ("glmark2", "vkmark"),
@@ -634,6 +1238,10 @@ PRESET_DEFINITIONS: Dict[str, Dict[str, object]] = {
     "gpu": {
         "description": "GPU render benchmarks (glmark2 and vkmark).",
         "categories": ("gpu",),
+    },
+    "network": {
+        "description": "Loopback network throughput tests.",
+        "categories": ("network",),
     },
     "all": {"description": "Run every available benchmark.", "all": True},
 }
@@ -782,6 +1390,125 @@ BENCHMARK_DEFINITIONS: List[BenchmarkDefinition] = [
             DEFAULT_SQLITE_ROWS, DEFAULT_SQLITE_SELECTS
         ),
     ),
+    BenchmarkDefinition(
+        key="tinymembench",
+        categories=("memory",),
+        presets=("memory", "all"),
+        description="TinyMemBench memory throughput.",
+        runner=lambda args: run_tinymembench(),
+        requires=("tinymembench",),
+    ),
+    BenchmarkDefinition(
+        key="clpeak",
+        categories=("gpu", "compute"),
+        presets=("gpu", "all"),
+        description="OpenCL peak bandwidth/compute.",
+        runner=lambda args: run_clpeak(),
+        requires=("clpeak",),
+    ),
+    BenchmarkDefinition(
+        key="zstd-compress",
+        categories=("cpu", "compression"),
+        presets=("cpu", "compression", "all"),
+        description="zstd compress/decompress throughput.",
+        runner=lambda args: run_zstd_benchmark(
+            DEFAULT_ZSTD_LEVEL, DEFAULT_COMPRESS_SIZE_MB
+        ),
+        requires=("zstd",),
+    ),
+    BenchmarkDefinition(
+        key="pigz-compress",
+        categories=("cpu", "compression"),
+        presets=("cpu", "compression", "all"),
+        description="pigz compress/decompress throughput.",
+        runner=lambda args: run_pigz_benchmark(
+            DEFAULT_PIGZ_LEVEL, DEFAULT_COMPRESS_SIZE_MB
+        ),
+        requires=("pigz",),
+    ),
+    BenchmarkDefinition(
+        key="hashcat-benchmark",
+        categories=("cpu", "crypto", "gpu"),
+        presets=("cpu", "crypto", "all"),
+        description="hashcat self-contained benchmark.",
+        runner=lambda args: run_hashcat_benchmark(),
+        requires=("hashcat",),
+    ),
+    BenchmarkDefinition(
+        key="cryptsetup-benchmark",
+        categories=("crypto", "io"),
+        presets=("crypto", "io", "all"),
+        description="cryptsetup cipher benchmark.",
+        runner=lambda args: run_cryptsetup_benchmark(),
+        requires=("cryptsetup",),
+    ),
+    BenchmarkDefinition(
+        key="ioping",
+        categories=("io",),
+        presets=("io", "all"),
+        description="ioping latency probe.",
+        runner=lambda args: run_ioping(DEFAULT_IOPING_COUNT),
+        requires=("ioping",),
+    ),
+    BenchmarkDefinition(
+        key="hdparm",
+        categories=("io",),
+        presets=("io", "all"),
+        description="hdparm cached/buffered read speed.",
+        runner=lambda args: run_hdparm(),
+        requires=("hdparm",),
+        availability_check=lambda args: (
+            find_first_block_device() is not None,
+            "No readable block device found",
+        ),
+    ),
+    BenchmarkDefinition(
+        key="fsmark",
+        categories=("io",),
+        presets=("io", "all"),
+        description="fs_mark small file benchmark.",
+        runner=lambda args: run_fsmark(),
+        requires=("fs_mark",),
+    ),
+    BenchmarkDefinition(
+        key="filebench",
+        categories=("io",),
+        presets=("io", "all"),
+        description="filebench micro workload.",
+        runner=lambda args: run_filebench(),
+        requires=("filebench",),
+    ),
+    BenchmarkDefinition(
+        key="pgbench",
+        categories=("database", "io"),
+        presets=("database", "all"),
+        description="PostgreSQL pgbench on local socket.",
+        runner=lambda args: run_pgbench(DEFAULT_PGBENCH_SCALE, DEFAULT_PGBENCH_TIME),
+        requires=("initdb", "pgbench", "pg_ctl", "createdb"),
+    ),
+    BenchmarkDefinition(
+        key="sqlite-speedtest",
+        categories=("io", "database"),
+        presets=("database", "io", "all"),
+        description="SQLite speedtest-style insert/select.",
+        runner=lambda args: run_sqlite_speedtest(DEFAULT_SQLITE_ROWS, DEFAULT_SQLITE_SELECTS),
+    ),
+    BenchmarkDefinition(
+        key="iperf3-loopback",
+        categories=("network",),
+        presets=("network", "all"),
+        description="iperf3 loopback throughput.",
+        runner=lambda args: run_iperf3_loopback(DEFAULT_IPERF_DURATION),
+        requires=("iperf3",),
+    ),
+    BenchmarkDefinition(
+        key="netperf",
+        categories=("network",),
+        presets=("network", "all"),
+        description="netperf TCP_STREAM loopback.",
+        runner=lambda args: run_netperf(DEFAULT_NETPERF_DURATION),
+        requires=("netperf", "netserver"),
+    ),
 ]
 
 
@@ -922,6 +1649,68 @@ def describe_benchmark(bench: Dict[str, object]) -> str:
         selects = metrics.get("selects_per_s")
         if inserts is not None and selects is not None:
             return f"Ins {inserts:.0f}/s Sel {selects:.0f}/s"
+    elif name == "tinymembench":
+        memcpy = metrics.get("memcpy_mb_per_s")
+        if memcpy is None:
+            memcpy = metrics.get("memcpy_-_aligned_mb_per_s")
+        if memcpy is None and metrics:
+            memcpy = max(metrics.values())
+        if memcpy is not None:
+            return f"{memcpy:,.0f} MB/s"
+    elif name == "clpeak":
+        bandwidth = metrics.get("global_mem_bandwidth_gbps_float")
+        if bandwidth is None and metrics:
+            bandwidth = max(metrics.values())
+        if bandwidth is not None:
+            return f"{bandwidth:.1f} GB/s"
+    elif name == "zstd-compress" or name == "pigz-compress":
+        comp = metrics.get("compress_mb_per_s")
+        decomp = metrics.get("decompress_mb_per_s")
+        if comp is not None and decomp is not None:
+            return f"C {comp:.0f}/D {decomp:.0f} MB/s"
+    elif name == "hashcat-benchmark":
+        throughput = metrics.get("throughput_hps")
+        if throughput is not None:
+            return f"{throughput/1_000_000:.1f} MH/s"
+    elif name == "cryptsetup-benchmark":
+        speeds = [value for key, value in metrics.items() if key.endswith("_enc_mib_per_s")]
+        if speeds:
+            peak = max(speeds)
+            return f"{peak:,.0f} MiB/s"
+    elif name == "ioping":
+        latency = metrics.get("latency_avg_ms")
+        if latency is not None:
+            return f"{latency:.2f} ms avg"
+    elif name == "hdparm":
+        cached = metrics.get("cached_read_mb_per_s")
+        buffered = metrics.get("buffered_read_mb_per_s")
+        if cached is not None and buffered is not None:
+            return f"T {cached:.0f}/D {buffered:.0f} MB/s"
+    elif name == "fsmark":
+        files = metrics.get("files_per_sec")
+        if files is not None:
+            return f"{files:.0f} files/s"
+    elif name == "filebench":
+        ops = metrics.get("ops_per_sec")
+        if ops is not None:
+            return f"{ops:.0f} ops/s"
+    elif name == "pgbench":
+        tps = metrics.get("tps")
+        if tps is not None:
+            return f"{tps:.0f} tps"
+    elif name == "sqlite-speedtest":
+        inserts = metrics.get("insert_rows_per_s")
+        selects = metrics.get("indexed_selects_per_s")
+        if inserts is not None and selects is not None:
+            return f"Ins {inserts:.0f}/Sel {selects:.0f}/s"
+    elif name == "iperf3-loopback":
+        bw = metrics.get("throughput_mib_per_s")
+        if bw is not None:
+            return f"{bw:.1f} MiB/s"
+    elif name == "netperf":
+        mbps = metrics.get("throughput_mbps")
+        if mbps is not None:
+            return f"{mbps:.1f} Mb/s"
     return ""
 
 
