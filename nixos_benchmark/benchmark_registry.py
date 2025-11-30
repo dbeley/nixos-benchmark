@@ -162,7 +162,7 @@ class SevenZipBenchmark(BenchmarkBase):
                 r"Avr:\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+\|\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)",
                 stdout,
             )
-            metrics_data: Dict[str, float] = {}
+            metrics_data: Dict[str, float | str | int] = {}
 
             if totals_match:
                 metrics_data["total_usage_pct"] = float(totals_match.group(1))
@@ -301,7 +301,7 @@ class SysbenchCPUBenchmark(BenchmarkBase):
             raise subprocess.CalledProcessError(returncode, command, stdout)
         
         try:
-            metrics_data: Dict[str, float] = {}
+            metrics_data: Dict[str, float | str | int] = {}
             events_per_sec = re.search(r"events per second:\s+([\d.]+)", stdout)
             total_time = re.search(r"total time:\s+([\d.]+)s", stdout)
             total_events = re.search(r"total number of events:\s+([\d.]+)", stdout)
@@ -375,7 +375,7 @@ class SysbenchMemoryBenchmark(BenchmarkBase):
             raise subprocess.CalledProcessError(returncode, command, stdout)
         
         try:
-            metrics_data: Dict[str, float] = {}
+            metrics_data: Dict[str, float | str | int] = {}
             operations = re.search(
                 r"Total operations:\s+([\d.]+)\s+\(([\d.]+)\s+per second\)", stdout
             )
@@ -439,7 +439,7 @@ class TinyMemBenchBenchmark(BenchmarkBase):
             raise subprocess.CalledProcessError(returncode, command, stdout)
         
         try:
-            metrics_data: Dict[str, float] = {}
+            metrics_data: Dict[str, float | str | int] = {}
             for line in stdout.splitlines():
                 match = re.match(r"\s*([A-Za-z0-9 +/_-]+?)\s*:?\s+([\d.,]+)\s+M(?:i)?B/s", line)
                 if not match:
@@ -734,7 +734,7 @@ class CLPeakBenchmark(BenchmarkBase):
             if "no platforms found" in stdout.lower() or "clgetplatformids" in stdout.lower():
                 raise ValueError("No OpenCL platforms found")
             
-            metrics_data: Dict[str, float] = {}
+            metrics_data: Dict[str, float | str | int] = {}
             bandwidth_pattern = re.compile(
                 r"Global memory bandwidth.*?:\s*([\d.]+)\s*GB/s", flags=re.IGNORECASE
             )
@@ -925,7 +925,7 @@ class CryptsetupBenchmark(BenchmarkBase):
             raise subprocess.CalledProcessError(returncode, command, stdout)
         
         try:
-            metrics_data: Dict[str, float] = {}
+            metrics_data: Dict[str, float | str | int] = {}
             pattern = re.compile(
                 r"^(?P<cipher>[a-z0-9-]+)\s+(?P<keybits>\d+)b\s+(?P<enc>[\d.]+)\s+MiB/s\s+(?P<dec>[\d.]+)\s+MiB/s",
                 flags=re.IGNORECASE,
@@ -1130,7 +1130,7 @@ class FFmpegBenchmark(BenchmarkBase):
             raise subprocess.CalledProcessError(returncode, command, stdout)
         
         try:
-            metrics_data: Dict[str, float] = {}
+            metrics_data: Dict[str, float | str | int] = {}
             fps_matches = re.findall(r"fps=\s*([\d.]+)", stdout)
             speed_matches = re.findall(r"speed=\s*([\d.]+)x", stdout)
             if fps_matches:
@@ -1229,11 +1229,14 @@ class X264Benchmark(BenchmarkBase):
                 raise subprocess.CalledProcessError(returncode, command, stdout)
             
             try:
-                # Parse encoded fps
-                metrics_data: Dict[str, float] = {}
-                fps_match = re.search(r"encoded .* frames, ([\d.]+) fps", stdout)
+                # Parse encoded fps and bitrate
+                metrics_data: Dict[str, float | str | int] = {}
+                fps_match = re.search(
+                    r"encoded\s+\d+\s+frames,\s+([\d.]+)\s+fps,\s+([\d.]+)\s+kb/s", stdout
+                )
                 if fps_match:
                     metrics_data["fps"] = float(fps_match.group(1))
+                    metrics_data["kb_per_s"] = float(fps_match.group(2))
                     metrics_data["preset"] = preset
                     metrics_data["crf"] = crf
                     metrics_data["resolution"] = resolution
