@@ -5,16 +5,15 @@ import re
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Dict
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import (
-    BenchmarkBase,
-    DEFAULT_X264_RESOLUTION,
+    DEFAULT_X264_CRF,
     DEFAULT_X264_FRAMES,
     DEFAULT_X264_PRESET,
-    DEFAULT_X264_CRF,
+    DEFAULT_X264_RESOLUTION,
+    BenchmarkBase,
 )
 
 
@@ -30,12 +29,11 @@ class X264Benchmark(BenchmarkBase):
         frames = DEFAULT_X264_FRAMES
         preset = DEFAULT_X264_PRESET
         crf = DEFAULT_X264_CRF
-        
+
         # Generate test pattern
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".y4m")
-        tmp.close()
-        pattern_path = Path(tmp.name)
-        
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".y4m") as tmp:
+            pattern_path = Path(tmp.name)
+
         command = [
             "ffmpeg",
             "-hide_banner",
@@ -56,7 +54,7 @@ class X264Benchmark(BenchmarkBase):
         if returncode != 0:
             pattern_path.unlink(missing_ok=True)
             raise subprocess.CalledProcessError(returncode, command, stdout)
-        
+
         try:
             command = [
                 "x264",
@@ -73,12 +71,13 @@ class X264Benchmark(BenchmarkBase):
             stdout, duration, returncode = run_command(command)
             if returncode != 0:
                 raise subprocess.CalledProcessError(returncode, command, stdout)
-            
+
             try:
                 # Parse encoded fps and bitrate
-                metrics_data: Dict[str, float | str | int] = {}
+                metrics_data: dict[str, float | str | int] = {}
                 fps_match = re.search(
-                    r"encoded\s+\d+\s+frames,\s+([\d.]+)\s+fps,\s+([\d.]+)\s+kb/s", stdout
+                    r"encoded\s+\d+\s+frames,\s+([\d.]+)\s+fps,\s+([\d.]+)\s+kb/s",
+                    stdout,
                 )
                 if fps_match:
                     metrics_data["fps"] = float(fps_match.group(1))
@@ -86,10 +85,10 @@ class X264Benchmark(BenchmarkBase):
                     metrics_data["preset"] = preset
                     metrics_data["crf"] = crf
                     metrics_data["resolution"] = resolution
-                
+
                 if not metrics_data:
                     raise ValueError("Unable to parse x264 output")
-                
+
                 status = "ok"
                 metrics = BenchmarkMetrics(metrics_data)
                 message = ""
@@ -106,12 +105,14 @@ class X264Benchmark(BenchmarkBase):
             categories=(),
             presets=(),
             metrics=metrics,
-            parameters=BenchmarkParameters({
-                "resolution": resolution,
-                "frames": frames,
-                "preset": preset,
-                "crf": crf,
-            }),
+            parameters=BenchmarkParameters(
+                {
+                    "resolution": resolution,
+                    "frames": frames,
+                    "preset": preset,
+                    "crf": crf,
+                }
+            ),
             duration_seconds=duration,
             command=" ".join(command),
             raw_output=stdout,
@@ -123,7 +124,7 @@ class X264Benchmark(BenchmarkBase):
         if result.status != "ok":
             prefix = "Skipped" if result.status == "skipped" else "Error"
             return f"{prefix}: {result.message}"
-        
+
         fps = result.metrics.get("fps")
         if fps is not None:
             return f"{fps:.1f} fps"

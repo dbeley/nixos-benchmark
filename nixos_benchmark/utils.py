@@ -1,4 +1,5 @@
 """Utility functions for benchmarking."""
+
 from __future__ import annotations
 
 import os
@@ -7,8 +8,8 @@ import socket
 import subprocess
 import tempfile
 import time
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Dict, List, Sequence, Tuple
 
 
 def parse_float(token: str) -> float:
@@ -21,7 +22,7 @@ def command_exists(command: str) -> bool:
     return shutil.which(command) is not None
 
 
-def check_requirements(commands: Sequence[str]) -> Tuple[bool, str]:
+def check_requirements(commands: Sequence[str]) -> tuple[bool, str]:
     """Check if all required commands are available."""
     for cmd in commands:
         if not command_exists(cmd):
@@ -29,21 +30,19 @@ def check_requirements(commands: Sequence[str]) -> Tuple[bool, str]:
     return True, ""
 
 
-def run_command(
-    command: List[str], *, env: Dict[str, str] | None = None
-) -> Tuple[str, float, int]:
+def run_command(command: list[str], *, env: dict[str, str] | None = None) -> tuple[str, float, int]:
     """Run a command and return its output, duration, and return code."""
     start = time.perf_counter()
-    
+
     # Force English locale to ensure parseable output
     run_env = os.environ.copy()
-    run_env['LC_ALL'] = 'C'
-    run_env['LANGUAGE'] = 'C'
-    
+    run_env["LC_ALL"] = "C"
+    run_env["LANGUAGE"] = "C"
+
     # Merge any additional environment variables
     if env:
         run_env.update(env)
-    
+
     completed = subprocess.run(
         command,
         check=False,
@@ -59,20 +58,20 @@ def run_command(
 def write_temp_data_file(size_mb: int, randomize: bool = True) -> Path:
     """Create a temporary file with random or zero data."""
     block_size = 1024 * 1024
-    tmp = tempfile.NamedTemporaryFile(delete=False)
-    tmp.close()
-    with open(tmp.name, "wb") as handle:
+    with tempfile.NamedTemporaryFile(delete=False) as tmp:
+        pattern_path = Path(tmp.name)
+    with pattern_path.open("wb") as handle:
         for _ in range(size_mb):
             block = os.urandom(block_size) if randomize else b"\0" * block_size
             handle.write(block)
-    return Path(tmp.name)
+    return pattern_path
 
 
 def find_free_tcp_port() -> int:
     """Find a free TCP port on localhost."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
-        return sock.getsockname()[1]
+        return int(sock.getsockname()[1])
 
 
 def wait_for_port(host: str, port: int, timeout: float = 5.0) -> bool:

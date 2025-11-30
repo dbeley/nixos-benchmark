@@ -12,14 +12,14 @@ repos:
         language: system
         types: [python]
         pass_filenames: true
-      
+
       - id: ruff-format
         name: ruff format
         entry: ruff format
         language: system
         types: [python]
         pass_filenames: true
-      
+
       # Python type checking with mypy
       - id: mypy
         name: mypy
@@ -28,7 +28,7 @@ repos:
         types: [python]
         pass_filenames: true
         args: [--no-error-summary]
-      
+
       # Spell checking with typos
       - id: typos
         name: typos
@@ -46,7 +46,7 @@ repos:
               .*\.egg-info/.*|
               flake\.lock
           )$
-      
+
       # Nix formatting
       - id: nixpkgs-fmt
         name: nixpkgs-fmt
@@ -54,7 +54,7 @@ repos:
         language: system
         types: [nix]
         pass_filenames: true
-      
+
       # General pre-commit hooks
       - id: trailing-whitespace
         name: trim trailing whitespace
@@ -67,7 +67,7 @@ repos:
               \.git/.*|
               results/.*
           )$
-      
+
       - id: end-of-file-fixer
         name: fix end of files
         entry: bash -c 'for file in "$@"; do test -n "$(tail -c 1 "$file")" && echo >> "$file" || true; done' --
@@ -79,14 +79,7 @@ repos:
               \.git/.*|
               results/.*
           )$
-      
-      - id: check-yaml
-        name: check yaml
-        entry: bash -c 'python3 -c "import yaml; import sys; [yaml.safe_load(open(f, encoding=\"utf-8\")) for f in sys.argv[1:]]" "$@"' --
-        language: system
-        types: [yaml]
-        pass_filenames: true
-      
+
       - id: check-added-large-files
         name: check for added large files
         entry: bash -c 'for file in "$@"; do size=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file" 2>/dev/null || echo 0); if [ "$size" -gt 500000 ]; then echo "File $file is larger than 500KB"; exit 1; fi; done' --

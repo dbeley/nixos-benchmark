@@ -4,12 +4,13 @@ import argparse
 import contextlib
 import re
 import subprocess
+from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import find_free_tcp_port, run_command, wait_for_port
 from .base import (
-    BenchmarkBase,
     DEFAULT_NETPERF_DURATION,
+    BenchmarkBase,
 )
 
 
@@ -33,24 +34,22 @@ class NetperfBenchmark(BenchmarkBase):
             server.kill()
             raise RuntimeError("netserver failed to start")
         try:
-            stdout, client_duration = run_command([
-                "netperf",
-                "-H",
-                "127.0.0.1",
-                "-p",
-                str(port),
-                "-l",
-                str(duration),
-                "-t",
-                "TCP_STREAM",
-            ])
-            
-            try:
-                values = [
-                    float(token)
-                    for token in re.findall(r"([\d.]+)\s*$", stdout, flags=re.MULTILINE)
-                    if token
+            stdout, client_duration, _ = run_command(
+                [
+                    "netperf",
+                    "-H",
+                    "127.0.0.1",
+                    "-p",
+                    str(port),
+                    "-l",
+                    str(duration),
+                    "-t",
+                    "TCP_STREAM",
                 ]
+            )
+
+            try:
+                values = [float(token) for token in re.findall(r"([\d.]+)\s*$", stdout, flags=re.MULTILINE) if token]
                 if not values:
                     raise ValueError("Unable to parse netperf throughput")
                 throughput_mbps = values[-1]
@@ -58,9 +57,9 @@ class NetperfBenchmark(BenchmarkBase):
                     "throughput_mbps": throughput_mbps,
                     "duration_s": duration,
                 }
-                
+
                 status = "ok"
-                metrics = BenchmarkMetrics(metrics_data)
+                metrics = BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data))
                 message = ""
             except ValueError as e:
                 status = "error"
@@ -83,12 +82,13 @@ class NetperfBenchmark(BenchmarkBase):
             raw_output=stdout,
             message=message,
         )
+
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
         if result.status != "ok":
             prefix = "Skipped" if result.status == "skipped" else "Error"
             return f"{prefix}: {result.message}"
-        
+
         mbps = result.metrics.get("throughput_mbps")
         if mbps is not None:
             return f"{mbps:.1f} Mb/s"

@@ -4,16 +4,15 @@ import argparse
 import os
 import re
 import subprocess
-from typing import Dict
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import (
-    BenchmarkBase,
-    DEFAULT_SYSBENCH_THREADS,
     DEFAULT_SYSBENCH_MEMORY_BLOCK_KB,
-    DEFAULT_SYSBENCH_MEMORY_TOTAL_MB,
     DEFAULT_SYSBENCH_MEMORY_OPERATION,
+    DEFAULT_SYSBENCH_MEMORY_TOTAL_MB,
+    DEFAULT_SYSBENCH_THREADS,
+    BenchmarkBase,
 )
 
 
@@ -30,7 +29,7 @@ class SysbenchMemoryBenchmark(BenchmarkBase):
         total_mb = DEFAULT_SYSBENCH_MEMORY_TOTAL_MB
         operation = DEFAULT_SYSBENCH_MEMORY_OPERATION
         thread_count = threads if threads > 0 else (os.cpu_count() or 1)
-        
+
         command = [
             "sysbench",
             "memory",
@@ -43,15 +42,11 @@ class SysbenchMemoryBenchmark(BenchmarkBase):
         stdout, duration, returncode = run_command(command)
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
-        
+
         try:
-            metrics_data: Dict[str, float | str | int] = {}
-            operations = re.search(
-                r"Total operations:\s+([\d.]+)\s+\(([\d.]+)\s+per second\)", stdout
-            )
-            throughput = re.search(
-                r"([\d.]+)\s+MiB transferred\s+\(([\d.]+)\s+MiB/sec\)", stdout
-            )
+            metrics_data: dict[str, float | str | int] = {}
+            operations = re.search(r"Total operations:\s+([\d.]+)\s+\(([\d.]+)\s+per second\)", stdout)
+            throughput = re.search(r"([\d.]+)\s+MiB transferred\s+\(([\d.]+)\s+MiB/sec\)", stdout)
             total_time = re.search(r"total time:\s+([\d.]+)s", stdout)
             if operations:
                 metrics_data["operations"] = float(operations.group(1))
@@ -63,7 +58,7 @@ class SysbenchMemoryBenchmark(BenchmarkBase):
                 metrics_data["total_time_secs"] = float(total_time.group(1))
             if not metrics_data:
                 raise ValueError("Unable to parse sysbench memory output")
-            
+
             metrics_data["threads"] = thread_count
             metrics_data["block_kb"] = block_kb
             metrics_data["total_mb"] = total_mb
@@ -82,23 +77,26 @@ class SysbenchMemoryBenchmark(BenchmarkBase):
             categories=(),
             presets=(),
             metrics=metrics,
-            parameters=BenchmarkParameters({
-                "threads": thread_count,
-                "block_kb": block_kb,
-                "total_mb": total_mb,
-                "operation": operation,
-            }),
+            parameters=BenchmarkParameters(
+                {
+                    "threads": thread_count,
+                    "block_kb": block_kb,
+                    "total_mb": total_mb,
+                    "operation": operation,
+                }
+            ),
             duration_seconds=duration,
             command=" ".join(command),
             raw_output=stdout,
             message=message,
         )
+
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
         if result.status != "ok":
             prefix = "Skipped" if result.status == "skipped" else "Error"
             return f"{prefix}: {result.message}"
-        
+
         throughput = result.metrics.get("throughput_mib_per_s")
         if throughput is not None:
             return f"{throughput:,.0f} MiB/s"

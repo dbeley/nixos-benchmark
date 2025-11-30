@@ -3,13 +3,14 @@ from __future__ import annotations
 import argparse
 import subprocess
 import time
+from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command, write_temp_data_file
 from .base import (
-    BenchmarkBase,
     DEFAULT_COMPRESS_SIZE_MB,
     DEFAULT_ZSTD_LEVEL,
+    BenchmarkBase,
 )
 
 
@@ -26,7 +27,7 @@ class ZstdBenchmark(BenchmarkBase):
         data_path = write_temp_data_file(size_mb)
         compressed_path = data_path.with_suffix(data_path.suffix + ".zst")
         decompressed_path = data_path.with_suffix(".out")
-        
+
         try:
             start = time.perf_counter()
             command = [
@@ -75,18 +76,19 @@ class ZstdBenchmark(BenchmarkBase):
             status="ok",
             categories=(),
             presets=(),
-            metrics=BenchmarkMetrics(metrics_data),
+            metrics=BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data)),
             parameters=BenchmarkParameters({"level": level, "size_mb": size_mb}),
             duration_seconds=compress_duration + decompress_duration,
             command=f"zstd -q -f -{level} {data_path} -o {compressed_path}",
             raw_output="",
         )
+
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
         if result.status != "ok":
             prefix = "Skipped" if result.status == "skipped" else "Error"
             return f"{prefix}: {result.message}"
-        
+
         comp = result.metrics.get("compress_mb_per_s")
         decomp = result.metrics.get("decompress_mb_per_s")
         if comp is not None and decomp is not None:

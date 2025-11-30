@@ -43,7 +43,8 @@
             python -m nixos_benchmark "$@"
           '';
         };
-      in {
+      in
+      {
         packages.default = runner;
         apps.default = {
           type = "app";

@@ -5,11 +5,12 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
-from datetime import datetime, timezone
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import List, Sequence, Tuple
 
-from .benchmarks import ALL_BENCHMARKS, PRESETS, get_all_benchmarks
+from .benchmarks import ALL_BENCHMARKS, PRESETS
+from .benchmarks.base import BenchmarkBase
 from .models import (
     BenchmarkMetrics,
     BenchmarkParameters,
@@ -36,34 +37,25 @@ class CommaSeparatedListAction(argparse.Action):
         option_string = option_string or self.option_strings[0]
         current = list(getattr(namespace, self.dest, []) or [])
         raw_values = values if isinstance(values, list) else [values]
-        tokens = [
-            part.strip()
-            for token in raw_values
-            for part in token.split(",")
-            if part.strip()
-        ]
+        tokens = [part.strip() for token in raw_values for part in token.split(",") if part.strip()]
         if not tokens:
             parser.error(f"{option_string} requires at least one value.")
         for token in tokens:
             if self.valid_choices and token not in self.valid_choices:
                 choices = ", ".join(self.valid_choices)
-                parser.error(
-                    f"{option_string}: invalid choice: {token!r} "
-                    f"(choose from {choices})"
-                )
+                parser.error(f"{option_string}: invalid choice: {token!r} (choose from {choices})")
             current.append(token)
         setattr(namespace, self.dest, current)
 
 
-def unique_ordered(values: Sequence[str]) -> List[str]:
+def unique_ordered(values: Sequence[str]) -> list[str]:
     """Return unique values in order."""
     return list(dict.fromkeys(values))
 
 
-def expand_presets(presets: Sequence[str]) -> List[str]:
+def expand_presets(presets: Sequence[str]) -> list[str]:
     """Expand preset names into benchmark keys."""
-    from .benchmarks import ALL_BENCHMARKS, PRESETS
-    
+
     selected: set[str] = set()
     if not presets:
         presets = ["balanced"]
@@ -74,14 +66,98 @@ def expand_presets(presets: Sequence[str]) -> List[str]:
         if config.get("all"):
             return [bench.key for bench in ALL_BENCHMARKS]
         categories = config.get("categories", [])
-        selected |= {
-            bench.key
-            for bench in ALL_BENCHMARKS
-            if any(cat in bench.categories for cat in categories)
-        }
-        for bench_name in config.get("benchmarks", []):
-            selected.add(bench_name)
+        if isinstance(categories, (list, tuple)):
+            selected |= {bench.key for bench in ALL_BENCHMARKS if any(cat in bench.categories for cat in categories)}
+        benchmarks = config.get("benchmarks", [])
+        if isinstance(benchmarks, (list, tuple)):
+            for bench_name in benchmarks:
+                selected.add(bench_name)
     return sorted(selected)
+
+
+def build_argument_parser() -> argparse.ArgumentParser:
+    """Build and configure the argument parser."""
+    parser = argparse.ArgumentParser(description="Run a lightweight benchmark suite.")
+    parser.add_argument(
+        "--output",
+        default="",
+        help="Where to write the benchmark results (JSON). Leave empty for timestamped filenames.",
+    )
+    parser.add_argument(
+        "--html-summary",
+        default="results/index.html",
+        help="Optional HTML dashboard path (empty string to disable).",
+    )
+    parser.add_argument(
+        "--hostname",
+        default="",
+        help="Override the hostname stored in the report (also used for auto filenames).",
+    )
+    parser.add_argument(
+        "--preset",
+        dest="presets",
+        action=CommaSeparatedListAction,
+        choices=sorted(PRESETS.keys()),
+        metavar="PRESET",
+        default=[],
+        help="Comma-separated preset names (defaults to 'balanced').",
+    )
+    parser.add_argument(
+        "--benchmarks",
+        dest="benchmarks",
+        action=CommaSeparatedListAction,
+        metavar="BENCHMARK",
+        default=[],
+        help="Comma-separated benchmark names to run (skips preset expansion).",
+    )
+    parser.add_argument(
+        "--list-presets",
+        action="store_true",
+        help="List available presets and exit.",
+    )
+    parser.add_argument(
+        "--list-benchmarks",
+        action="store_true",
+        help="List available benchmarks and exit.",
+    )
+    parser.add_argument(
+        "--glmark2-mode",
+        choices=("offscreen", "onscreen"),
+        default="offscreen",
+        help="Rendering mode for glmark2 (offscreen avoids taking over the display).",
+    )
+    return parser
+
+
+def list_presets() -> int:
+    """List available presets and exit."""
+    print("Available presets:")
+    for name in sorted(PRESETS):
+        desc = PRESETS[name]["description"]
+        print(f"  {name:<10} {desc}")
+    return 0
+
+
+def list_benchmarks() -> int:
+    """List available benchmarks and exit."""
+    print("Available benchmarks:")
+    for benchmark in ALL_BENCHMARKS:
+        categories = ", ".join(benchmark.categories)
+        presets = ", ".join(benchmark.presets)
+        print(f"  {benchmark.key:<20} [{categories}] presets: {presets} - {benchmark.description}")
+    return 0
+
+
+def determine_output_path(args: argparse.Namespace, generated_at: datetime, system_info) -> Path:
+    """Determine the output path for the benchmark report."""
+    if args.output:
+        return Path(args.output)
+    timestamp = generated_at.strftime("%Y%m%d-%H%M%S")
+    hostname_slug = sanitize_for_filename(system_info.hostname)
+    filename = f"{timestamp}.json"
+    if hostname_slug:
+        filename = f"{timestamp}-{hostname_slug}.json"
+    return Path("results") / filename
 
 
 def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
@@ -146,7 +222,7 @@ def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
         )
 
     # Update result with categories and presets from benchmark instance
-    result = BenchmarkResult(
+    return BenchmarkResult(
         name=result.name,
         status=result.status,
         categories=benchmark.categories,
@@ -158,96 +234,30 @@ def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
         message=result.message,
         raw_output=result.raw_output,
     )
-    return result
 
 
 def main() -> int:
     """Main entry point for the benchmark suite."""
-    from .benchmarks import ALL_BENCHMARKS, PRESETS
-    
-    parser = argparse.ArgumentParser(description="Run a lightweight benchmark suite.")
-    parser.add_argument(
-        "--output",
-        default="",
-        help="Where to write the benchmark results (JSON). Leave empty for timestamped filenames.",
-    )
-    parser.add_argument(
-        "--html-summary",
-        default="results/index.html",
-        help="Optional HTML dashboard path (empty string to disable).",
-    )
-    parser.add_argument(
-        "--hostname",
-        default="",
-        help="Override the hostname stored in the report (also used for auto filenames).",
-    )
-    parser.add_argument(
-        "--preset",
-        dest="presets",
-        action=CommaSeparatedListAction,
-        choices=sorted(PRESETS.keys()),
-        metavar="PRESET",
-        default=[],
-        help="Comma-separated preset names (defaults to 'balanced').",
-    )
-    parser.add_argument(
-        "--benchmarks",
-        dest="benchmarks",
-        action=CommaSeparatedListAction,
-        metavar="BENCHMARK",
-        default=[],
-        help="Comma-separated benchmark names to run (skips preset expansion).",
-    )
-    parser.add_argument(
-        "--list-presets",
-        action="store_true",
-        help="List available presets and exit.",
-    )
-    parser.add_argument(
-        "--list-benchmarks",
-        action="store_true",
-        help="List available benchmarks and exit.",
-    )
-    parser.add_argument(
-        "--glmark2-mode",
-        choices=("offscreen", "onscreen"),
-        default="offscreen",
-        help="Rendering mode for glmark2 (offscreen avoids taking over the display).",
-    )
+    parser = build_argument_parser()
     args = parser.parse_args()
 
     if args.list_presets:
-        print("Available presets:")
-        for name in sorted(PRESETS):
-            desc = PRESETS[name]["description"]
-            print(f"  {name:<10} {desc}")
-        return 0
+        return list_presets()
 
     if args.list_benchmarks:
-        print("Available benchmarks:")
-        for benchmark in ALL_BENCHMARKS:
-            categories = ", ".join(benchmark.categories)
-            presets = ", ".join(benchmark.presets)
-            print(
-                f"  {benchmark.key:<20} [{categories}] presets: {presets} - {benchmark.description}"
-            )
-        return 0
+        return list_benchmarks()
 
     requested_presets = unique_ordered(args.presets)
     if not args.benchmarks and not requested_presets:
         requested_presets = ["balanced"]
-    selected_names = (
-        unique_ordered(args.benchmarks)
-        if args.benchmarks
-        else expand_presets(requested_presets)
-    )
+    selected_names = unique_ordered(args.benchmarks) if args.benchmarks else expand_presets(requested_presets)
 
     if not selected_names:
         print("No benchmarks requested.", file=sys.stderr)
         return 1
 
     benchmark_map = {bench.key: bench for bench in ALL_BENCHMARKS}
-    results_with_benchmarks: List[Tuple[BenchmarkResult, BenchmarkBase]] = []
+    results_with_benchmarks: list[tuple[BenchmarkResult, BenchmarkBase]] = []
     for name in selected_names:
         print(f"Executing {name}")
         benchmark = benchmark_map[name]
@@ -259,7 +269,7 @@ def main() -> int:
         return 1
 
     results = [result for result, _ in results_with_benchmarks]
-    generated_at = datetime.now(timezone.utc)
+    generated_at = datetime.now(UTC)
     system_info = gather_system_info(args.hostname or None)
 
     report = BenchmarkReport(
@@ -270,16 +280,7 @@ def main() -> int:
         benchmarks_requested=selected_names,
     )
 
-    if args.output:
-        output_path = Path(args.output)
-    else:
-        timestamp = generated_at.strftime("%Y%m%d-%H%M%S")
-        hostname_slug = sanitize_for_filename(system_info.hostname)
-        filename = f"{timestamp}.json"
-        if hostname_slug:
-            filename = f"{timestamp}-{hostname_slug}.json"
-        output_path = Path("results") / filename
-
+    output_path = determine_output_path(args, generated_at, system_info)
     write_json_report(report, output_path)
 
     print(f"Wrote {output_path}")

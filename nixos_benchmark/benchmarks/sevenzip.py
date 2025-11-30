@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import re
 import subprocess
-from typing import Dict
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
@@ -22,14 +21,14 @@ class SevenZipBenchmark(BenchmarkBase):
         stdout, duration, returncode = run_command(command)
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
-        
+
         try:
             totals_match = re.search(r"Tot:\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)", stdout)
             avg_match = re.search(
                 r"Avr:\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+\|\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)",
                 stdout,
             )
-            metrics_data: Dict[str, float | str | int] = {}
+            metrics_data: dict[str, float | str | int] = {}
 
             if totals_match:
                 metrics_data["total_usage_pct"] = float(totals_match.group(1))
@@ -46,7 +45,7 @@ class SevenZipBenchmark(BenchmarkBase):
 
             if not metrics_data:
                 raise ValueError("Unable to parse 7-Zip benchmark output")
-            
+
             status = "ok"
             metrics = BenchmarkMetrics(metrics_data)
             message = ""
@@ -67,12 +66,13 @@ class SevenZipBenchmark(BenchmarkBase):
             raw_output=stdout,
             message=message,
         )
+
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
         if result.status != "ok":
             prefix = "Skipped" if result.status == "skipped" else "Error"
             return f"{prefix}: {result.message}"
-        
+
         rating = result.metrics.get("total_rating_mips")
         if rating is not None:
             return f"{rating:.0f} MIPS"

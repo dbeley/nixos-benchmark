@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import re
 import subprocess
-from typing import Dict
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
@@ -22,15 +21,13 @@ class CLPeakBenchmark(BenchmarkBase):
         stdout, duration, returncode = run_command(command)
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
-        
+
         try:
             if "no platforms found" in stdout.lower() or "clgetplatformids" in stdout.lower():
                 raise ValueError("No OpenCL platforms found")
-            
-            metrics_data: Dict[str, float | str | int] = {}
-            bandwidth_pattern = re.compile(
-                r"Global memory bandwidth.*?:\s*([\d.]+)\s*GB/s", flags=re.IGNORECASE
-            )
+
+            metrics_data: dict[str, float | str | int] = {}
+            bandwidth_pattern = re.compile(r"Global memory bandwidth.*?:\s*([\d.]+)\s*GB/s", flags=re.IGNORECASE)
             compute_patterns = [
                 (r"Single-precision.*?:\s*([\d.]+)\s*GFLOPS", "compute_sp_gflops"),
                 (r"Double-precision.*?:\s*([\d.]+)\s*GFLOPS", "compute_dp_gflops"),
@@ -44,10 +41,10 @@ class CLPeakBenchmark(BenchmarkBase):
                     match = re.search(pattern, line, flags=re.IGNORECASE)
                     if match:
                         metrics_data[key] = float(match.group(1))
-            
+
             if not metrics_data:
                 raise ValueError("Unable to parse clpeak metrics")
-            
+
             status = "ok"
             metrics = BenchmarkMetrics(metrics_data)
             message = ""
@@ -69,13 +66,12 @@ class CLPeakBenchmark(BenchmarkBase):
             message=message,
         )
 
-
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
         if result.status != "ok":
             prefix = "Skipped" if result.status == "skipped" else "Error"
             return f"{prefix}: {result.message}"
-        
+
         bandwidth = result.metrics.get("global_memory_bandwidth_gb_per_s")
         if bandwidth is None and result.metrics.data:
             numeric_values = [v for v in result.metrics.data.values() if isinstance(v, (int, float))]

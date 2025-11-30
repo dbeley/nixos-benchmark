@@ -3,14 +3,15 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import tempfile
-from pathlib import Path
 import time
+from pathlib import Path
+from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from .base import (
-    BenchmarkBase,
     DEFAULT_SQLITE_ROWS,
     DEFAULT_SQLITE_SELECTS,
+    BenchmarkBase,
 )
 
 
@@ -23,10 +24,9 @@ class SQLiteSpeedtestBenchmark(BenchmarkBase):
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         row_count = DEFAULT_SQLITE_ROWS
         select_queries = DEFAULT_SQLITE_SELECTS
-        
-        tmp_db = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
-        tmp_db.close()
-        db_path = Path(tmp_db.name)
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".db") as tmp_db:
+            db_path = Path(tmp_db.name)
         conn = sqlite3.connect(db_path)
         insert_start = time.perf_counter()
         try:
@@ -63,11 +63,8 @@ class SQLiteSpeedtestBenchmark(BenchmarkBase):
             status="ok",
             categories=(),
             presets=(),
-            metrics=BenchmarkMetrics(metrics_data),
-            parameters=BenchmarkParameters({
-                "row_count": row_count,
-                "select_queries": select_queries
-            }),
+            metrics=BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data)),
+            parameters=BenchmarkParameters({"row_count": row_count, "select_queries": select_queries}),
             duration_seconds=total_duration,
             command="python-sqlite3-speedtest",
             raw_output="",
@@ -78,7 +75,7 @@ class SQLiteSpeedtestBenchmark(BenchmarkBase):
         if result.status != "ok":
             prefix = "Skipped" if result.status == "skipped" else "Error"
             return f"{prefix}: {result.message}"
-        
+
         inserts = result.metrics.get("insert_rows_per_s")
         selects = result.metrics.get("indexed_selects_per_s")
         if inserts is not None and selects is not None:

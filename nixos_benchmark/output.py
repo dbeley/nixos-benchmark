@@ -1,11 +1,11 @@
 """Output generation for JSON and HTML reports."""
+
 from __future__ import annotations
 
 import html
 import json
 import re
 from pathlib import Path
-from typing import Dict, List
 
 from .models import (
     BenchmarkMetrics,
@@ -17,25 +17,24 @@ from .models import (
 
 def sanitize_for_filename(value: str) -> str:
     """Sanitize a string to be safe for use in filenames."""
-    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip("-")
-    return slug
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip("-")
 
 
 def describe_benchmark(bench: BenchmarkResult) -> str:
     """Generate a short human-readable description of benchmark results.
-    
+
     This function looks up the benchmark class by name and delegates to
     its format_result method. If the benchmark is not found, returns an
     empty string.
     """
     # Import here to avoid circular dependency
-    from .benchmarks import ALL_BENCHMARKS
-    
+    from .benchmarks import ALL_BENCHMARKS  # noqa: PLC0415
+
     # Find the matching benchmark class
     for benchmark_instance in ALL_BENCHMARKS:
         if benchmark_instance.key == bench.name:
             return benchmark_instance.format_result(bench)
-    
+
     # Fallback for unknown benchmarks
     if bench.status != "ok":
         prefix = "Skipped" if bench.status == "skipped" else "Error"
@@ -53,7 +52,7 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
     """Build HTML dashboard summarizing all benchmark runs in results_dir."""
     json_files = sorted(results_dir.glob("*.json"))
     reports = []
-    bench_metadata: Dict[str, Dict[str, set[str]]] = {}
+    bench_metadata: dict[str, dict[str, set[str]]] = {}
 
     for path in json_files:
         try:
@@ -65,9 +64,7 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
             name = bench.get("name", "")
             if not name:
                 continue
-            meta = bench_metadata.setdefault(
-                name, {"categories": set(), "presets": set()}
-            )
+            meta = bench_metadata.setdefault(name, {"categories": set(), "presets": set()})
             meta["categories"].update(bench.get("categories", []))
             meta["presets"].update(bench.get("presets", []))
 

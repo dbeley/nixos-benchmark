@@ -4,12 +4,13 @@ import argparse
 import contextlib
 import json
 import subprocess
+from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import find_free_tcp_port, run_command, wait_for_port
 from .base import (
-    BenchmarkBase,
     DEFAULT_IPERF_DURATION,
+    BenchmarkBase,
 )
 
 
@@ -33,8 +34,17 @@ class IPerf3Benchmark(BenchmarkBase):
             server.kill()
             raise RuntimeError("iperf3 server failed to start")
         try:
-            stdout, client_duration = run_command(
-                ["iperf3", "-c", "127.0.0.1", "-p", str(port), "-t", str(duration), "-J"]
+            stdout, client_duration, _ = run_command(
+                [
+                    "iperf3",
+                    "-c",
+                    "127.0.0.1",
+                    "-p",
+                    str(port),
+                    "-t",
+                    str(duration),
+                    "-J",
+                ]
             )
             data = json.loads(stdout)
         finally:
@@ -55,18 +65,19 @@ class IPerf3Benchmark(BenchmarkBase):
             status="ok",
             categories=(),
             presets=(),
-            metrics=BenchmarkMetrics(metrics_data),
+            metrics=BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data)),
             parameters=BenchmarkParameters({"duration_s": duration}),
             duration_seconds=client_duration,
             command=f"iperf3 -c 127.0.0.1 -p {port} -t {duration} -J",
             raw_output=stdout,
         )
+
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
         if result.status != "ok":
             prefix = "Skipped" if result.status == "skipped" else "Error"
             return f"{prefix}: {result.message}"
-        
+
         bw = result.metrics.get("throughput_mib_per_s")
         if bw is not None:
             return f"{bw:.1f} MiB/s"

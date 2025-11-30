@@ -4,15 +4,14 @@ import argparse
 import os
 import re
 import subprocess
-from typing import Dict
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import (
-    BenchmarkBase,
     DEFAULT_SYSBENCH_CPU_MAX_PRIME,
     DEFAULT_SYSBENCH_RUNTIME,
     DEFAULT_SYSBENCH_THREADS,
+    BenchmarkBase,
 )
 
 
@@ -28,7 +27,7 @@ class SysbenchCPUBenchmark(BenchmarkBase):
         max_prime = DEFAULT_SYSBENCH_CPU_MAX_PRIME
         runtime_secs = DEFAULT_SYSBENCH_RUNTIME
         thread_count = threads if threads > 0 else (os.cpu_count() or 1)
-        
+
         command = [
             "sysbench",
             "cpu",
@@ -40,9 +39,9 @@ class SysbenchCPUBenchmark(BenchmarkBase):
         stdout, duration, returncode = run_command(command)
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
-        
+
         try:
-            metrics_data: Dict[str, float | str | int] = {}
+            metrics_data: dict[str, float | str | int] = {}
             events_per_sec = re.search(r"events per second:\s+([\d.]+)", stdout)
             total_time = re.search(r"total time:\s+([\d.]+)s", stdout)
             total_events = re.search(r"total number of events:\s+([\d.]+)", stdout)
@@ -54,7 +53,7 @@ class SysbenchCPUBenchmark(BenchmarkBase):
                 metrics_data["total_events"] = float(total_events.group(1))
             if not metrics_data:
                 raise ValueError("Unable to parse sysbench CPU output")
-            
+
             metrics_data["threads"] = thread_count
             metrics_data["cpu_max_prime"] = max_prime
             status = "ok"
@@ -71,11 +70,13 @@ class SysbenchCPUBenchmark(BenchmarkBase):
             categories=(),
             presets=(),
             metrics=metrics,
-            parameters=BenchmarkParameters({
-                "threads": thread_count,
-                "cpu_max_prime": max_prime,
-                "runtime_secs": runtime_secs,
-            }),
+            parameters=BenchmarkParameters(
+                {
+                    "threads": thread_count,
+                    "cpu_max_prime": max_prime,
+                    "runtime_secs": runtime_secs,
+                }
+            ),
             duration_seconds=duration,
             command=" ".join(command),
             raw_output=stdout,
@@ -87,7 +88,7 @@ class SysbenchCPUBenchmark(BenchmarkBase):
         if result.status != "ok":
             prefix = "Skipped" if result.status == "skipped" else "Error"
             return f"{prefix}: {result.message}"
-        
+
         events = result.metrics.get("events_per_sec")
         if events is not None:
             return f"{events:,.1f} events/s"

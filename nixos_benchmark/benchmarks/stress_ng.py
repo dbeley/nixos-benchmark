@@ -7,9 +7,9 @@ import subprocess
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import (
-    BenchmarkBase,
-    DEFAULT_STRESS_NG_SECONDS,
     DEFAULT_STRESS_NG_METHOD,
+    DEFAULT_STRESS_NG_SECONDS,
+    BenchmarkBase,
 )
 
 
@@ -36,7 +36,7 @@ class StressNGBenchmark(BenchmarkBase):
         stdout, duration, returncode = run_command(command)
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
-        
+
         try:
             pattern = re.compile(
                 r"stress-ng:\s+\w+:\s+\[\d+\]\s+(\S+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"
@@ -60,10 +60,10 @@ class StressNGBenchmark(BenchmarkBase):
                     "bogo_ops_per_sec_cpu": float(match.group(7)),
                 }
                 break
-            
+
             if not metrics_data:
                 raise ValueError("Unable to parse stress-ng metrics (try increasing runtime)")
-            
+
             status = "ok"
             metrics = BenchmarkMetrics(metrics_data)
             message = ""
@@ -84,12 +84,13 @@ class StressNGBenchmark(BenchmarkBase):
             raw_output=stdout,
             message=message,
         )
+
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
         if result.status != "ok":
             prefix = "Skipped" if result.status == "skipped" else "Error"
             return f"{prefix}: {result.message}"
-        
+
         ops = result.metrics.get("bogo_ops_per_sec_real")
         if ops is not None:
             return f"{ops:,.0f} bogo-ops/s"

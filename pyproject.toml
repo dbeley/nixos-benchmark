@@ -3,12 +3,12 @@ name = "nixos-benchmark"
 version = "2.0.0"
 description = "NixOS benchmark suite - a modular benchmarking framework"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.13"
 license = {text = "MIT"}
 
 [tool.ruff]
-# Target Python 3.9+
-target-version = "py39"
+# Target Python 3.13+
+target-version = "py313"
 
 # Enable specific rule sets
 lint.select = [
@@ -63,7 +63,7 @@ exclude = [
 ]
 
 # Line length
-line-length = 88
+line-length = 120
 
 [tool.ruff.lint.per-file-ignores]
 # Allow unused imports in __init__.py files
@@ -75,7 +75,7 @@ force-single-line = false
 lines-after-imports = 2
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false

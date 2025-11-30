@@ -1,7 +1,8 @@
 """Benchmark modules - all benchmark implementations and registry."""
+
 from __future__ import annotations
 
-from .base import BenchmarkBase, PRESETS
+from .base import PRESETS, BenchmarkBase
 from .clpeak import CLPeakBenchmark
 from .cryptsetup import CryptsetupBenchmark
 from .ffmpeg import FFmpegBenchmark
@@ -22,6 +23,7 @@ from .tinymembench import TinyMemBenchBenchmark
 from .vkmark import VKMarkBenchmark
 from .x264 import X264Benchmark
 from .zstd import ZstdBenchmark
+
 
 # Registry of all benchmarks
 ALL_BENCHMARKS = [
@@ -54,8 +56,8 @@ def get_all_benchmarks():
 
 
 __all__ = [
-    "BenchmarkBase",
-    "PRESETS",
     "ALL_BENCHMARKS",
+    "PRESETS",
+    "BenchmarkBase",
     "get_all_benchmarks",
 ]

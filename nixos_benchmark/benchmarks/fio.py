@@ -3,16 +3,17 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
-from pathlib import Path
 import tempfile
+from pathlib import Path
+from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import (
-    BenchmarkBase,
-    DEFAULT_FIO_SIZE_MB,
-    DEFAULT_FIO_RUNTIME,
     DEFAULT_FIO_BLOCK_KB,
+    DEFAULT_FIO_RUNTIME,
+    DEFAULT_FIO_SIZE_MB,
+    BenchmarkBase,
 )
 
 
@@ -27,7 +28,7 @@ class FIOBenchmark(BenchmarkBase):
         size_mb = DEFAULT_FIO_SIZE_MB
         runtime = DEFAULT_FIO_RUNTIME
         block_kb = DEFAULT_FIO_BLOCK_KB
-        
+
         results_dir = Path("results")
         results_dir.mkdir(parents=True, exist_ok=True)
         data_file = results_dir / "fio-testfile.bin"
@@ -84,22 +85,19 @@ class FIOBenchmark(BenchmarkBase):
             status="ok",
             categories=(),
             presets=(),
-            metrics=BenchmarkMetrics(metrics_data),
-            parameters=BenchmarkParameters({
-                "size_mb": size_mb,
-                "runtime_s": runtime,
-                "block_kb": block_kb
-            }),
+            metrics=BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data)),
+            parameters=BenchmarkParameters({"size_mb": size_mb, "runtime_s": runtime, "block_kb": block_kb}),
             duration_seconds=duration,
             command=f"fio --output-format=json {job_path}",
             raw_output=stdout,
         )
+
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
         if result.status != "ok":
             prefix = "Skipped" if result.status == "skipped" else "Error"
             return f"{prefix}: {result.message}"
-        
+
         read_bw = result.metrics.get("seqread_mib_per_s")
         write_bw = result.metrics.get("seqwrite_mib_per_s")
         if read_bw is not None and write_bw is not None:

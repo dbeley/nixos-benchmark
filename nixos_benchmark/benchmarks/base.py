@@ -1,12 +1,15 @@
 """Base definitions for benchmarks and presets."""
+
 from __future__ import annotations
 
 import argparse
 from abc import ABC
-from typing import ClassVar, Dict, Tuple
+from collections.abc import Callable
+from typing import ClassVar, cast
 
 from ..models import BenchmarkResult
 from ..utils import check_requirements
+
 
 # Default constants for CPU benchmarks
 DEFAULT_STRESS_NG_SECONDS = 5
@@ -59,18 +62,19 @@ class BenchmarkBase(ABC):
     """Base class for all benchmarks."""
 
     key: ClassVar[str]
-    categories: ClassVar[Tuple[str, ...]]
-    presets: ClassVar[Tuple[str, ...]]
+    categories: ClassVar[tuple[str, ...]]
+    presets: ClassVar[tuple[str, ...]]
     description: ClassVar[str]
 
-    def validate(self, args: argparse.Namespace = None) -> Tuple[bool, str]:
+    def validate(self, args: argparse.Namespace | None = None) -> tuple[bool, str]:
         """Check if benchmark can run."""
-        if hasattr(self, '_required_commands'):
+        if hasattr(self, "_required_commands"):
             ok, reason = check_requirements(self._required_commands)
             if not ok:
                 return ok, reason
-        if hasattr(self, '_availability_check') and args is not None:
-            return self._availability_check(args)
+        if hasattr(self, "_availability_check") and args is not None:
+            check_method = cast(Callable[[argparse.Namespace], tuple[bool, str]], self._availability_check)
+            return check_method(args)
         return True, ""
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
@@ -83,7 +87,7 @@ class BenchmarkBase(ABC):
 
 
 # Preset definitions
-PRESETS: Dict[str, Dict[str, object]] = {
+PRESETS: dict[str, dict[str, object]] = {
     "balanced": {
         "description": "Quick mix of CPU and IO tests.",
         "benchmarks": (
