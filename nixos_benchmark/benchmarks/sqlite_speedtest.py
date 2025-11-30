@@ -8,11 +8,8 @@ from pathlib import Path
 from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
-from .base import (
-    DEFAULT_SQLITE_ROWS,
-    DEFAULT_SQLITE_SELECTS,
-    BenchmarkBase,
-)
+from .base import BenchmarkBase
+from .sqlite_mixed import DEFAULT_SQLITE_ROWS, DEFAULT_SQLITE_SELECTS
 
 
 class SQLiteSpeedtestBenchmark(BenchmarkBase):

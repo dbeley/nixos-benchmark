@@ -8,10 +8,11 @@ from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import find_free_tcp_port, run_command, wait_for_port
-from .base import (
-    DEFAULT_IPERF_DURATION,
-    BenchmarkBase,
-)
+from .base import BenchmarkBase
+
+
+# Default constants
+DEFAULT_IPERF_DURATION = 3
 
 
 class IPerf3Benchmark(BenchmarkBase):

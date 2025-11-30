@@ -6,11 +6,12 @@ import subprocess
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
-from .base import (
-    DEFAULT_STRESS_NG_METHOD,
-    DEFAULT_STRESS_NG_SECONDS,
-    BenchmarkBase,
-)
+from .base import BenchmarkBase
+
+
+# Default constants
+DEFAULT_STRESS_NG_SECONDS = 5
+DEFAULT_STRESS_NG_METHOD = "fft"
 
 
 class StressNGBenchmark(BenchmarkBase):

@@ -8,13 +8,14 @@ from pathlib import Path
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
-from .base import (
-    DEFAULT_X264_CRF,
-    DEFAULT_X264_FRAMES,
-    DEFAULT_X264_PRESET,
-    DEFAULT_X264_RESOLUTION,
-    BenchmarkBase,
-)
+from .base import BenchmarkBase
+
+
+# Default constants
+DEFAULT_X264_RESOLUTION = "1280x720"
+DEFAULT_X264_FRAMES = 240
+DEFAULT_X264_PRESET = "medium"
+DEFAULT_X264_CRF = 23
 
 
 class X264Benchmark(BenchmarkBase):

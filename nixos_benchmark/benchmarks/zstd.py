@@ -7,11 +7,12 @@ from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command, write_temp_data_file
-from .base import (
-    DEFAULT_COMPRESS_SIZE_MB,
-    DEFAULT_ZSTD_LEVEL,
-    BenchmarkBase,
-)
+from .base import BenchmarkBase
+
+
+# Default constants
+DEFAULT_ZSTD_LEVEL = 5
+DEFAULT_COMPRESS_SIZE_MB = 32
 
 
 class ZstdBenchmark(BenchmarkBase):

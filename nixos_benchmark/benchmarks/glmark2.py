@@ -7,10 +7,11 @@ from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
-from .base import (
-    DEFAULT_GLMARK2_SIZE,
-    BenchmarkBase,
-)
+from .base import BenchmarkBase
+
+
+# Default constants
+DEFAULT_GLMARK2_SIZE = "1920x1080"
 
 
 class GLMark2Benchmark(BenchmarkBase):

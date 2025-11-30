@@ -11,53 +11,6 @@ from ..models import BenchmarkResult
 from ..utils import check_requirements
 
 
-# Default constants for CPU benchmarks
-DEFAULT_STRESS_NG_SECONDS = 5
-DEFAULT_STRESS_NG_METHOD = "fft"
-DEFAULT_SYSBENCH_CPU_MAX_PRIME = 20000
-DEFAULT_SYSBENCH_RUNTIME = 5
-DEFAULT_SYSBENCH_THREADS = 0
-DEFAULT_OPENSSL_SECONDS = 3
-DEFAULT_OPENSSL_ALGORITHM = "aes-256-cbc"
-
-# Default constants for memory benchmarks
-DEFAULT_SYSBENCH_MEMORY_BLOCK_KB = 1024
-DEFAULT_SYSBENCH_MEMORY_TOTAL_MB = 512
-DEFAULT_SYSBENCH_MEMORY_OPERATION = "read"
-
-# Default constants for I/O benchmarks
-DEFAULT_FIO_SIZE_MB = 64
-DEFAULT_FIO_RUNTIME = 5
-DEFAULT_FIO_BLOCK_KB = 1024
-DEFAULT_IOPING_COUNT = 5
-
-# Default constants for GPU benchmarks
-DEFAULT_GLMARK2_SIZE = "1920x1080"
-DEFAULT_VKMARK_CMD = ("vkmark",)
-
-# Default constants for compression benchmarks
-DEFAULT_ZSTD_LEVEL = 5
-DEFAULT_PIGZ_LEVEL = 3
-DEFAULT_COMPRESS_SIZE_MB = 32
-
-# Default constants for database benchmarks
-DEFAULT_SQLITE_ROWS = 50_000
-DEFAULT_SQLITE_SELECTS = 1_000
-
-# Default constants for media benchmarks
-DEFAULT_FFMPEG_RESOLUTION = "1280x720"
-DEFAULT_FFMPEG_DURATION = 5
-DEFAULT_FFMPEG_CODEC = "libx264"
-DEFAULT_X264_RESOLUTION = "1280x720"
-DEFAULT_X264_FRAMES = 240
-DEFAULT_X264_PRESET = "medium"
-DEFAULT_X264_CRF = 23
-
-# Default constants for network benchmarks
-DEFAULT_IPERF_DURATION = 3
-DEFAULT_NETPERF_DURATION = 3
-
-
 class BenchmarkBase(ABC):
     """Base class for all benchmarks."""
 

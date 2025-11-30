@@ -7,13 +7,14 @@ import subprocess
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
-from .base import (
-    DEFAULT_SYSBENCH_MEMORY_BLOCK_KB,
-    DEFAULT_SYSBENCH_MEMORY_OPERATION,
-    DEFAULT_SYSBENCH_MEMORY_TOTAL_MB,
-    DEFAULT_SYSBENCH_THREADS,
-    BenchmarkBase,
-)
+from .base import BenchmarkBase
+from .sysbench_cpu import DEFAULT_SYSBENCH_THREADS
+
+
+# Default constants
+DEFAULT_SYSBENCH_MEMORY_BLOCK_KB = 1024
+DEFAULT_SYSBENCH_MEMORY_TOTAL_MB = 512
+DEFAULT_SYSBENCH_MEMORY_OPERATION = "read"
 
 
 class SysbenchMemoryBenchmark(BenchmarkBase):

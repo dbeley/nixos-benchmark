@@ -6,12 +6,13 @@ import subprocess
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
-from .base import (
-    DEFAULT_FFMPEG_CODEC,
-    DEFAULT_FFMPEG_DURATION,
-    DEFAULT_FFMPEG_RESOLUTION,
-    BenchmarkBase,
-)
+from .base import BenchmarkBase
+
+
+# Default constants
+DEFAULT_FFMPEG_RESOLUTION = "1280x720"
+DEFAULT_FFMPEG_DURATION = 5
+DEFAULT_FFMPEG_CODEC = "libx264"
 
 
 class FFmpegBenchmark(BenchmarkBase):

@@ -7,12 +7,13 @@ import subprocess
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
-from .base import (
-    DEFAULT_SYSBENCH_CPU_MAX_PRIME,
-    DEFAULT_SYSBENCH_RUNTIME,
-    DEFAULT_SYSBENCH_THREADS,
-    BenchmarkBase,
-)
+from .base import BenchmarkBase
+
+
+# Default constants
+DEFAULT_SYSBENCH_CPU_MAX_PRIME = 20000
+DEFAULT_SYSBENCH_RUNTIME = 5
+DEFAULT_SYSBENCH_THREADS = 0
 
 
 class SysbenchCPUBenchmark(BenchmarkBase):

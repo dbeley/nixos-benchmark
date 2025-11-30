@@ -7,11 +7,12 @@ from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
-from .base import (
-    DEFAULT_OPENSSL_ALGORITHM,
-    DEFAULT_OPENSSL_SECONDS,
-    BenchmarkBase,
-)
+from .base import BenchmarkBase
+
+
+# Default constants
+DEFAULT_OPENSSL_SECONDS = 3
+DEFAULT_OPENSSL_ALGORITHM = "aes-256-cbc"
 
 
 class OpenSSLBenchmark(BenchmarkBase):

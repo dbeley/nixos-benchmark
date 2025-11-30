@@ -7,10 +7,11 @@ from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
-from .base import (
-    DEFAULT_VKMARK_CMD,
-    BenchmarkBase,
-)
+from .base import BenchmarkBase
+
+
+# Default constants
+DEFAULT_VKMARK_CMD = ("vkmark",)
 
 
 class VKMarkBenchmark(BenchmarkBase):

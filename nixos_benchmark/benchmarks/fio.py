@@ -9,12 +9,13 @@ from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
-from .base import (
-    DEFAULT_FIO_BLOCK_KB,
-    DEFAULT_FIO_RUNTIME,
-    DEFAULT_FIO_SIZE_MB,
-    BenchmarkBase,
-)
+from .base import BenchmarkBase
+
+
+# Default constants
+DEFAULT_FIO_SIZE_MB = 64
+DEFAULT_FIO_RUNTIME = 5
+DEFAULT_FIO_BLOCK_KB = 1024
 
 
 class FIOBenchmark(BenchmarkBase):

@@ -8,11 +8,12 @@ from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command, write_temp_data_file
-from .base import (
-    DEFAULT_COMPRESS_SIZE_MB,
-    DEFAULT_PIGZ_LEVEL,
-    BenchmarkBase,
-)
+from .base import BenchmarkBase
+from .zstd import DEFAULT_COMPRESS_SIZE_MB
+
+
+# Default constants
+DEFAULT_PIGZ_LEVEL = 3
 
 
 class PigzBenchmark(BenchmarkBase):
