@@ -70,16 +70,13 @@ class CLPeakBenchmark(BenchmarkBase):
         )
 
 
-# ==================
-# Compression Benchmarks
-# ==================
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
         if result.status != "ok":
             prefix = "Skipped" if result.status == "skipped" else "Error"
             return f"{prefix}: {result.message}"
         
-        bandwidth = result.metrics.get("global_mem_bandwidth_gbps_float")
+        bandwidth = result.metrics.get("global_memory_bandwidth_gb_per_s")
         if bandwidth is None and result.metrics.data:
             numeric_values = [v for v in result.metrics.data.values() if isinstance(v, (int, float))]
             if numeric_values:

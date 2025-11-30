@@ -97,7 +97,7 @@ class FFmpegBenchmark(BenchmarkBase):
             prefix = "Skipped" if result.status == "skipped" else "Error"
             return f"{prefix}: {result.message}"
         
-        fps = result.metrics.get("calculated_fps")
+        fps = result.metrics.get("reported_fps")
         if fps is not None:
             return f"{fps:.1f} fps"
         return ""

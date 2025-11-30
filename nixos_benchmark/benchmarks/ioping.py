@@ -62,9 +62,6 @@ class IOPingBenchmark(BenchmarkBase):
         )
 
 
-# ==================
-# GPU Benchmarks
-# ==================
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
         if result.status != "ok":

@@ -57,9 +57,6 @@ class TinyMemBenchBenchmark(BenchmarkBase):
         )
 
 
-# ==================
-# I/O Benchmarks
-# ==================
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
         if result.status != "ok":
