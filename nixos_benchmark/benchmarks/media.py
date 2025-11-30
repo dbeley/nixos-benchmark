@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -44,19 +45,31 @@ def run_ffmpeg_benchmark(
         "null",
         "-",
     ]
-    stdout, duration = run_command(command)
-    metrics_data = parse_ffmpeg_progress(stdout)
-    total_frames = duration_secs * 30
-    metrics_data["calculated_fps"] = total_frames / duration if duration else 0.0
-    metrics_data["frames"] = total_frames
-    metrics_data["codec"] = codec
+    stdout, duration, returncode = run_command(command)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command, stdout)
+    
+    try:
+        metrics_data = parse_ffmpeg_progress(stdout)
+        total_frames = duration_secs * 30
+        metrics_data["calculated_fps"] = total_frames / duration if duration else 0.0
+        metrics_data["frames"] = total_frames
+        metrics_data["codec"] = codec
+        status = "ok"
+        metrics = BenchmarkMetrics(metrics_data)
+        message = ""
+    except ValueError as e:
+        # Preserve output even when parsing fails
+        status = "error"
+        metrics = BenchmarkMetrics({})
+        message = str(e)
 
     return BenchmarkResult(
         name="ffmpeg-transcode",
-        status="ok",
+        status=status,
         categories=(),
         presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
+        metrics=metrics,
         parameters=BenchmarkParameters(
             {
                 "resolution": resolution,
@@ -67,6 +80,7 @@ def run_ffmpeg_benchmark(
         duration_seconds=duration,
         command=" ".join(command),
         raw_output=stdout,
+        message=message,
     )
 
 
@@ -90,7 +104,9 @@ def generate_test_pattern(resolution: str, frames: int) -> Path:
         "yuv420p",
         tmp.name,
     ]
-    run_command(command)
+    stdout, _, returncode = run_command(command)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command, stdout)
     return Path(tmp.name)
 
 
@@ -115,21 +131,32 @@ def run_x264_benchmark(
             "-o",
             "/dev/null",
         ]
-        stdout, duration = run_command(command)
-        metrics_data = parse_x264_output(stdout)
+        stdout, duration, returncode = run_command(command)
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, command, stdout)
+        
+        try:
+            metrics_data = parse_x264_output(stdout)
+            metrics_data["preset"] = preset
+            metrics_data["crf"] = crf
+            metrics_data["resolution"] = resolution
+            status = "ok"
+            metrics = BenchmarkMetrics(metrics_data)
+            message = ""
+        except ValueError as e:
+            # Preserve output even when parsing fails
+            status = "error"
+            metrics = BenchmarkMetrics({})
+            message = str(e)
     finally:
         pattern_path.unlink(missing_ok=True)
 
-    metrics_data["preset"] = preset
-    metrics_data["crf"] = crf
-    metrics_data["resolution"] = resolution
-
     return BenchmarkResult(
         name="x264-encode",
-        status="ok",
+        status=status,
         categories=(),
         presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
+        metrics=metrics,
         parameters=BenchmarkParameters(
             {
                 "resolution": resolution,
@@ -141,6 +168,7 @@ def run_x264_benchmark(
         duration_seconds=duration,
         command=" ".join(command),
         raw_output=stdout,
+        message=message,
     )
 
 

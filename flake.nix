@@ -22,9 +22,6 @@
           stress-ng
           fio
           ioping
-          hdparm
-          fsmark
-          filebench
           glmark2
           vkmark
           openssl
@@ -33,7 +30,6 @@
           ffmpeg
           x264
           sqlite
-          postgresql
           php
           gnumake
           sysbench

@@ -112,23 +112,6 @@ def describe_benchmark(bench: BenchmarkResult) -> str:
         latency = metrics.get("latency_avg_ms")
         if latency is not None:
             return f"{latency:.2f} ms avg"
-    elif name == "hdparm":
-        cached = metrics.get("cached_read_mb_per_s")
-        buffered = metrics.get("buffered_read_mb_per_s")
-        if cached is not None and buffered is not None:
-            return f"T {cached:.0f}/D {buffered:.0f} MB/s"
-    elif name == "fsmark":
-        files = metrics.get("files_per_sec")
-        if files is not None:
-            return f"{files:.0f} files/s"
-    elif name == "filebench":
-        ops = metrics.get("ops_per_sec")
-        if ops is not None:
-            return f"{ops:.0f} ops/s"
-    elif name == "pgbench":
-        tps = metrics.get("tps")
-        if tps is not None:
-            return f"{tps:.0f} tps"
     elif name == "sqlite-speedtest":
         inserts = metrics.get("insert_rows_per_s")
         selects = metrics.get("indexed_selects_per_s")

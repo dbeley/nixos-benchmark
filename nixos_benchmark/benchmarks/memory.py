@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..parsers import parse_sysbench_memory_output, parse_tinymembench_output
@@ -32,19 +33,31 @@ def run_sysbench_memory(
         f"--threads={thread_count}",
         "run",
     ]
-    stdout, duration = run_command(command)
-    metrics_data = parse_sysbench_memory_output(stdout)
-    metrics_data["threads"] = thread_count
-    metrics_data["block_kb"] = block_kb
-    metrics_data["total_mb"] = total_mb
-    metrics_data["operation"] = operation
+    stdout, duration, returncode = run_command(command)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command, stdout)
+    
+    try:
+        metrics_data = parse_sysbench_memory_output(stdout)
+        metrics_data["threads"] = thread_count
+        metrics_data["block_kb"] = block_kb
+        metrics_data["total_mb"] = total_mb
+        metrics_data["operation"] = operation
+        status = "ok"
+        metrics = BenchmarkMetrics(metrics_data)
+        message = ""
+    except ValueError as e:
+        # Preserve output even when parsing fails
+        status = "error"
+        metrics = BenchmarkMetrics({})
+        message = str(e)
 
     return BenchmarkResult(
         name="sysbench-memory",
-        status="ok",
+        status=status,
         categories=(),
         presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
+        metrics=metrics,
         parameters=BenchmarkParameters(
             {
                 "threads": thread_count,
@@ -56,24 +69,39 @@ def run_sysbench_memory(
         duration_seconds=duration,
         command=" ".join(command),
         raw_output=stdout,
+        message=message,
     )
 
 
 def run_tinymembench() -> BenchmarkResult:
     """Run tinymembench memory throughput test."""
-    stdout, duration = run_command(["tinymembench"])
-    metrics_data = parse_tinymembench_output(stdout)
+    command = ["tinymembench"]
+    stdout, duration, returncode = run_command(command)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, command, stdout)
+    
+    try:
+        metrics_data = parse_tinymembench_output(stdout)
+        status = "ok"
+        metrics = BenchmarkMetrics(metrics_data)
+        message = ""
+    except ValueError as e:
+        # Preserve output even when parsing fails
+        status = "error"
+        metrics = BenchmarkMetrics({})
+        message = str(e)
 
     return BenchmarkResult(
         name="tinymembench",
-        status="ok",
+        status=status,
         categories=(),
         presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
+        metrics=metrics,
         parameters=BenchmarkParameters({}),
         duration_seconds=duration,
         command="tinymembench",
         raw_output=stdout,
+        message=message,
     )
 
 

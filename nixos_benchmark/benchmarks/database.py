@@ -2,19 +2,13 @@
 from __future__ import annotations
 
 import argparse
-import os
-import shutil
 import sqlite3
 import tempfile
 import time
 from pathlib import Path
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
-from ..parsers import parse_pgbench_output
-from ..utils import find_free_tcp_port, run_command
 from .base import (
-    DEFAULT_PGBENCH_SCALE,
-    DEFAULT_PGBENCH_TIME,
     DEFAULT_SQLITE_ROWS,
     DEFAULT_SQLITE_SELECTS,
 )
@@ -130,70 +124,6 @@ def run_sqlite_speedtest(
     )
 
 
-def run_pgbench(
-    scale: int = DEFAULT_PGBENCH_SCALE, seconds: int = DEFAULT_PGBENCH_TIME
-) -> BenchmarkResult:
-    """Run PostgreSQL pgbench on local socket."""
-    data_dir = Path(tempfile.mkdtemp(prefix="pgbench-"))
-    port = find_free_tcp_port()
-    socket_dir = data_dir / "socket"
-    socket_dir.mkdir(parents=True, exist_ok=True)
-    env = os.environ.copy()
-    env["PGHOST"] = str(socket_dir)
-    env["PGPORT"] = str(port)
-    try:
-        run_command(
-            [
-                "initdb",
-                "-D",
-                str(data_dir),
-                "-A",
-                "trust",
-                "--no-locale",
-                "--encoding",
-                "UTF8",
-            ]
-        )
-        run_command(
-            [
-                "pg_ctl",
-                "-D",
-                str(data_dir),
-                "-o",
-                f"-F -k {socket_dir} -p {port}",
-                "-w",
-                "start",
-            ]
-        )
-        run_command(["createdb", "benchdb"], env=env)
-        run_command(["pgbench", "-i", "-s", str(scale), "benchdb"], env=env)
-        stdout, duration = run_command(
-            ["pgbench", "-T", str(seconds), "benchdb"], env=env
-        )
-        metrics_data = parse_pgbench_output(stdout)
-    finally:
-        try:
-            run_command(["pg_ctl", "-D", str(data_dir), "-m", "fast", "stop"])
-        except Exception:
-            pass
-        shutil.rmtree(data_dir, ignore_errors=True)
-
-    metrics_data["scale"] = scale
-    metrics_data["duration_s"] = seconds
-
-    return BenchmarkResult(
-        name="pgbench",
-        status="ok",
-        categories=(),
-        presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
-        parameters=BenchmarkParameters({"scale": scale, "duration_s": seconds}),
-        duration_seconds=duration,
-        command=f"pgbench -T {seconds} benchdb",
-        raw_output=stdout,
-    )
-
-
 # Benchmark definitions for registration
 def get_database_benchmarks():
     """Get list of database benchmark definitions."""
@@ -217,13 +147,5 @@ def get_database_benchmarks():
             runner=lambda args: run_sqlite_speedtest(
                 DEFAULT_SQLITE_ROWS, DEFAULT_SQLITE_SELECTS
             ),
-        ),
-        BenchmarkDefinition(
-            key="pgbench",
-            categories=("database", "io"),
-            presets=("database", "all"),
-            description="PostgreSQL pgbench on local socket.",
-            runner=lambda args: run_pgbench(DEFAULT_PGBENCH_SCALE, DEFAULT_PGBENCH_TIME),
-            requires=("initdb", "pgbench", "pg_ctl", "createdb"),
         ),
     ]
