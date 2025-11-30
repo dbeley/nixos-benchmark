@@ -33,18 +33,29 @@ def run_openssl(
     stdout, duration, returncode = run_command(command)
     if returncode != 0:
         raise subprocess.CalledProcessError(returncode, command, stdout)
-    metrics_data = parse_openssl_output(stdout, algorithm)
+    
+    try:
+        metrics_data = parse_openssl_output(stdout, algorithm)
+        status = "ok"
+        metrics = BenchmarkMetrics(metrics_data)
+        message = ""
+    except ValueError as e:
+        # Preserve output even when parsing fails
+        status = "error"
+        metrics = BenchmarkMetrics({})
+        message = str(e)
 
     return BenchmarkResult(
         name="openssl-speed",
-        status="ok",
+        status=status,
         categories=(),
         presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
+        metrics=metrics,
         parameters=BenchmarkParameters({"seconds": seconds, "algorithm": algorithm}),
         duration_seconds=duration,
         command=" ".join(command),
         raw_output=stdout,
+        message=message,
     )
 
 
@@ -54,18 +65,29 @@ def run_7zip() -> BenchmarkResult:
     stdout, duration, returncode = run_command(command)
     if returncode != 0:
         raise subprocess.CalledProcessError(returncode, command, stdout)
-    metrics_data = parse_7zip_output(stdout)
+    
+    try:
+        metrics_data = parse_7zip_output(stdout)
+        status = "ok"
+        metrics = BenchmarkMetrics(metrics_data)
+        message = ""
+    except ValueError as e:
+        # Preserve output even when parsing fails
+        status = "error"
+        metrics = BenchmarkMetrics({})
+        message = str(e)
 
     return BenchmarkResult(
         name="7zip-benchmark",
-        status="ok",
+        status=status,
         categories=(),
         presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
+        metrics=metrics,
         parameters=BenchmarkParameters({}),
         duration_seconds=duration,
         command=" ".join(command),
         raw_output=stdout,
+        message=message,
     )
 
 
@@ -87,18 +109,29 @@ def run_stress_ng(
     stdout, duration, returncode = run_command(command)
     if returncode != 0:
         raise subprocess.CalledProcessError(returncode, command, stdout)
-    metrics_data = parse_stress_ng_output(stdout)
+    
+    try:
+        metrics_data = parse_stress_ng_output(stdout)
+        status = "ok"
+        metrics = BenchmarkMetrics(metrics_data)
+        message = ""
+    except ValueError as e:
+        # Preserve output even when parsing fails
+        status = "error"
+        metrics = BenchmarkMetrics({})
+        message = str(e)
 
     return BenchmarkResult(
         name="stress-ng",
-        status="ok",
+        status=status,
         categories=(),
         presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
+        metrics=metrics,
         parameters=BenchmarkParameters({"seconds": seconds, "cpu_method": method}),
         duration_seconds=duration,
         command=" ".join(command),
         raw_output=stdout,
+        message=message,
     )
 
 
@@ -120,16 +153,26 @@ def run_sysbench_cpu(
     stdout, duration, returncode = run_command(command)
     if returncode != 0:
         raise subprocess.CalledProcessError(returncode, command, stdout)
-    metrics_data = parse_sysbench_cpu_output(stdout)
-    metrics_data["threads"] = thread_count
-    metrics_data["cpu_max_prime"] = max_prime
+    
+    try:
+        metrics_data = parse_sysbench_cpu_output(stdout)
+        metrics_data["threads"] = thread_count
+        metrics_data["cpu_max_prime"] = max_prime
+        status = "ok"
+        metrics = BenchmarkMetrics(metrics_data)
+        message = ""
+    except ValueError as e:
+        # Preserve output even when parsing fails
+        status = "error"
+        metrics = BenchmarkMetrics({})
+        message = str(e)
 
     return BenchmarkResult(
         name="sysbench-cpu",
-        status="ok",
+        status=status,
         categories=(),
         presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
+        metrics=metrics,
         parameters=BenchmarkParameters(
             {
                 "threads": thread_count,
@@ -140,6 +183,7 @@ def run_sysbench_cpu(
         duration_seconds=duration,
         command=" ".join(command),
         raw_output=stdout,
+        message=message,
     )
 
 

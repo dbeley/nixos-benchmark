@@ -22,7 +22,6 @@
           stress-ng
           fio
           ioping
-          hdparm
           fsmark
           filebench
           glmark2

@@ -247,26 +247,6 @@ def parse_ioping_output(output: str) -> Dict[str, float]:
     }
 
 
-def parse_hdparm_output(output: str) -> Dict[str, float]:
-    """Parse hdparm disk read speed output."""
-    metrics: Dict[str, float] = {}
-    cached = re.search(
-        r"Timing cached reads:\s+[\d.]+\s+MB in\s+[\d.]+\s+seconds\s+=\s+([\d.]+)\s+MB/sec",
-        output,
-    )
-    buffered = re.search(
-        r"Timing buffered disk reads:\s+[\d.]+\s+MB in\s+[\d.]+\s+seconds\s+=\s+([\d.]+)\s+MB/sec",
-        output,
-    )
-    if cached:
-        metrics["cached_read_mb_per_s"] = float(cached.group(1))
-    if buffered:
-        metrics["buffered_read_mb_per_s"] = float(buffered.group(1))
-    if not metrics:
-        raise ValueError("Unable to parse hdparm output")
-    return metrics
-
-
 def parse_fsmark_output(output: str) -> Dict[str, float]:
     """Parse fsmark filesystem benchmark output."""
     match = re.search(r"Throughput\s*=\s*([\d.]+)\s+files/sec", output)

@@ -21,20 +21,31 @@ def run_glmark2(
     stdout, duration, returncode = run_command(command)
     if returncode != 0:
         raise subprocess.CalledProcessError(returncode, command, stdout)
-    metrics_data = parse_glmark2_output(stdout)
+    
+    try:
+        metrics_data = parse_glmark2_output(stdout)
+        status = "ok"
+        metrics = BenchmarkMetrics(metrics_data)
+        message = ""
+    except ValueError as e:
+        # Preserve output even when parsing fails
+        status = "error"
+        metrics = BenchmarkMetrics({})
+        message = str(e)
 
     return BenchmarkResult(
         name="glmark2",
-        status="ok",
+        status=status,
         categories=(),
         presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
+        metrics=metrics,
         parameters=BenchmarkParameters(
             {"size": size, "mode": "offscreen" if offscreen else "onscreen"}
         ),
         duration_seconds=duration,
         command=" ".join(command),
         raw_output=stdout,
+        message=message,
     )
 
 
@@ -44,18 +55,29 @@ def run_vkmark(command: Sequence[str] = DEFAULT_VKMARK_CMD) -> BenchmarkResult:
     stdout, duration, returncode = run_command(command_list)
     if returncode != 0:
         raise subprocess.CalledProcessError(returncode, command_list, stdout)
-    metrics_data = parse_vkmark_output(stdout)
+    
+    try:
+        metrics_data = parse_vkmark_output(stdout)
+        status = "ok"
+        metrics = BenchmarkMetrics(metrics_data)
+        message = ""
+    except ValueError as e:
+        # Preserve output even when parsing fails
+        status = "error"
+        metrics = BenchmarkMetrics({})
+        message = str(e)
 
     return BenchmarkResult(
         name="vkmark",
-        status="ok",
+        status=status,
         categories=(),
         presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
+        metrics=metrics,
         parameters=BenchmarkParameters({}),
         duration_seconds=duration,
         command=" ".join(command_list),
         raw_output=stdout,
+        message=message,
     )
 
 
@@ -65,18 +87,29 @@ def run_clpeak() -> BenchmarkResult:
     stdout, duration, returncode = run_command(command)
     if returncode != 0:
         raise subprocess.CalledProcessError(returncode, command, stdout)
-    metrics_data = parse_clpeak_output(stdout)
+    
+    try:
+        metrics_data = parse_clpeak_output(stdout)
+        status = "ok"
+        metrics = BenchmarkMetrics(metrics_data)
+        message = ""
+    except ValueError as e:
+        # Preserve output even when parsing fails
+        status = "error"
+        metrics = BenchmarkMetrics({})
+        message = str(e)
 
     return BenchmarkResult(
         name="clpeak",
-        status="ok",
+        status=status,
         categories=(),
         presets=(),
-        metrics=BenchmarkMetrics(metrics_data),
+        metrics=metrics,
         parameters=BenchmarkParameters({}),
         duration_seconds=duration,
         command="clpeak",
         raw_output=stdout,
+        message=message,
     )
 
 

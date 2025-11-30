@@ -6,18 +6,17 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Sequence
+from typing import List, Sequence, Tuple
 
-from .benchmarks import PRESET_DEFINITIONS, get_all_benchmarks
+from .benchmark_registry import PRESETS, get_all_benchmarks
 from .models import (
     BenchmarkMetrics,
     BenchmarkParameters,
     BenchmarkReport,
     BenchmarkResult,
 )
-from .output import build_html_summary, describe_benchmark, sanitize_for_filename, write_json_report
+from .output import build_html_summary, sanitize_for_filename, write_json_report
 from .system_info import gather_system_info
-from .utils import check_requirements
 
 
 class CommaSeparatedListAction(argparse.Action):
@@ -58,62 +57,50 @@ def unique_ordered(values: Sequence[str]) -> List[str]:
 
 def expand_presets(presets: Sequence[str]) -> List[str]:
     """Expand preset names into benchmark keys."""
-    all_benchmarks = get_all_benchmarks()
+    from .benchmark_registry import ALL_BENCHMARKS, PRESETS
+    
     selected: set[str] = set()
     if not presets:
         presets = ["balanced"]
     for preset in presets:
-        config = PRESET_DEFINITIONS.get(preset)
+        config = PRESETS.get(preset)
         if not config:
             continue
         if config.get("all"):
-            return [definition.key for definition in all_benchmarks]
+            return [bench.key for bench in ALL_BENCHMARKS]
         categories = config.get("categories", [])
         selected |= {
-            definition.key
-            for definition in all_benchmarks
-            if any(cat in definition.categories for cat in categories)
+            bench.key
+            for bench in ALL_BENCHMARKS
+            if any(cat in bench.categories for cat in categories)
         }
-        for bench in config.get("benchmarks", []):
-            selected.add(bench)
+        for bench_name in config.get("benchmarks", []):
+            selected.add(bench_name)
     return sorted(selected)
 
 
-def execute_definition(definition, args: argparse.Namespace) -> BenchmarkResult:
-    """Execute a single benchmark definition."""
-    ok, reason = check_requirements(definition.requires)
+def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
+    """Execute a single benchmark instance."""
+    ok, reason = benchmark.validate(args)
     if not ok:
         return BenchmarkResult(
-            name=definition.key,
+            name=benchmark.key,
             status="skipped",
-            categories=definition.categories,
-            presets=definition.presets,
+            categories=benchmark.categories,
+            presets=benchmark.presets,
             metrics=BenchmarkMetrics({}),
             parameters=BenchmarkParameters({}),
             message=reason,
         )
 
-    if definition.availability_check:
-        ok, reason = definition.availability_check(args)
-        if not ok:
-            return BenchmarkResult(
-                name=definition.key,
-                status="skipped",
-                categories=definition.categories,
-                presets=definition.presets,
-                metrics=BenchmarkMetrics({}),
-                parameters=BenchmarkParameters({}),
-                message=reason,
-            )
-
     try:
-        result = definition.runner(args)
+        result = benchmark.execute(args)
     except FileNotFoundError as exc:
         return BenchmarkResult(
-            name=definition.key,
+            name=benchmark.key,
             status="skipped",
-            categories=definition.categories,
-            presets=definition.presets,
+            categories=benchmark.categories,
+            presets=benchmark.presets,
             metrics=BenchmarkMetrics({}),
             parameters=BenchmarkParameters({}),
             message=f"Missing file or path: {exc}",
@@ -123,10 +110,10 @@ def execute_definition(definition, args: argparse.Namespace) -> BenchmarkResult:
         raw_output = exc.stdout if exc.stdout else ""
         command = " ".join(exc.cmd) if isinstance(exc.cmd, list) else str(exc.cmd)
         return BenchmarkResult(
-            name=definition.key,
+            name=benchmark.key,
             status="error",
-            categories=definition.categories,
-            presets=definition.presets,
+            categories=benchmark.categories,
+            presets=benchmark.presets,
             metrics=BenchmarkMetrics({}),
             parameters=BenchmarkParameters({}),
             message=f"Command failed with exit code {exc.returncode}",
@@ -142,10 +129,10 @@ def execute_definition(definition, args: argparse.Namespace) -> BenchmarkResult:
             raw_output = context.stdout if context.stdout else ""
             command = " ".join(context.cmd) if isinstance(context.cmd, list) else str(context.cmd)
         return BenchmarkResult(
-            name=definition.key,
+            name=benchmark.key,
             status="error",
-            categories=definition.categories,
-            presets=definition.presets,
+            categories=benchmark.categories,
+            presets=benchmark.presets,
             metrics=BenchmarkMetrics({}),
             parameters=BenchmarkParameters({}),
             message=str(exc),
@@ -153,12 +140,12 @@ def execute_definition(definition, args: argparse.Namespace) -> BenchmarkResult:
             raw_output=raw_output,
         )
 
-    # Update result with categories and presets from definition
+    # Update result with categories and presets from benchmark instance
     result = BenchmarkResult(
         name=result.name,
         status=result.status,
-        categories=definition.categories,
-        presets=definition.presets,
+        categories=benchmark.categories,
+        presets=benchmark.presets,
         metrics=result.metrics,
         parameters=result.parameters,
         duration_seconds=result.duration_seconds,
@@ -171,8 +158,8 @@ def execute_definition(definition, args: argparse.Namespace) -> BenchmarkResult:
 
 def main() -> int:
     """Main entry point for the benchmark suite."""
-    all_benchmarks = get_all_benchmarks()
-
+    from .benchmark_registry import ALL_BENCHMARKS, PRESETS
+    
     parser = argparse.ArgumentParser(description="Run a lightweight benchmark suite.")
     parser.add_argument(
         "--output",
@@ -193,7 +180,7 @@ def main() -> int:
         "--preset",
         dest="presets",
         action=CommaSeparatedListAction,
-        choices=sorted(PRESET_DEFINITIONS.keys()),
+        choices=sorted(PRESETS.keys()),
         metavar="PRESET",
         default=[],
         help="Comma-separated preset names (defaults to 'balanced').",
@@ -202,7 +189,7 @@ def main() -> int:
         "--benchmarks",
         dest="benchmarks",
         action=CommaSeparatedListAction,
-        choices=sorted(definition.key for definition in all_benchmarks),
+        choices=sorted(bench.key for bench in ALL_BENCHMARKS),
         metavar="BENCHMARK",
         default=[],
         help="Comma-separated benchmark names to run (skips preset expansion).",
@@ -227,18 +214,18 @@ def main() -> int:
 
     if args.list_presets:
         print("Available presets:")
-        for name in sorted(PRESET_DEFINITIONS):
-            desc = PRESET_DEFINITIONS[name]["description"]
+        for name in sorted(PRESETS):
+            desc = PRESETS[name]["description"]
             print(f"  {name:<10} {desc}")
         return 0
 
     if args.list_benchmarks:
         print("Available benchmarks:")
-        for definition in all_benchmarks:
-            categories = ", ".join(definition.categories)
-            presets = ", ".join(definition.presets)
+        for benchmark in ALL_BENCHMARKS:
+            categories = ", ".join(benchmark.categories)
+            presets = ", ".join(benchmark.presets)
             print(
-                f"  {definition.key:<20} [{categories}] presets: {presets} - {definition.description}"
+                f"  {benchmark.key:<20} [{categories}] presets: {presets} - {benchmark.description}"
             )
         return 0
 
@@ -255,17 +242,19 @@ def main() -> int:
         print("No benchmarks requested.", file=sys.stderr)
         return 1
 
-    definition_map = {definition.key: definition for definition in all_benchmarks}
-    results: List[BenchmarkResult] = []
+    benchmark_map = {bench.key: bench for bench in ALL_BENCHMARKS}
+    results_with_benchmarks: List[Tuple[BenchmarkResult, BenchmarkBase]] = []
     for name in selected_names:
         print(f"Executing {name}")
-        definition = definition_map[name]
-        results.append(execute_definition(definition, args))
+        benchmark = benchmark_map[name]
+        result = execute_benchmark(benchmark, args)
+        results_with_benchmarks.append((result, benchmark))
 
-    if not results:
+    if not results_with_benchmarks:
         print("No benchmarks executed.", file=sys.stderr)
         return 1
 
+    results = [result for result, _ in results_with_benchmarks]
     generated_at = datetime.now(timezone.utc)
     system_info = gather_system_info(args.hostname or None)
 
@@ -290,10 +279,10 @@ def main() -> int:
     write_json_report(report, output_path)
 
     print(f"Wrote {output_path}")
-    for bench in results:
-        summary = describe_benchmark(bench)
+    for result, benchmark in results_with_benchmarks:
+        summary = benchmark.format_result(result)
         if summary:
-            print(f"{bench.name}: {summary}")
+            print(f"{result.name}: {summary}")
 
     if args.html_summary:
         build_html_summary(output_path.parent, Path(args.html_summary))
