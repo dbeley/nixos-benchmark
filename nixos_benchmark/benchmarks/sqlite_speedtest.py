@@ -73,17 +73,13 @@ class SQLiteSpeedtestBenchmark(BenchmarkBase):
             raw_output="",
         )
 
-
-# ==================
-# Media Benchmarks
-# ==================
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
         if result.status != "ok":
             prefix = "Skipped" if result.status == "skipped" else "Error"
             return f"{prefix}: {result.message}"
         
-        inserts = result.metrics.get("insert_rows_per_sec")
+        inserts = result.metrics.get("insert_rows_per_s")
         selects = result.metrics.get("indexed_selects_per_s")
         if inserts is not None and selects is not None:
             return f"Ins {inserts:.0f}/Sel {selects:.0f}/s"

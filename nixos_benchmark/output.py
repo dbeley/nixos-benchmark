@@ -22,109 +22,24 @@ def sanitize_for_filename(value: str) -> str:
 
 
 def describe_benchmark(bench: BenchmarkResult) -> str:
-    """Generate a short human-readable description of benchmark results."""
+    """Generate a short human-readable description of benchmark results.
+    
+    This function looks up the benchmark class by name and delegates to
+    its format_result method. If the benchmark is not found, returns an
+    empty string.
+    """
+    # Import here to avoid circular dependency
+    from .benchmarks import ALL_BENCHMARKS
+    
+    # Find the matching benchmark class
+    for benchmark_instance in ALL_BENCHMARKS:
+        if benchmark_instance.key == bench.name:
+            return benchmark_instance.format_result(bench)
+    
+    # Fallback for unknown benchmarks
     if bench.status != "ok":
         prefix = "Skipped" if bench.status == "skipped" else "Error"
         return f"{prefix}: {bench.message}"
-
-    metrics = bench.metrics
-    name = bench.name
-
-    if name == "openssl-speed":
-        throughput = metrics.get("max_kbytes_per_sec")
-        if throughput is not None:
-            return f"{throughput / 1024:.1f} MiB/s"
-    elif name == "7zip-benchmark":
-        rating = metrics.get("total_rating_mips")
-        if rating is not None:
-            return f"{rating:.0f} MIPS"
-    elif name == "stress-ng":
-        ops = metrics.get("bogo_ops_per_sec_real")
-        if ops is not None:
-            return f"{ops:,.0f} bogo-ops/s"
-    elif name == "sysbench-cpu":
-        events = metrics.get("events_per_sec")
-        if events is not None:
-            return f"{events:,.1f} events/s"
-    elif name == "sysbench-memory":
-        throughput = metrics.get("throughput_mib_per_s")
-        if throughput is not None:
-            return f"{throughput:,.0f} MiB/s"
-    elif name == "fio-seq":
-        read_bw = metrics.get("seqread_mib_per_s")
-        write_bw = metrics.get("seqwrite_mib_per_s")
-        if read_bw is not None and write_bw is not None:
-            return f"R {read_bw:.1f} / W {write_bw:.1f} MiB/s"
-    elif name == "glmark2":
-        score = metrics.get("score")
-        if score is not None:
-            return f"{score:.0f} pts"
-    elif name == "vkmark":
-        fps = metrics.get("fps_avg") or metrics.get("fps_max")
-        if fps is not None:
-            return f"{fps:.1f} fps"
-    elif name == "ffmpeg-transcode":
-        fps = metrics.get("calculated_fps")
-        if fps is not None:
-            return f"{fps:.1f} fps"
-    elif name == "x264-encode":
-        fps = metrics.get("fps")
-        if fps is not None:
-            return f"{fps:.1f} fps"
-    elif name == "sqlite-mixed":
-        inserts = metrics.get("insert_rows_per_s")
-        selects = metrics.get("selects_per_s")
-        if inserts is not None and selects is not None:
-            return f"Ins {inserts:.0f}/s Sel {selects:.0f}/s"
-    elif name == "tinymembench":
-        memcpy = metrics.get("memcpy_mb_per_s")
-        if memcpy is None:
-            memcpy = metrics.get("memcpy_-_aligned_mb_per_s")
-        if memcpy is None and metrics.data:
-            numeric_values = [v for v in metrics.data.values() if isinstance(v, (int, float))]
-            if numeric_values:
-                memcpy = max(numeric_values)
-        if memcpy is not None:
-            return f"{memcpy:,.0f} MB/s"
-    elif name == "clpeak":
-        bandwidth = metrics.get("global_mem_bandwidth_gbps_float")
-        if bandwidth is None and metrics.data:
-            numeric_values = [v for v in metrics.data.values() if isinstance(v, (int, float))]
-            if numeric_values:
-                bandwidth = max(numeric_values)
-        if bandwidth is not None:
-            return f"{bandwidth:.1f} GB/s"
-    elif name == "zstd-compress" or name == "pigz-compress":
-        comp = metrics.get("compress_mb_per_s")
-        decomp = metrics.get("decompress_mb_per_s")
-        if comp is not None and decomp is not None:
-            return f"C {comp:.0f}/D {decomp:.0f} MB/s"
-    elif name == "cryptsetup-benchmark":
-        speeds = [
-            value
-            for key, value in metrics.data.items()
-            if key.endswith("_enc_mib_per_s") and isinstance(value, (int, float))
-        ]
-        if speeds:
-            peak = max(speeds)
-            return f"{peak:,.0f} MiB/s"
-    elif name == "ioping":
-        latency = metrics.get("latency_avg_ms")
-        if latency is not None:
-            return f"{latency:.2f} ms avg"
-    elif name == "sqlite-speedtest":
-        inserts = metrics.get("insert_rows_per_s")
-        selects = metrics.get("indexed_selects_per_s")
-        if inserts is not None and selects is not None:
-            return f"Ins {inserts:.0f}/Sel {selects:.0f}/s"
-    elif name == "iperf3-loopback":
-        bw = metrics.get("throughput_mib_per_s")
-        if bw is not None:
-            return f"{bw:.1f} MiB/s"
-    elif name == "netperf":
-        mbps = metrics.get("throughput_mbps")
-        if mbps is not None:
-            return f"{mbps:.1f} Mb/s"
     return ""
 
 

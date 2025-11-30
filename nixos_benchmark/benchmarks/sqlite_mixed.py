@@ -76,7 +76,7 @@ class SQLiteMixedBenchmark(BenchmarkBase):
             prefix = "Skipped" if result.status == "skipped" else "Error"
             return f"{prefix}: {result.message}"
         
-        inserts = result.metrics.get("insert_rows_per_sec")
+        inserts = result.metrics.get("insert_rows_per_s")
         selects = result.metrics.get("selects_per_s")
         if inserts is not None and selects is not None:
             return f"Ins {inserts:.0f}/s Sel {selects:.0f}/s"
