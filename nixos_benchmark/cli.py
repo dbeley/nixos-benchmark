@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Sequence, Tuple
 
-from .benchmark_registry import PRESETS, get_all_benchmarks
+from .benchmarks import ALL_BENCHMARKS, PRESETS, get_all_benchmarks
 from .models import (
     BenchmarkMetrics,
     BenchmarkParameters,
@@ -18,7 +18,6 @@ from .models import (
 )
 from .output import (
     build_html_summary,
-    describe_benchmark,
     sanitize_for_filename,
     write_json_report,
 )
@@ -63,7 +62,7 @@ def unique_ordered(values: Sequence[str]) -> List[str]:
 
 def expand_presets(presets: Sequence[str]) -> List[str]:
     """Expand preset names into benchmark keys."""
-    from .benchmark_registry import ALL_BENCHMARKS, PRESETS
+    from .benchmarks import ALL_BENCHMARKS, PRESETS
     
     selected: set[str] = set()
     if not presets:
@@ -164,7 +163,7 @@ def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
 
 def main() -> int:
     """Main entry point for the benchmark suite."""
-    from .benchmark_registry import ALL_BENCHMARKS, PRESETS
+    from .benchmarks import ALL_BENCHMARKS, PRESETS
     
     parser = argparse.ArgumentParser(description="Run a lightweight benchmark suite.")
     parser.add_argument(

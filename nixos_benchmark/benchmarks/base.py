@@ -1,7 +1,12 @@
 """Base definitions for benchmarks and presets."""
 from __future__ import annotations
 
-from typing import Dict
+import argparse
+from abc import ABC
+from typing import ClassVar, Dict, Tuple
+
+from ..models import BenchmarkResult
+from ..utils import check_requirements
 
 # Default constants for CPU benchmarks
 DEFAULT_STRESS_NG_SECONDS = 5
@@ -50,8 +55,35 @@ DEFAULT_IPERF_DURATION = 3
 DEFAULT_NETPERF_DURATION = 3
 
 
-# Preset definitions (kept for backward compatibility, but PRESETS in benchmark_registry is the primary source)
-PRESET_DEFINITIONS: Dict[str, Dict[str, object]] = {
+class BenchmarkBase(ABC):
+    """Base class for all benchmarks."""
+
+    key: ClassVar[str]
+    categories: ClassVar[Tuple[str, ...]]
+    presets: ClassVar[Tuple[str, ...]]
+    description: ClassVar[str]
+
+    def validate(self, args: argparse.Namespace = None) -> Tuple[bool, str]:
+        """Check if benchmark can run."""
+        if hasattr(self, '_required_commands'):
+            ok, reason = check_requirements(self._required_commands)
+            if not ok:
+                return ok, reason
+        if hasattr(self, '_availability_check') and args is not None:
+            return self._availability_check(args)
+        return True, ""
+
+    def execute(self, args: argparse.Namespace) -> BenchmarkResult:
+        """Execute the benchmark."""
+        raise NotImplementedError(f"{self.__class__.__name__} must implement execute()")
+
+    def format_result(self, result: BenchmarkResult) -> str:
+        """Format result for display."""
+        raise NotImplementedError(f"{self.__class__.__name__} must implement format_result()")
+
+
+# Preset definitions
+PRESETS: Dict[str, Dict[str, object]] = {
     "balanced": {
         "description": "Quick mix of CPU and IO tests.",
         "benchmarks": (
