@@ -106,7 +106,7 @@ The development shell includes:
 
 ### Pre-commit hooks
 
-This project uses [prek](https://github.com/pineappleEA/prick) (a Rust-based pre-commit tool) to maintain code quality. The hooks are configured in `.pre-commit-config.yaml` and include:
+This project uses [prek](https://github.com/pineappleEA/prek) (a Rust-based pre-commit tool) to maintain code quality. The hooks are configured in `.pre-commit-config.yaml` and include:
 
 - **ruff**: Python linting and formatting (replaces black + flake8 + isort)
 - **mypy**: Python type checking

@@ -89,10 +89,3 @@ warn_unreachable = true
 strict_equality = true
 show_error_codes = true
 pretty = true
-
-# Ignore missing imports for modules that don't have type stubs
-[[tool.mypy.overrides]]
-module = [
-    "nixos_benchmark.benchmarks.*",
-]
-ignore_missing_imports = true

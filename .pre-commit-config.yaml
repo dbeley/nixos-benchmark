@@ -82,7 +82,7 @@ repos:
       
       - id: check-yaml
         name: check yaml
-        entry: bash -c 'python3 -c "import yaml; import sys; [yaml.safe_load(open(f)) for f in sys.argv[1:]]" "$@"' --
+        entry: bash -c 'python3 -c "import yaml; import sys; [yaml.safe_load(open(f, encoding=\"utf-8\")) for f in sys.argv[1:]]" "$@"' --
         language: system
         types: [yaml]
         pass_filenames: true
