@@ -40,7 +40,7 @@
           name = "nixos-benchmark";
           runtimeInputs = benchmarkTools;
           text = ''
-            python ${./nixos_benchmark.py} "$@"
+            python -m nixos_benchmark "$@"
           '';
         };
       in {

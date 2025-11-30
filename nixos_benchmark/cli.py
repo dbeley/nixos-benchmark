@@ -1,4 +1,5 @@
 """Command-line interface for nixos-benchmark."""
+
 from __future__ import annotations
 
 import argparse
@@ -15,7 +16,12 @@ from .models import (
     BenchmarkReport,
     BenchmarkResult,
 )
-from .output import build_html_summary, sanitize_for_filename, write_json_report
+from .output import (
+    build_html_summary,
+    describe_benchmark,
+    sanitize_for_filename,
+    write_json_report,
+)
 from .system_info import gather_system_info
 
 
@@ -189,7 +195,6 @@ def main() -> int:
         "--benchmarks",
         dest="benchmarks",
         action=CommaSeparatedListAction,
-        choices=sorted(bench.key for bench in ALL_BENCHMARKS),
         metavar="BENCHMARK",
         default=[],
         help="Comma-separated benchmark names to run (skips preset expansion).",
