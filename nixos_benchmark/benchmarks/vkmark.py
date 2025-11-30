@@ -14,9 +14,7 @@ from .base import (
 
 
 class VKMarkBenchmark(BenchmarkBase):
-    key = "vkmark"
-    categories = ("gpu",)
-    presets = ("gpu-light", "gpu", "all")
+    name = "vkmark"
     description = "vkmark Vulkan benchmark"
     _required_commands = ("vkmark",)
 
@@ -55,7 +53,6 @@ class VKMarkBenchmark(BenchmarkBase):
         return BenchmarkResult(
             name="vkmark",
             status=status,
-            categories=(),
             presets=(),
             metrics=metrics,
             parameters=BenchmarkParameters({}),

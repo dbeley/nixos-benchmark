@@ -10,9 +10,7 @@ from .base import BenchmarkBase
 
 
 class CLPeakBenchmark(BenchmarkBase):
-    key = "clpeak"
-    categories = ("gpu", "compute")
-    presets = ("gpu", "all")
+    name = "clpeak"
     description = "OpenCL peak bandwidth/compute"
     _required_commands = ("clpeak",)
 
@@ -56,7 +54,6 @@ class CLPeakBenchmark(BenchmarkBase):
         return BenchmarkResult(
             name="clpeak",
             status=status,
-            categories=(),
             presets=(),
             metrics=metrics,
             parameters=BenchmarkParameters({}),

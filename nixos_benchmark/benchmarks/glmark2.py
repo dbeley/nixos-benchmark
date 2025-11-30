@@ -14,9 +14,7 @@ from .base import (
 
 
 class GLMark2Benchmark(BenchmarkBase):
-    key = "glmark2"
-    categories = ("gpu",)
-    presets = ("gpu-light", "gpu", "all")
+    name = "glmark2"
     description = "glmark2 OpenGL benchmark"
     _required_commands = ("glmark2",)
 
@@ -48,7 +46,6 @@ class GLMark2Benchmark(BenchmarkBase):
         return BenchmarkResult(
             name="glmark2",
             status=status,
-            categories=(),
             presets=(),
             metrics=metrics,
             parameters=BenchmarkParameters({"size": size, "mode": "offscreen" if offscreen else "onscreen"}),

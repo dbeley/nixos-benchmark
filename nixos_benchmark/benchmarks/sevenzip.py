@@ -10,9 +10,7 @@ from .base import BenchmarkBase
 
 
 class SevenZipBenchmark(BenchmarkBase):
-    key = "7zip-benchmark"
-    categories = ("cpu", "compression")
-    presets = ("balanced", "cpu", "compression", "all")
+    name = "7zip-benchmark"
     description = "7-Zip compression benchmark"
     _required_commands = ("7z",)
 
@@ -57,7 +55,6 @@ class SevenZipBenchmark(BenchmarkBase):
         return BenchmarkResult(
             name="7zip-benchmark",
             status=status,
-            categories=(),
             presets=(),
             metrics=metrics,
             parameters=BenchmarkParameters({}),

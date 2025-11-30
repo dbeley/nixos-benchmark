@@ -10,9 +10,7 @@ from .base import BenchmarkBase
 
 
 class CryptsetupBenchmark(BenchmarkBase):
-    key = "cryptsetup-benchmark"
-    categories = ("crypto", "io")
-    presets = ("crypto", "io", "all")
+    name = "cryptsetup-benchmark"
     description = "cryptsetup cipher benchmark"
     _required_commands = ("cryptsetup",)
 
@@ -53,7 +51,6 @@ class CryptsetupBenchmark(BenchmarkBase):
         return BenchmarkResult(
             name="cryptsetup-benchmark",
             status=status,
-            categories=(),
             presets=(),
             metrics=metrics,
             parameters=BenchmarkParameters({}),

@@ -15,9 +15,7 @@ from .base import (
 
 
 class FFmpegBenchmark(BenchmarkBase):
-    key = "ffmpeg-transcode"
-    categories = ("media",)
-    presets = ("all",)
+    name = "ffmpeg-transcode"
     description = "FFmpeg synthetic video transcode"
     _required_commands = ("ffmpeg",)
 
@@ -77,7 +75,6 @@ class FFmpegBenchmark(BenchmarkBase):
         return BenchmarkResult(
             name="ffmpeg-transcode",
             status=status,
-            categories=(),
             presets=(),
             metrics=metrics,
             parameters=BenchmarkParameters(

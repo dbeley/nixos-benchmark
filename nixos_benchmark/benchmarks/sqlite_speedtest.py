@@ -16,9 +16,7 @@ from .base import (
 
 
 class SQLiteSpeedtestBenchmark(BenchmarkBase):
-    key = "sqlite-speedtest"
-    categories = ("io", "database")
-    presets = ("database", "io", "all")
+    name = "sqlite-speedtest"
     description = "SQLite speedtest-style insert/select"
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
@@ -61,7 +59,6 @@ class SQLiteSpeedtestBenchmark(BenchmarkBase):
         return BenchmarkResult(
             name="sqlite-speedtest",
             status="ok",
-            categories=(),
             presets=(),
             metrics=BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data)),
             parameters=BenchmarkParameters({"row_count": row_count, "select_queries": select_queries}),

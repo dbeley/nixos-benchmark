@@ -14,9 +14,7 @@ from .base import (
 
 
 class StressNGBenchmark(BenchmarkBase):
-    key = "stress-ng"
-    categories = ("cpu",)
-    presets = ("balanced", "cpu", "all")
+    name = "stress-ng"
     description = "stress-ng CPU stress test"
     _required_commands = ("stress-ng",)
 
@@ -75,7 +73,6 @@ class StressNGBenchmark(BenchmarkBase):
         return BenchmarkResult(
             name="stress-ng",
             status=status,
-            categories=(),
             presets=(),
             metrics=metrics,
             parameters=BenchmarkParameters({"seconds": seconds, "cpu_method": method}),

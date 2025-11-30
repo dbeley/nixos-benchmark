@@ -14,9 +14,7 @@ from .base import (
 
 
 class IOPingBenchmark(BenchmarkBase):
-    key = "ioping"
-    categories = ("io",)
-    presets = ("io", "all")
+    name = "ioping"
     description = "ioping latency probe"
     _required_commands = ("ioping",)
 
@@ -50,7 +48,6 @@ class IOPingBenchmark(BenchmarkBase):
         return BenchmarkResult(
             name="ioping",
             status=status,
-            categories=(),
             presets=(),
             metrics=metrics,
             parameters=BenchmarkParameters({"count": count}),

@@ -18,9 +18,7 @@ from .base import (
 
 
 class X264Benchmark(BenchmarkBase):
-    key = "x264-encode"
-    categories = ("media",)
-    presets = ("all",)
+    name = "x264-encode"
     description = "x264 encoder benchmark"
     _required_commands = ("x264", "ffmpeg")
 
@@ -102,7 +100,6 @@ class X264Benchmark(BenchmarkBase):
         return BenchmarkResult(
             name="x264-encode",
             status=status,
-            categories=(),
             presets=(),
             metrics=metrics,
             parameters=BenchmarkParameters(

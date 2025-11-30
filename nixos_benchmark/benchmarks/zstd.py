@@ -15,9 +15,7 @@ from .base import (
 
 
 class ZstdBenchmark(BenchmarkBase):
-    key = "zstd-compress"
-    categories = ("cpu", "compression")
-    presets = ("cpu", "compression", "all")
+    name = "zstd-compress"
     description = "zstd compress/decompress throughput"
     _required_commands = ("zstd",)
 
@@ -74,7 +72,6 @@ class ZstdBenchmark(BenchmarkBase):
         return BenchmarkResult(
             name="zstd-compress",
             status="ok",
-            categories=(),
             presets=(),
             metrics=BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data)),
             parameters=BenchmarkParameters({"level": level, "size_mb": size_mb}),

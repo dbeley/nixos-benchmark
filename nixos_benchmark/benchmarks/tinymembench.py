@@ -10,9 +10,7 @@ from .base import BenchmarkBase
 
 
 class TinyMemBenchBenchmark(BenchmarkBase):
-    key = "tinymembench"
-    categories = ("memory",)
-    presets = ("memory", "all")
+    name = "tinymembench"
     description = "TinyMemBench memory throughput"
     _required_commands = ("tinymembench",)
 
@@ -45,7 +43,6 @@ class TinyMemBenchBenchmark(BenchmarkBase):
         return BenchmarkResult(
             name="tinymembench",
             status=status,
-            categories=(),
             presets=(),
             metrics=metrics,
             parameters=BenchmarkParameters({}),

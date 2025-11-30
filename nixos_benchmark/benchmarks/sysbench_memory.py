@@ -17,9 +17,7 @@ from .base import (
 
 
 class SysbenchMemoryBenchmark(BenchmarkBase):
-    key = "sysbench-memory"
-    categories = ("memory",)
-    presets = ("balanced", "memory", "all")
+    name = "sysbench-memory"
     description = "sysbench memory throughput"
     _required_commands = ("sysbench",)
 
@@ -74,7 +72,6 @@ class SysbenchMemoryBenchmark(BenchmarkBase):
         return BenchmarkResult(
             name="sysbench-memory",
             status=status,
-            categories=(),
             presets=(),
             metrics=metrics,
             parameters=BenchmarkParameters(

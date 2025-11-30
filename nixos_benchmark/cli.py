@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .benchmarks import ALL_BENCHMARKS, PRESETS
+from .benchmarks import ALL_BENCHMARKS, PRESETS, get_presets_for_benchmark
 from .benchmarks.base import BenchmarkBase
 from .models import (
     BenchmarkMetrics,
@@ -54,8 +54,7 @@ def unique_ordered(values: Sequence[str]) -> list[str]:
 
 
 def expand_presets(presets: Sequence[str]) -> list[str]:
-    """Expand preset names into benchmark keys."""
-
+    """Expand preset names into benchmark names."""
     selected: set[str] = set()
     if not presets:
         presets = ["balanced"]
@@ -63,15 +62,10 @@ def expand_presets(presets: Sequence[str]) -> list[str]:
         config = PRESETS.get(preset)
         if not config:
             continue
-        if config.get("all"):
-            return [bench.key for bench in ALL_BENCHMARKS]
-        categories = config.get("categories", [])
-        if isinstance(categories, (list, tuple)):
-            selected |= {bench.key for bench in ALL_BENCHMARKS if any(cat in bench.categories for cat in categories)}
         benchmarks = config.get("benchmarks", [])
         if isinstance(benchmarks, (list, tuple)):
-            for bench_name in benchmarks:
-                selected.add(bench_name)
+            for bench in benchmarks:
+                selected.add(bench.name)
     return sorted(selected)
 
 
@@ -142,9 +136,8 @@ def list_benchmarks() -> int:
     """List available benchmarks and exit."""
     print("Available benchmarks:")
     for benchmark in ALL_BENCHMARKS:
-        categories = ", ".join(benchmark.categories)
-        presets = ", ".join(benchmark.presets)
-        print(f"  {benchmark.key:<20} [{categories}] presets: {presets} - {benchmark.description}")
+        presets = ", ".join(get_presets_for_benchmark(benchmark))
+        print(f"  {benchmark.name:<20} presets: {presets} - {benchmark.description}")
     return 0
 
 
@@ -162,13 +155,13 @@ def determine_output_path(args: argparse.Namespace, generated_at: datetime, syst
 
 def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
     """Execute a single benchmark instance."""
+    benchmark_presets = get_presets_for_benchmark(benchmark)
     ok, reason = benchmark.validate(args)
     if not ok:
         return BenchmarkResult(
-            name=benchmark.key,
+            name=benchmark.name,
             status="skipped",
-            categories=benchmark.categories,
-            presets=benchmark.presets,
+            presets=benchmark_presets,
             metrics=BenchmarkMetrics({}),
             parameters=BenchmarkParameters({}),
             message=reason,
@@ -178,10 +171,9 @@ def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
         result = benchmark.execute(args)
     except FileNotFoundError as exc:
         return BenchmarkResult(
-            name=benchmark.key,
+            name=benchmark.name,
             status="skipped",
-            categories=benchmark.categories,
-            presets=benchmark.presets,
+            presets=benchmark_presets,
             metrics=BenchmarkMetrics({}),
             parameters=BenchmarkParameters({}),
             message=f"Missing file or path: {exc}",
@@ -191,10 +183,9 @@ def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
         raw_output = exc.stdout if exc.stdout else ""
         command = " ".join(exc.cmd) if isinstance(exc.cmd, list) else str(exc.cmd)
         return BenchmarkResult(
-            name=benchmark.key,
+            name=benchmark.name,
             status="error",
-            categories=benchmark.categories,
-            presets=benchmark.presets,
+            presets=benchmark_presets,
             metrics=BenchmarkMetrics({}),
             parameters=BenchmarkParameters({}),
             message=f"Command failed with exit code {exc.returncode}",
@@ -210,10 +201,9 @@ def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
             raw_output = context.stdout if context.stdout else ""
             command = " ".join(context.cmd) if isinstance(context.cmd, list) else str(context.cmd)
         return BenchmarkResult(
-            name=benchmark.key,
+            name=benchmark.name,
             status="error",
-            categories=benchmark.categories,
-            presets=benchmark.presets,
+            presets=benchmark_presets,
             metrics=BenchmarkMetrics({}),
             parameters=BenchmarkParameters({}),
             message=str(exc),
@@ -221,12 +211,11 @@ def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
             raw_output=raw_output,
         )
 
-    # Update result with categories and presets from benchmark instance
+    # Update result with presets from benchmark instance
     return BenchmarkResult(
         name=result.name,
         status=result.status,
-        categories=benchmark.categories,
-        presets=benchmark.presets,
+        presets=benchmark_presets,
         metrics=result.metrics,
         parameters=result.parameters,
         duration_seconds=result.duration_seconds,
@@ -256,7 +245,7 @@ def main() -> int:
         print("No benchmarks requested.", file=sys.stderr)
         return 1
 
-    benchmark_map = {bench.key: bench for bench in ALL_BENCHMARKS}
+    benchmark_map = {bench.name: bench for bench in ALL_BENCHMARKS}
     results_with_benchmarks: list[tuple[BenchmarkResult, BenchmarkBase]] = []
     for name in selected_names:
         print(f"Executing {name}")

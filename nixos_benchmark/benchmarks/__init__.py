@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .base import PRESETS, BenchmarkBase
+from .base import BenchmarkBase
 from .clpeak import CLPeakBenchmark
 from .cryptsetup import CryptsetupBenchmark
 from .ffmpeg import FFmpegBenchmark
@@ -49,6 +49,116 @@ ALL_BENCHMARKS = [
     NetperfBenchmark(),
 ]
 
+# Create a map from benchmark name to benchmark instance for easy lookup
+BENCHMARK_MAP = {bench.name: bench for bench in ALL_BENCHMARKS}
+
+# Preset definitions - directly list benchmark classes
+PRESETS: dict[str, dict[str, object]] = {
+    "balanced": {
+        "description": "Quick mix of CPU and IO tests.",
+        "benchmarks": (
+            BENCHMARK_MAP["openssl-speed"],
+            BENCHMARK_MAP["7zip-benchmark"],
+            BENCHMARK_MAP["stress-ng"],
+            BENCHMARK_MAP["sysbench-cpu"],
+            BENCHMARK_MAP["sysbench-memory"],
+            BENCHMARK_MAP["fio-seq"],
+            BENCHMARK_MAP["sqlite-mixed"],
+        ),
+    },
+    "cpu": {
+        "description": "CPU heavy synthetic workloads.",
+        "benchmarks": (
+            BENCHMARK_MAP["openssl-speed"],
+            BENCHMARK_MAP["7zip-benchmark"],
+            BENCHMARK_MAP["stress-ng"],
+            BENCHMARK_MAP["sysbench-cpu"],
+            BENCHMARK_MAP["zstd-compress"],
+            BENCHMARK_MAP["pigz-compress"],
+        ),
+    },
+    "io": {
+        "description": "Disk and filesystem focused tests.",
+        "benchmarks": (
+            BENCHMARK_MAP["fio-seq"],
+            BENCHMARK_MAP["ioping"],
+            BENCHMARK_MAP["sqlite-mixed"],
+            BENCHMARK_MAP["sqlite-speedtest"],
+            BENCHMARK_MAP["cryptsetup-benchmark"],
+        ),
+    },
+    "memory": {
+        "description": "Memory bandwidth and latency tests.",
+        "benchmarks": (
+            BENCHMARK_MAP["sysbench-memory"],
+            BENCHMARK_MAP["tinymembench"],
+        ),
+    },
+    "compression": {
+        "description": "Compression and decompression throughput.",
+        "benchmarks": (
+            BENCHMARK_MAP["7zip-benchmark"],
+            BENCHMARK_MAP["zstd-compress"],
+            BENCHMARK_MAP["pigz-compress"],
+        ),
+    },
+    "crypto": {
+        "description": "Cryptography focused benchmarks.",
+        "benchmarks": (
+            BENCHMARK_MAP["openssl-speed"],
+            BENCHMARK_MAP["cryptsetup-benchmark"],
+        ),
+    },
+    "database": {
+        "description": "Database engines (SQLite only).",
+        "benchmarks": (
+            BENCHMARK_MAP["sqlite-mixed"],
+            BENCHMARK_MAP["sqlite-speedtest"],
+        ),
+    },
+    "gpu-light": {
+        "description": "Lightweight GPU render sanity checks.",
+        "benchmarks": (
+            BENCHMARK_MAP["glmark2"],
+            BENCHMARK_MAP["vkmark"],
+        ),
+    },
+    "gpu": {
+        "description": "GPU render benchmarks (glmark2 and vkmark).",
+        "benchmarks": (
+            BENCHMARK_MAP["glmark2"],
+            BENCHMARK_MAP["vkmark"],
+            BENCHMARK_MAP["clpeak"],
+        ),
+    },
+    "network": {
+        "description": "Loopback network throughput tests.",
+        "benchmarks": (
+            BENCHMARK_MAP["iperf3-loopback"],
+            BENCHMARK_MAP["netperf"],
+        ),
+    },
+    "all": {
+        "description": "Run every available benchmark.",
+        "benchmarks": tuple(ALL_BENCHMARKS),
+    },
+}
+
+
+def get_presets_for_benchmark(benchmark: BenchmarkBase) -> tuple[str, ...]:
+    """Compute which presets include a given benchmark."""
+    presets_list: list[str] = []
+    for preset_name, preset_config in PRESETS.items():
+        # Skip "all" preset in loop since we always add it at the end
+        if preset_name == "all":
+            continue
+        benchmarks = preset_config.get("benchmarks", [])
+        if isinstance(benchmarks, (list, tuple)) and benchmark in benchmarks:
+            presets_list.append(preset_name)
+    # "all" preset includes all benchmarks, so always add it
+    presets_list.append("all")
+    return tuple(sorted(presets_list))
+
 
 def get_all_benchmarks():
     """Get all benchmark instances."""
@@ -60,4 +170,5 @@ __all__ = [
     "PRESETS",
     "BenchmarkBase",
     "get_all_benchmarks",
+    "get_presets_for_benchmark",
 ]

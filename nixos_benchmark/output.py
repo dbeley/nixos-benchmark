@@ -32,7 +32,7 @@ def describe_benchmark(bench: BenchmarkResult) -> str:
 
     # Find the matching benchmark class
     for benchmark_instance in ALL_BENCHMARKS:
-        if benchmark_instance.key == bench.name:
+        if benchmark_instance.name == bench.name:
             return benchmark_instance.format_result(bench)
 
     # Fallback for unknown benchmarks
@@ -64,8 +64,7 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
             name = bench.get("name", "")
             if not name:
                 continue
-            meta = bench_metadata.setdefault(name, {"categories": set(), "presets": set()})
-            meta["categories"].update(bench.get("categories", []))
+            meta = bench_metadata.setdefault(name, {"presets": set()})
             meta["presets"].update(bench.get("presets", []))
 
     bench_columns = sorted(bench_metadata.keys())
@@ -83,7 +82,6 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
                 bench_result = BenchmarkResult(
                     name=bench_dict.get("name", ""),
                     status=bench_dict.get("status", "ok"),
-                    categories=tuple(bench_dict.get("categories", [])),
                     presets=tuple(bench_dict.get("presets", [])),
                     metrics=BenchmarkMetrics(bench_dict.get("metrics", {})),
                     parameters=BenchmarkParameters(bench_dict.get("parameters", {})),
@@ -111,13 +109,12 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
     # Build header cells for benchmark columns
     header_cells = ""
     for name in bench_columns:
-        meta = bench_metadata.get(name, {"categories": set(), "presets": set()})
-        category_label = ", ".join(sorted(meta.get("categories", []))) or "unspecified"
+        meta = bench_metadata.get(name, {"presets": set()})
         preset_label = ", ".join(sorted(meta.get("presets", []))) or "unspecified"
         header_cells += (
             f'<th class="sortable" data-type="text" '
             f'title="Presets: {html.escape(preset_label)}">'
-            f"{html.escape(name)}<br><small>{html.escape(category_label)}</small>"
+            f"{html.escape(name)}"
             "</th>"
         )
 

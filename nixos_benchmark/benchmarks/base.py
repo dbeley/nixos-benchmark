@@ -61,9 +61,7 @@ DEFAULT_NETPERF_DURATION = 3
 class BenchmarkBase(ABC):
     """Base class for all benchmarks."""
 
-    key: ClassVar[str]
-    categories: ClassVar[tuple[str, ...]]
-    presets: ClassVar[tuple[str, ...]]
+    name: ClassVar[str]
     description: ClassVar[str]
 
     def validate(self, args: argparse.Namespace | None = None) -> tuple[bool, str]:
@@ -86,49 +84,4 @@ class BenchmarkBase(ABC):
         raise NotImplementedError(f"{self.__class__.__name__} must implement format_result()")
 
 
-# Preset definitions
-PRESETS: dict[str, dict[str, object]] = {
-    "balanced": {
-        "description": "Quick mix of CPU and IO tests.",
-        "benchmarks": (
-            "openssl-speed",
-            "7zip-benchmark",
-            "stress-ng",
-            "sysbench-cpu",
-            "sysbench-memory",
-            "fio-seq",
-            "sqlite-mixed",
-        ),
-    },
-    "cpu": {"description": "CPU heavy synthetic workloads.", "categories": ("cpu",)},
-    "io": {"description": "Disk and filesystem focused tests.", "categories": ("io",)},
-    "memory": {
-        "description": "Memory bandwidth and latency tests.",
-        "categories": ("memory",),
-    },
-    "compression": {
-        "description": "Compression and decompression throughput.",
-        "categories": ("compression",),
-    },
-    "crypto": {
-        "description": "Cryptography focused benchmarks.",
-        "categories": ("crypto",),
-    },
-    "database": {
-        "description": "Database engines (SQLite only).",
-        "categories": ("database",),
-    },
-    "gpu-light": {
-        "description": "Lightweight GPU render sanity checks.",
-        "benchmarks": ("glmark2", "vkmark"),
-    },
-    "gpu": {
-        "description": "GPU render benchmarks (glmark2 and vkmark).",
-        "categories": ("gpu",),
-    },
-    "network": {
-        "description": "Loopback network throughput tests.",
-        "categories": ("network",),
-    },
-    "all": {"description": "Run every available benchmark.", "all": True},
-}
+# PRESETS will be defined in __init__.py after ALL_BENCHMARKS is available

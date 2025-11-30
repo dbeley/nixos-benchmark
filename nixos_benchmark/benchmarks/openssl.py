@@ -15,9 +15,7 @@ from .base import (
 
 
 class OpenSSLBenchmark(BenchmarkBase):
-    key = "openssl-speed"
-    categories = ("cpu", "crypto")
-    presets = ("balanced", "cpu", "crypto", "all")
+    name = "openssl-speed"
     description = "OpenSSL AES-256 encryption throughput"
     _required_commands = ("openssl",)
 
@@ -53,7 +51,6 @@ class OpenSSLBenchmark(BenchmarkBase):
         return BenchmarkResult(
             name="openssl-speed",
             status=status,
-            categories=(),
             presets=(),
             metrics=metrics,
             parameters=BenchmarkParameters({"seconds": seconds, "algorithm": algorithm}),

@@ -18,9 +18,7 @@ from .base import (
 
 
 class FIOBenchmark(BenchmarkBase):
-    key = "fio-seq"
-    categories = ("io",)
-    presets = ("balanced", "io", "all")
+    name = "fio-seq"
     description = "fio sequential read/write"
     _required_commands = ("fio",)
 
@@ -83,7 +81,6 @@ class FIOBenchmark(BenchmarkBase):
         return BenchmarkResult(
             name="fio-seq",
             status="ok",
-            categories=(),
             presets=(),
             metrics=BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data)),
             parameters=BenchmarkParameters({"size_mb": size_mb, "runtime_s": runtime, "block_kb": block_kb}),

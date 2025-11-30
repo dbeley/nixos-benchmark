@@ -15,9 +15,7 @@ from .base import (
 
 
 class NetperfBenchmark(BenchmarkBase):
-    key = "netperf"
-    categories = ("network",)
-    presets = ("network", "all")
+    name = "netperf"
     description = "netperf TCP_STREAM loopback"
     _required_commands = ("netperf", "netserver")
 
@@ -73,7 +71,6 @@ class NetperfBenchmark(BenchmarkBase):
         return BenchmarkResult(
             name="netperf",
             status=status,
-            categories=(),
             presets=(),
             metrics=metrics,
             parameters=BenchmarkParameters({"duration_s": duration}),

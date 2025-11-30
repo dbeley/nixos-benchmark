@@ -15,9 +15,7 @@ from .base import (
 
 
 class IPerf3Benchmark(BenchmarkBase):
-    key = "iperf3-loopback"
-    categories = ("network",)
-    presets = ("network", "all")
+    name = "iperf3-loopback"
     description = "iperf3 loopback throughput"
     _required_commands = ("iperf3",)
 
@@ -63,7 +61,6 @@ class IPerf3Benchmark(BenchmarkBase):
         return BenchmarkResult(
             name="iperf3-loopback",
             status="ok",
-            categories=(),
             presets=(),
             metrics=BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data)),
             parameters=BenchmarkParameters({"duration_s": duration}),

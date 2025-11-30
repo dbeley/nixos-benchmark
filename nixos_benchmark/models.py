@@ -47,7 +47,6 @@ class BenchmarkResult:
 
     name: str
     status: str  # "ok" | "skipped" | "error"
-    categories: tuple[str, ...]
     presets: tuple[str, ...]
     metrics: BenchmarkMetrics
     parameters: BenchmarkParameters
@@ -61,7 +60,6 @@ class BenchmarkResult:
         return {
             "name": self.name,
             "status": self.status,
-            "categories": list(self.categories),
             "presets": list(self.presets),
             "metrics": self.metrics.to_dict(),
             "parameters": self.parameters.to_dict(),

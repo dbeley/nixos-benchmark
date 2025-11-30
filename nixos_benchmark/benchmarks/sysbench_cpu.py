@@ -16,9 +16,7 @@ from .base import (
 
 
 class SysbenchCPUBenchmark(BenchmarkBase):
-    key = "sysbench-cpu"
-    categories = ("cpu",)
-    presets = ("balanced", "cpu", "all")
+    name = "sysbench-cpu"
     description = "sysbench CPU benchmark"
     _required_commands = ("sysbench",)
 
@@ -67,7 +65,6 @@ class SysbenchCPUBenchmark(BenchmarkBase):
         return BenchmarkResult(
             name="sysbench-cpu",
             status=status,
-            categories=(),
             presets=(),
             metrics=metrics,
             parameters=BenchmarkParameters(

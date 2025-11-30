@@ -16,9 +16,7 @@ from .base import (
 
 
 class PigzBenchmark(BenchmarkBase):
-    key = "pigz-compress"
-    categories = ("cpu", "compression")
-    presets = ("cpu", "compression", "all")
+    name = "pigz-compress"
     description = "pigz compress/decompress throughput"
     _required_commands = ("pigz",)
 
@@ -59,7 +57,6 @@ class PigzBenchmark(BenchmarkBase):
         return BenchmarkResult(
             name="pigz-compress",
             status="ok",
-            categories=(),
             presets=(),
             metrics=BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data)),
             parameters=BenchmarkParameters({"level": level, "size_mb": size_mb}),

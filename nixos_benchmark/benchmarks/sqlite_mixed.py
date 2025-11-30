@@ -16,9 +16,7 @@ from .base import (
 
 
 class SQLiteMixedBenchmark(BenchmarkBase):
-    key = "sqlite-mixed"
-    categories = ("io", "database")
-    presets = ("balanced", "io", "all")
+    name = "sqlite-mixed"
     description = "SQLite insert/select mix"
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
@@ -59,7 +57,6 @@ class SQLiteMixedBenchmark(BenchmarkBase):
         return BenchmarkResult(
             name="sqlite-mixed",
             status="ok",
-            categories=(),
             presets=(),
             metrics=BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data)),
             parameters=BenchmarkParameters(
