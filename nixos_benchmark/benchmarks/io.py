@@ -10,8 +10,6 @@ from pathlib import Path
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..parsers import (
-    parse_filebench_output,
-    parse_fsmark_output,
     parse_ioping_output,
 )
 from ..utils import run_command
@@ -128,110 +126,6 @@ def run_ioping(count: int = DEFAULT_IOPING_COUNT) -> BenchmarkResult:
     )
 
 
-def run_fsmark() -> BenchmarkResult:
-    """Run fsmark filesystem benchmark."""
-    workdir = Path("results/fsmark")
-    workdir.mkdir(parents=True, exist_ok=True)
-    command = [
-        "fs_mark",
-        "-d",
-        str(workdir),
-        "-n",
-        "200",
-        "-s",
-        "1024",
-        "-t",
-        "1",
-        "-k",
-    ]
-    try:
-        stdout, duration, returncode = run_command(command)
-        if returncode != 0:
-            raise subprocess.CalledProcessError(returncode, command, stdout)
-        
-        try:
-            metrics_data = parse_fsmark_output(stdout)
-            status = "ok"
-            metrics = BenchmarkMetrics(metrics_data)
-            message = ""
-        except ValueError as e:
-            # Preserve output even when parsing fails
-            status = "error"
-            metrics = BenchmarkMetrics({})
-            message = str(e)
-    finally:
-        shutil.rmtree(workdir, ignore_errors=True)
-
-    return BenchmarkResult(
-        name="fsmark",
-        status=status,
-        categories=(),
-        presets=(),
-        metrics=metrics,
-        parameters=BenchmarkParameters({"files": 200, "size_kb": 1024}),
-        duration_seconds=duration,
-        command=f"fs_mark -d {workdir} -n 200 -s 1024 -t 1 -k",
-        raw_output=stdout,
-        message=message,
-    )
-
-
-def run_filebench() -> BenchmarkResult:
-    """Run filebench micro workload."""
-    workdir = Path(tempfile.mkdtemp(prefix="filebench-"))
-    workload = (
-        f"set $dir={workdir}\n"
-        "set $filesize=1m\n"
-        "set $nfiles=100\n"
-        "define fileset name=fileset1, path=$dir, size=$filesize, entries=$nfiles, prealloc=100\n"
-        "define process name=seqwriter {\n"
-        "  thread name=writer thread_count=1 {\n"
-        "    flowop createfile name=create, filesetname=fileset1\n"
-        "    flowop writewholefile name=write, filesetname=fileset1\n"
-        "    flowop closefile name=close, filesetname=fileset1\n"
-        "    flowop deletefile name=delete, filesetname=fileset1\n"
-        "  }\n"
-        "}\n"
-        "run 5\n"
-    )
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".f") as tmp:
-        workload_path = Path(tmp.name)
-        tmp.write(workload.encode("utf-8"))
-
-    command = ["filebench", "-f", str(workload_path)]
-    try:
-        stdout, duration, returncode = run_command(command)
-        if returncode != 0:
-            raise subprocess.CalledProcessError(returncode, command, stdout)
-        
-        try:
-            metrics_data = parse_filebench_output(stdout)
-            status = "ok"
-            metrics = BenchmarkMetrics(metrics_data)
-            message = ""
-        except ValueError as e:
-            # Preserve output even when parsing fails
-            status = "error"
-            metrics = BenchmarkMetrics({})
-            message = str(e)
-    finally:
-        workload_path.unlink(missing_ok=True)
-        shutil.rmtree(workdir, ignore_errors=True)
-
-    return BenchmarkResult(
-        name="filebench",
-        status=status,
-        categories=(),
-        presets=(),
-        metrics=metrics,
-        parameters=BenchmarkParameters({"runtime_s": 5}),
-        duration_seconds=duration,
-        command=f"filebench -f {workload_path}",
-        raw_output=stdout,
-        message=message,
-    )
-
-
 # Benchmark definitions for registration
 def get_io_benchmarks():
     """Get list of I/O benchmark definitions."""
@@ -255,21 +149,5 @@ def get_io_benchmarks():
             description="ioping latency probe.",
             runner=lambda args: run_ioping(DEFAULT_IOPING_COUNT),
             requires=("ioping",),
-        ),
-        BenchmarkDefinition(
-            key="fsmark",
-            categories=("io",),
-            presets=("io", "all"),
-            description="fs_mark small file benchmark.",
-            runner=lambda args: run_fsmark(),
-            requires=("fs_mark",),
-        ),
-        BenchmarkDefinition(
-            key="filebench",
-            categories=("io",),
-            presets=("io", "all"),
-            description="filebench micro workload.",
-            runner=lambda args: run_filebench(),
-            requires=("filebench",),
         ),
     ]
