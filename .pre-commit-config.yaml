@@ -1,0 +1,99 @@
+# Pre-commit configuration for nixos-benchmark
+# See https://pre-commit.com for more information
+# See https://github.com/pineappleEA/prek for prek documentation
+
+repos:
+  - repo: local
+    hooks:
+      # Python linting and formatting with ruff
+      - id: ruff-check
+        name: ruff check
+        entry: ruff check --fix
+        language: system
+        types: [python]
+        pass_filenames: true
+      
+      - id: ruff-format
+        name: ruff format
+        entry: ruff format
+        language: system
+        types: [python]
+        pass_filenames: true
+      
+      # Python type checking with mypy
+      - id: mypy
+        name: mypy
+        entry: mypy
+        language: system
+        types: [python]
+        pass_filenames: true
+        args: [--no-error-summary]
+      
+      # Spell checking with typos
+      - id: typos
+        name: typos
+        entry: typos --write-changes
+        language: system
+        types: [text]
+        pass_filenames: true
+        exclude: |
+          (?x)^(
+              \.git/.*|
+              results/.*|
+              \.direnv/.*|
+              venv/.*|
+              __pycache__/.*|
+              .*\.egg-info/.*|
+              flake\.lock
+          )$
+      
+      # Nix formatting
+      - id: nixpkgs-fmt
+        name: nixpkgs-fmt
+        entry: nixpkgs-fmt
+        language: system
+        types: [nix]
+        pass_filenames: true
+      
+      # General pre-commit hooks
+      - id: trailing-whitespace
+        name: trim trailing whitespace
+        entry: bash -c 'for file in "$@"; do sed -i "s/[[:space:]]*$//" "$file"; done' --
+        language: system
+        types: [text]
+        pass_filenames: true
+        exclude: |
+          (?x)^(
+              \.git/.*|
+              results/.*
+          )$
+      
+      - id: end-of-file-fixer
+        name: fix end of files
+        entry: bash -c 'for file in "$@"; do test -n "$(tail -c 1 "$file")" && echo >> "$file" || true; done' --
+        language: system
+        types: [text]
+        pass_filenames: true
+        exclude: |
+          (?x)^(
+              \.git/.*|
+              results/.*
+          )$
+      
+      - id: check-yaml
+        name: check yaml
+        entry: bash -c 'python3 -c "import yaml; import sys; [yaml.safe_load(open(f, encoding=\"utf-8\")) for f in sys.argv[1:]]" "$@"' --
+        language: system
+        types: [yaml]
+        pass_filenames: true
+      
+      - id: check-added-large-files
+        name: check for added large files
+        entry: bash -c 'for file in "$@"; do size=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file" 2>/dev/null || echo 0); if [ "$size" -gt 500000 ]; then echo "File $file is larger than 500KB"; exit 1; fi; done' --
+        language: system
+        pass_filenames: true
+        exclude: |
+          (?x)^(
+              \.git/.*|
+              results/.*
+          )$
