@@ -34,13 +34,23 @@ def run_command(
 ) -> Tuple[str, float, int]:
     """Run a command and return its output, duration, and return code."""
     start = time.perf_counter()
+    
+    # Force English locale to ensure parseable output
+    run_env = os.environ.copy()
+    run_env['LC_ALL'] = 'C'
+    run_env['LANGUAGE'] = 'C'
+    
+    # Merge any additional environment variables
+    if env:
+        run_env.update(env)
+    
     completed = subprocess.run(
         command,
         check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        env=env,
+        env=run_env,
     )
     duration = time.perf_counter() - start
     return completed.stdout, duration, completed.returncode
