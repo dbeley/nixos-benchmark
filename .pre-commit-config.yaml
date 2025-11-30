@@ -1,6 +1,6 @@
 # Pre-commit configuration for nixos-benchmark
 # See https://pre-commit.com for more information
-# See https://github.com/pineappleEA/prick for prek documentation
+# See https://github.com/pineappleEA/prek for prek documentation
 
 repos:
   - repo: local
