@@ -1,0 +1,98 @@
+[project]
+name = "nixos-benchmark"
+version = "2.0.0"
+description = "NixOS benchmark suite - a modular benchmarking framework"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+
+[tool.ruff]
+# Target Python 3.9+
+target-version = "py39"
+
+# Enable specific rule sets
+lint.select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "YTT",    # flake8-2020
+    "ASYNC",  # flake8-async
+    "B",      # flake8-bugbear
+    "A",      # flake8-builtins
+    "C4",     # flake8-comprehensions
+    "DTZ",    # flake8-datetimez
+    "T10",    # flake8-debugger
+    "ISC",    # flake8-implicit-str-concat
+    "ICN",    # flake8-import-conventions
+    "PIE",    # flake8-pie
+    "T20",    # flake8-print
+    "PT",     # flake8-pytest-style
+    "Q",      # flake8-quotes
+    "RSE",    # flake8-raise
+    "RET",    # flake8-return
+    "SIM",    # flake8-simplify
+    "PTH",    # flake8-use-pathlib
+    "PL",     # pylint
+    "RUF",    # ruff-specific rules
+]
+
+# Ignore specific rules that conflict with project style
+lint.ignore = [
+    "T201",    # print statements are used for CLI output
+    "PLR0913", # too many arguments - needed for some benchmark functions
+    "PLR2004", # magic value comparison - common in benchmarks
+]
+
+# Allow autofix for all enabled rules
+lint.fixable = ["ALL"]
+lint.unfixable = []
+
+# Exclude common directories
+exclude = [
+    ".direnv",
+    ".git",
+    "__pycache__",
+    "venv",
+    "results",
+    "*.egg-info",
+    "build",
+    "dist",
+]
+
+# Line length
+line-length = 88
+
+[tool.ruff.lint.per-file-ignores]
+# Allow unused imports in __init__.py files
+"__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["nixos_benchmark"]
+force-single-line = false
+lines-after-imports = 2
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+pretty = true
+
+# Ignore missing imports for modules that don't have type stubs
+[[tool.mypy.overrides]]
+module = [
+    "nixos_benchmark.benchmarks.*",
+]
+ignore_missing_imports = true

@@ -1,0 +1,23 @@
+# Configuration for typos spell checker
+# See https://github.com/crate-ci/typos
+
+[default]
+extend-ignore-re = [
+  # Ignore git SHAs
+  "[0-9a-f]{40}",
+  # Ignore version strings
+  "v?\\d+\\.\\d+\\.\\d+",
+]
+
+[files]
+extend-exclude = [
+  "*.lock",
+  "flake.lock",
+  "results/",
+  ".direnv/",
+  ".git/",
+]
+
+[default.extend-words]
+# Project-specific words that are not typos
+# Add any domain-specific terms here if needed

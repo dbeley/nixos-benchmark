@@ -11,3 +11,5 @@ result
 *.egg-info/
 dist/
 build/
+.mypy_cache/
+.ruff_cache/

@@ -50,7 +50,15 @@
           program = "${runner}/bin/nixos-benchmark";
         };
         devShells.default = pkgs.mkShell {
-          packages = benchmarkTools;
+          packages = benchmarkTools ++ (with pkgs; [
+            # Pre-commit and linting tools
+            prek
+            ruff
+            typos
+            python3Packages.mypy
+            # Additional formatting and checking tools
+            nixpkgs-fmt
+          ]);
         };
       });
 }
