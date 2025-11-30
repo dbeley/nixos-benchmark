@@ -376,14 +376,19 @@ class SysbenchMemoryBenchmark(BenchmarkBase):
         
         try:
             metrics_data: Dict[str, float] = {}
-            operations = re.search(r"total number of events:\s+([\d.]+)", stdout)
-            throughput = re.search(r"transferred \(([\d.]+) MiB/sec\)", stdout)
+            operations = re.search(
+                r"Total operations:\s+([\d.]+)\s+\(([\d.]+)\s+per second\)", stdout
+            )
+            throughput = re.search(
+                r"([\d.]+)\s+MiB transferred\s+\(([\d.]+)\s+MiB/sec\)", stdout
+            )
             total_time = re.search(r"total time:\s+([\d.]+)s", stdout)
-            
             if operations:
                 metrics_data["operations"] = float(operations.group(1))
+                metrics_data["operations_per_sec"] = float(operations.group(2))
             if throughput:
-                metrics_data["throughput_mib_per_s"] = float(throughput.group(1))
+                metrics_data["transferred_mib"] = float(throughput.group(1))
+                metrics_data["throughput_mib_per_s"] = float(throughput.group(2))
             if total_time:
                 metrics_data["total_time_secs"] = float(total_time.group(1))
             if not metrics_data:
@@ -434,18 +439,16 @@ class TinyMemBenchBenchmark(BenchmarkBase):
             raise subprocess.CalledProcessError(returncode, command, stdout)
         
         try:
-            # Parse standard copy bandwidth line
-            pattern = re.compile(r"standard memcpy\s+:\s+([\d.]+)\s+MiB/s")
             metrics_data: Dict[str, float] = {}
-            
             for line in stdout.splitlines():
-                match = pattern.search(line)
-                if match:
-                    metrics_data["standard_memcpy_mib_per_s"] = float(match.group(1))
-                    break
+                match = re.match(r"\s*([A-Za-z0-9 +/_-]+?)\s*:?\s+([\d.,]+)\s+M(?:i)?B/s", line)
+                if not match:
+                    continue
+                label = re.sub(r"\s+", "_", match.group(1).strip().lower())
+                metrics_data[f"{label}_mb_per_s"] = parse_float(match.group(2))
             
             if not metrics_data:
-                raise ValueError("Unable to parse tinymembench output")
+                raise ValueError("Unable to parse tinymembench throughput")
             
             status = "ok"
             metrics = BenchmarkMetrics(metrics_data)
@@ -569,25 +572,19 @@ class IOPingBenchmark(BenchmarkBase):
             raise subprocess.CalledProcessError(returncode, command, stdout)
         
         try:
-            metrics_data: Dict[str, float] = {}
-            min_match = re.search(r"min/avg/max/mdev\s*=\s*([\d.]+)\s*\w+\s*/\s*([\d.]+)\s*(\w+)\s*/\s*([\d.]+)", stdout)
+            match = re.search(
+                r"min/avg/max/mdev = ([\d.]+)/([\d.]+)/([\d.]+)/([\d.]+) ms", stdout
+            )
+            if not match:
+                raise ValueError("Unable to parse ioping summary")
             
-            if min_match:
-                avg_val = parse_float(min_match.group(2))
-                unit = min_match.group(3).strip()
-                
-                # Convert to microseconds
-                if "ms" in unit:
-                    avg_val *= 1000
-                elif "s" in unit and "ms" not in unit and "us" not in unit:
-                    avg_val *= 1_000_000
-                
-                metrics_data["latency_avg_us"] = avg_val
-            
-            if not metrics_data:
-                raise ValueError("Unable to parse ioping output")
-            
-            metrics_data["requests"] = count
+            metrics_data = {
+                "latency_min_ms": float(match.group(1)),
+                "latency_avg_ms": float(match.group(2)),
+                "latency_max_ms": float(match.group(3)),
+                "latency_mdev_ms": float(match.group(4)),
+                "requests": count,
+            }
             status = "ok"
             metrics = BenchmarkMetrics(metrics_data)
             message = ""
@@ -678,11 +675,26 @@ class VKMarkBenchmark(BenchmarkBase):
             raise subprocess.CalledProcessError(returncode, command_list, stdout)
         
         try:
-            score_match = re.search(r"vkmark:\s*(\d+)", stdout)
-            if not score_match:
-                raise ValueError("Unable to parse vkmark score")
+            scene_pattern = re.compile(
+                r"(?P<scene>[\w-]+).*?(?P<frames>[\d.]+)\s+frames\s+in\s+[\d.]+\s+seconds\s*="
+                r"\s*(?P<fps>[\d.]+)\s*FPS",
+                flags=re.IGNORECASE,
+            )
+            fps_values = [float(match.group("fps")) for match in scene_pattern.finditer(stdout)]
+            if not fps_values:
+                fps_values = [
+                    float(match)
+                    for match in re.findall(r"FPS[:=]\s*([\d.]+)", stdout, flags=re.IGNORECASE)
+                ]
+            if not fps_values:
+                raise ValueError("Unable to parse vkmark FPS results")
             
-            metrics_data = {"score": float(score_match.group(1))}
+            metrics_data = {
+                "fps_avg": sum(fps_values) / len(fps_values),
+                "fps_min": min(fps_values),
+                "fps_max": max(fps_values),
+                "samples": len(fps_values),
+            }
             status = "ok"
             metrics = BenchmarkMetrics(metrics_data)
             message = ""
@@ -719,12 +731,30 @@ class CLPeakBenchmark(BenchmarkBase):
             raise subprocess.CalledProcessError(returncode, command, stdout)
         
         try:
-            # Parse global memory bandwidth
-            bandwidth_match = re.search(r"Global memory bandwidth.*?:\s*([\d.]+)\s*GB/s", stdout, re.DOTALL)
-            if not bandwidth_match:
-                raise ValueError("Unable to parse clpeak output")
+            if "no platforms found" in stdout.lower() or "clgetplatformids" in stdout.lower():
+                raise ValueError("No OpenCL platforms found")
             
-            metrics_data = {"global_mem_bandwidth_gb_per_s": float(bandwidth_match.group(1))}
+            metrics_data: Dict[str, float] = {}
+            bandwidth_pattern = re.compile(
+                r"Global memory bandwidth.*?:\s*([\d.]+)\s*GB/s", flags=re.IGNORECASE
+            )
+            compute_patterns = [
+                (r"Single-precision.*?:\s*([\d.]+)\s*GFLOPS", "compute_sp_gflops"),
+                (r"Double-precision.*?:\s*([\d.]+)\s*GFLOPS", "compute_dp_gflops"),
+                (r"Integer.*?:\s*([\d.]+)\s*GIOPS", "compute_int_giops"),
+            ]
+            for line in stdout.splitlines():
+                bw_match = bandwidth_pattern.search(line)
+                if bw_match:
+                    metrics_data["global_memory_bandwidth_gb_per_s"] = float(bw_match.group(1))
+                for pattern, key in compute_patterns:
+                    match = re.search(pattern, line, flags=re.IGNORECASE)
+                    if match:
+                        metrics_data[key] = float(match.group(1))
+            
+            if not metrics_data:
+                raise ValueError("Unable to parse clpeak metrics")
+            
             status = "ok"
             metrics = BenchmarkMetrics(metrics_data)
             message = ""
@@ -895,14 +925,24 @@ class CryptsetupBenchmark(BenchmarkBase):
             raise subprocess.CalledProcessError(returncode, command, stdout)
         
         try:
-            # Parse aes-xts 256b throughput
             metrics_data: Dict[str, float] = {}
-            match = re.search(r"aes-xts\s+256b\s+([\d.]+)\s+MiB/s", stdout)
-            if match:
-                metrics_data["aes_xts_256b_mib_per_s"] = float(match.group(1))
+            pattern = re.compile(
+                r"^(?P<cipher>[a-z0-9-]+)\s+(?P<keybits>\d+)b\s+(?P<enc>[\d.]+)\s+MiB/s\s+(?P<dec>[\d.]+)\s+MiB/s",
+                flags=re.IGNORECASE,
+            )
+            for line in stdout.splitlines():
+                match = pattern.search(line)
+                if not match:
+                    continue
+                cipher = match.group("cipher")
+                keybits = int(match.group("keybits"))
+                enc = float(match.group("enc"))
+                dec = float(match.group("dec"))
+                metrics_data[f"{cipher}_{keybits}_enc_mib_per_s"] = enc
+                metrics_data[f"{cipher}_{keybits}_dec_mib_per_s"] = dec
             
             if not metrics_data:
-                raise ValueError("Unable to parse cryptsetup benchmark output")
+                raise ValueError("Unable to parse cryptsetup benchmark results")
             
             status = "ok"
             metrics = BenchmarkMetrics(metrics_data)
@@ -1090,13 +1130,16 @@ class FFmpegBenchmark(BenchmarkBase):
             raise subprocess.CalledProcessError(returncode, command, stdout)
         
         try:
-            # Parse bench: utime for encoding time
             metrics_data: Dict[str, float] = {}
-            bench_match = re.search(r"bench:\s+utime=([\d.]+)s", stdout)
-            if bench_match:
-                encode_time = float(bench_match.group(1))
+            fps_matches = re.findall(r"fps=\s*([\d.]+)", stdout)
+            speed_matches = re.findall(r"speed=\s*([\d.]+)x", stdout)
+            if fps_matches:
+                metrics_data["reported_fps"] = float(fps_matches[-1])
+            if speed_matches:
+                metrics_data["speed_factor"] = float(speed_matches[-1])
+            
+            if metrics_data:
                 total_frames = duration_secs * 30
-                metrics_data["calculated_fps"] = total_frames / encode_time if encode_time else 0.0
                 metrics_data["frames"] = total_frames
                 metrics_data["codec"] = codec
             
@@ -1315,19 +1358,18 @@ class NetperfBenchmark(BenchmarkBase):
             ])
             
             try:
-                # Parse throughput from last line
-                metrics_data: Dict[str, float] = {}
-                lines = [line.strip() for line in stdout.splitlines() if line.strip()]
-                if lines:
-                    # Last line should be: socket_size send_size recv_size elapsed throughput
-                    parts = lines[-1].split()
-                    if len(parts) >= 5:
-                        throughput = parse_float(parts[4])
-                        metrics_data["throughput_mbits_per_s"] = throughput
-                        metrics_data["duration_s"] = duration
-                
-                if not metrics_data:
-                    raise ValueError("Unable to parse netperf output")
+                values = [
+                    float(token)
+                    for token in re.findall(r"([\d.]+)\s*$", stdout, flags=re.MULTILINE)
+                    if token
+                ]
+                if not values:
+                    raise ValueError("Unable to parse netperf throughput")
+                throughput_mbps = values[-1]
+                metrics_data = {
+                    "throughput_mbps": throughput_mbps,
+                    "duration_s": duration,
+                }
                 
                 status = "ok"
                 metrics = BenchmarkMetrics(metrics_data)
