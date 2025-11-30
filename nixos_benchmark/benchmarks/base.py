@@ -1,11 +1,7 @@
 """Base definitions for benchmarks and presets."""
 from __future__ import annotations
 
-import argparse
-from dataclasses import dataclass
-from typing import Callable, Dict, Tuple
-
-from ..models import BenchmarkResult
+from typing import Dict
 
 # Default constants for CPU benchmarks
 DEFAULT_STRESS_NG_SECONDS = 5
@@ -36,9 +32,6 @@ DEFAULT_ZSTD_LEVEL = 5
 DEFAULT_PIGZ_LEVEL = 3
 DEFAULT_COMPRESS_SIZE_MB = 32
 
-# Default constants for crypto benchmarks
-# (Already defined above with OPENSSL)
-
 # Default constants for database benchmarks
 DEFAULT_SQLITE_ROWS = 50_000
 DEFAULT_SQLITE_SELECTS = 1_000
@@ -57,20 +50,7 @@ DEFAULT_IPERF_DURATION = 3
 DEFAULT_NETPERF_DURATION = 3
 
 
-@dataclass(frozen=True)
-class BenchmarkDefinition:
-    """Definition of a single benchmark."""
-
-    key: str
-    categories: Tuple[str, ...]
-    presets: Tuple[str, ...]
-    description: str
-    runner: Callable[[argparse.Namespace], BenchmarkResult]
-    requires: Tuple[str, ...] = ()
-    availability_check: Callable[[argparse.Namespace], Tuple[bool, str]] | None = None
-
-
-# Preset definitions
+# Preset definitions (kept for backward compatibility, but PRESETS in benchmark_registry is the primary source)
 PRESET_DEFINITIONS: Dict[str, Dict[str, object]] = {
     "balanced": {
         "description": "Quick mix of CPU and IO tests.",
