@@ -25,7 +25,6 @@
           glmark2
           vkmark
           openssl
-          iperf3
           netperf
           ffmpeg
           x264

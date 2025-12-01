@@ -9,7 +9,6 @@ from .ffmpeg import FFmpegBenchmark
 from .fio import FIOBenchmark
 from .glmark2 import GLMark2Benchmark
 from .ioping import IOPingBenchmark
-from .iperf3 import IPerf3Benchmark
 from .netperf import NetperfBenchmark
 from .openssl import OpenSSLBenchmark
 from .pigz import PigzBenchmark
@@ -45,7 +44,6 @@ ALL_BENCHMARKS = [
     SQLiteSpeedtestBenchmark(),
     FFmpegBenchmark(),
     X264Benchmark(),
-    IPerf3Benchmark(),
     NetperfBenchmark(),
 ]
 
@@ -132,9 +130,8 @@ PRESETS: dict[str, dict[str, object]] = {
         ),
     },
     "network": {
-        "description": "Loopback network throughput tests.",
+        "description": "Loopback network throughput (netperf TCP_STREAM).",
         "benchmarks": (
-            BENCHMARK_MAP["iperf3-loopback"],
             BENCHMARK_MAP["netperf"],
         ),
     },
