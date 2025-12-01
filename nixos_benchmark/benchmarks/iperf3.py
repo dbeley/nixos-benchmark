@@ -33,21 +33,39 @@ class IPerf3Benchmark(BenchmarkBase):
             server.kill()
             raise RuntimeError("iperf3 server failed to start")
         try:
-            stdout, client_duration, _ = run_command(
-                [
-                    "iperf3",
-                    "-c",
-                    "127.0.0.1",
-                    "-p",
-                    str(port),
-                    "-t",
-                    str(duration),
-                    "-J",
-                ]
-            )
-            data = json.loads(stdout)
+            command = [
+                "iperf3",
+                "-c",
+                "127.0.0.1",
+                "-p",
+                str(port),
+                "-t",
+                str(duration),
+                "-J",
+            ]
+            stdout, client_duration, returncode = run_command(command)
+            try:
+                data = json.loads(stdout)
+            except json.JSONDecodeError:
+                raise subprocess.CalledProcessError(returncode, command, stdout)
+
+            error_msg = data.get("error")
+            if returncode != 0 or error_msg:
+                message = error_msg or f"iperf3 returned exit code {returncode}"
+                return BenchmarkResult(
+                    name="iperf3-loopback",
+                    status="error",
+                    presets=(),
+                    metrics=BenchmarkMetrics({}),
+                    parameters=BenchmarkParameters({"duration_s": duration}),
+                    duration_seconds=client_duration,
+                    command=" ".join(command),
+                    raw_output=stdout,
+                    message=message,
+                )
         finally:
             with contextlib.suppress(Exception):
+                server.terminate()
                 server.wait(timeout=5)
 
         end = data.get("end", {})

@@ -73,5 +73,5 @@ class SQLiteSpeedtestBenchmark(BenchmarkBase):
         inserts = result.metrics.get("insert_rows_per_s")
         selects = result.metrics.get("indexed_selects_per_s")
         if inserts is not None and selects is not None:
-            return f"Ins {inserts:.0f}/Sel {selects:.0f}/s"
+            return f"Ins {inserts:,.0f}/s Sel {selects:,.0f}/s"
         return ""
