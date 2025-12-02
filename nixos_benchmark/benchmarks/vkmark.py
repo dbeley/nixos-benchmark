@@ -8,6 +8,7 @@ from typing import cast
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 # Default constants
@@ -15,7 +16,7 @@ DEFAULT_VKMARK_CMD = ("vkmark",)
 
 
 class VKMarkBenchmark(BenchmarkBase):
-    name = "vkmark"
+    benchmark_type = BenchmarkType.VKMARK
     description = "vkmark Vulkan benchmark"
     _required_commands = ("vkmark",)
 
@@ -52,7 +53,7 @@ class VKMarkBenchmark(BenchmarkBase):
             message = str(e)
 
         return BenchmarkResult(
-            name="vkmark",
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

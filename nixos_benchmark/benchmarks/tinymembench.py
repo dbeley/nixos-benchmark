@@ -7,10 +7,11 @@ import subprocess
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import parse_float, run_command
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 class TinyMemBenchBenchmark(BenchmarkBase):
-    name = "tinymembench"
+    benchmark_type = BenchmarkType.TINYMEMBENCH
     description = "TinyMemBench memory throughput"
     _required_commands = ("tinymembench",)
 
@@ -41,7 +42,7 @@ class TinyMemBenchBenchmark(BenchmarkBase):
             message = str(e)
 
         return BenchmarkResult(
-            name="tinymembench",
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

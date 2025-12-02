@@ -9,6 +9,7 @@ from pathlib import Path
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 # Default constants
@@ -19,7 +20,7 @@ DEFAULT_X264_CRF = 23
 
 
 class X264Benchmark(BenchmarkBase):
-    name = "x264-encode"
+    benchmark_type = BenchmarkType.X264
     description = "x264 encoder benchmark"
     _required_commands = ("x264", "ffmpeg")
 
@@ -99,7 +100,7 @@ class X264Benchmark(BenchmarkBase):
             pattern_path.unlink(missing_ok=True)
 
         return BenchmarkResult(
-            name="x264-encode",
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

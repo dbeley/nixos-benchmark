@@ -9,6 +9,7 @@ from pathlib import Path
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 DEFAULT_HASHCAT_RUNTIME = 5
@@ -16,7 +17,7 @@ DEFAULT_HASH_MODE = 0  # MD5
 
 
 class HashcatBenchmark(BenchmarkBase):
-    name = "hashcat-gpu"
+    benchmark_type = BenchmarkType.HASHCAT_GPU
     description = "hashcat GPU hash throughput (MD5)"
     _required_commands = ("hashcat",)
 
@@ -64,7 +65,7 @@ class HashcatBenchmark(BenchmarkBase):
             message = str(exc)
 
         return BenchmarkResult(
-            name=self.name,
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

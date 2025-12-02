@@ -8,6 +8,7 @@ from typing import cast
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 # Default constants
@@ -16,7 +17,7 @@ DEFAULT_OPENSSL_ALGORITHM = "aes-256-cbc"
 
 
 class OpenSSLBenchmark(BenchmarkBase):
-    name = "openssl-speed"
+    benchmark_type = BenchmarkType.OPENSSL_SPEED
     description = "OpenSSL AES-256 encryption throughput"
     _required_commands = ("openssl",)
 
@@ -50,7 +51,7 @@ class OpenSSLBenchmark(BenchmarkBase):
             message = str(e)
 
         return BenchmarkResult(
-            name="openssl-speed",
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

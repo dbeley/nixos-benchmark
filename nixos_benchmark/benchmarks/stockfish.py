@@ -7,6 +7,7 @@ import subprocess
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 DEFAULT_STOCKFISH_THREADS = 0  # 0 = auto-detect
@@ -14,9 +15,28 @@ DEFAULT_STOCKFISH_LIMIT = 10  # seconds
 
 
 class StockfishBenchmark(BenchmarkBase):
-    name = "stockfish-bench"
+    benchmark_type = BenchmarkType.STOCKFISH
     description = "Stockfish built-in bench (nodes/sec)"
     _required_commands = ("stockfish",)
+
+    def get_version(self) -> str:
+        try:
+            completed = subprocess.run(
+                ["stockfish"],
+                input="uci\nquit\n",
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                timeout=3,
+            )
+        except (FileNotFoundError, subprocess.SubprocessError):
+            return super().get_version()
+
+        for line in (completed.stdout or "").splitlines():
+            lower = line.lower()
+            if lower.startswith("id name"):
+                return line.split(" ", 2)[2].strip()
+        return super().get_version()
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         threads = DEFAULT_STOCKFISH_THREADS
@@ -54,7 +74,7 @@ class StockfishBenchmark(BenchmarkBase):
             message = str(exc)
 
         return BenchmarkResult(
-            name=self.name,
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

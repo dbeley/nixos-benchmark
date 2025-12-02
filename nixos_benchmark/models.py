@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from .benchmarks.types import BenchmarkType
 
 @dataclass
 class BenchmarkMetrics:
@@ -45,7 +46,7 @@ class BenchmarkParameters:
 class BenchmarkResult:
     """Complete benchmark result - use throughout entire lifecycle."""
 
-    name: str
+    benchmark_type: BenchmarkType
     status: str  # "ok" | "skipped" | "error"
     presets: tuple[str, ...]
     metrics: BenchmarkMetrics
@@ -54,11 +55,16 @@ class BenchmarkResult:
     command: str = ""
     message: str = ""  # For skipped/error cases
     raw_output: str = ""
+    version: str = ""
+
+    @property
+    def name(self) -> str:
+        return self.benchmark_type.value
 
     def to_dict(self) -> dict[str, object]:
         """Convert to dict only when serializing to JSON."""
         return {
-            "name": self.name,
+            "name": self.benchmark_type.value,
             "status": self.status,
             "presets": list(self.presets),
             "metrics": self.metrics.to_dict(),
@@ -67,6 +73,7 @@ class BenchmarkResult:
             "command": self.command,
             "message": self.message,
             "raw_output": self.raw_output,
+            "version": self.version,
         }
 
 
@@ -80,6 +87,12 @@ class SystemInfo:
     python_version: str
     cpu_count: int | None
     hostname: str
+    os_name: str = ""
+    os_version: str = ""
+    kernel_version: str = ""
+    cpu_model: str = ""
+    memory_total_bytes: int | None = None
+    gpus: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         """Convert to dict for JSON serialization."""
@@ -90,6 +103,12 @@ class SystemInfo:
             "python_version": self.python_version,
             "cpu_count": self.cpu_count,
             "hostname": self.hostname,
+            "os_name": self.os_name,
+            "os_version": self.os_version,
+            "kernel_version": self.kernel_version,
+            "cpu_model": self.cpu_model,
+            "memory_total_bytes": self.memory_total_bytes,
+            "gpus": list(self.gpus),
         }
 
 
@@ -101,7 +120,7 @@ class BenchmarkReport:
     system: SystemInfo
     benchmarks: list[BenchmarkResult]
     presets_requested: list[str]
-    benchmarks_requested: list[str]
+    benchmarks_requested: list[BenchmarkType]
 
     def to_dict(self) -> dict[str, object]:
         """Only convert to dict for JSON serialization."""
@@ -110,5 +129,5 @@ class BenchmarkReport:
             "system": self.system.to_dict(),
             "benchmarks": [b.to_dict() for b in self.benchmarks],
             "presets_requested": self.presets_requested,
-            "benchmarks_requested": self.benchmarks_requested,
+            "benchmarks_requested": [b.value for b in self.benchmarks_requested],
         }

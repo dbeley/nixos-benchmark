@@ -9,13 +9,14 @@ from pathlib import Path
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 DEFAULT_JOHN_RUNTIME = 5
 
 
 class JohnBenchmark(BenchmarkBase):
-    name = "john-benchmark"
+    benchmark_type = BenchmarkType.JOHN
     description = "John the Ripper CPU hash benchmark (sha512crypt)"
     _required_commands = ("john",)
 
@@ -43,7 +44,7 @@ class JohnBenchmark(BenchmarkBase):
             message = str(exc)
 
         return BenchmarkResult(
-            name=self.name,
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

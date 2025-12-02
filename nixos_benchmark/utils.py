@@ -55,6 +55,29 @@ def run_command(command: list[str], *, env: dict[str, str] | None = None) -> tup
     return completed.stdout, duration, completed.returncode
 
 
+def read_command_version(command: Sequence[str]) -> str:
+    """Run a version-like command and return the first line of output."""
+    try:
+        completed = subprocess.run(
+            list(command),
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            env={**os.environ, "LC_ALL": "C", "LANGUAGE": "C"},
+        )
+    except FileNotFoundError:
+        return ""
+
+    output = completed.stdout.strip()
+    if not output:
+        return ""
+
+    first_line = output.splitlines()[0].strip()
+    # Trim repeated whitespace for compact display
+    return " ".join(first_line.split())
+
+
 def write_temp_data_file(size_mb: int, randomize: bool = True) -> Path:
     """Create a temporary file with random or zero data."""
     block_size = 1024 * 1024

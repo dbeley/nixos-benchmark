@@ -8,6 +8,7 @@ from typing import cast
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 # Default constants
@@ -15,7 +16,7 @@ DEFAULT_GLMARK2_SIZE = "1920x1080"
 
 
 class GLMark2Benchmark(BenchmarkBase):
-    name = "glmark2"
+    benchmark_type = BenchmarkType.GLMARK2
     description = "glmark2 OpenGL benchmark"
     _required_commands = ("glmark2",)
 
@@ -45,7 +46,7 @@ class GLMark2Benchmark(BenchmarkBase):
             message = str(e)
 
         return BenchmarkResult(
-            name="glmark2",
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

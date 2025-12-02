@@ -10,11 +10,15 @@ from typing import cast
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from .base import BenchmarkBase
 from .sqlite_mixed import DEFAULT_SQLITE_ROWS, DEFAULT_SQLITE_SELECTS
+from .types import BenchmarkType
 
 
 class SQLiteSpeedtestBenchmark(BenchmarkBase):
-    name = "sqlite-speedtest"
+    benchmark_type = BenchmarkType.SQLITE_SPEEDTEST
     description = "SQLite speedtest-style insert/select"
+
+    def get_version(self) -> str:
+        return f"SQLite {sqlite3.sqlite_version}"
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         row_count = DEFAULT_SQLITE_ROWS
@@ -54,7 +58,7 @@ class SQLiteSpeedtestBenchmark(BenchmarkBase):
         total_duration = insert_duration + query_duration
 
         return BenchmarkResult(
-            name="sqlite-speedtest",
+            benchmark_type=self.benchmark_type,
             status="ok",
             presets=(),
             metrics=BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data)),

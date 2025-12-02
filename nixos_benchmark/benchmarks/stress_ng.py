@@ -7,6 +7,7 @@ import subprocess
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 # Default constants
@@ -15,7 +16,7 @@ DEFAULT_STRESS_NG_METHOD = "fft"
 
 
 class StressNGBenchmark(BenchmarkBase):
-    name = "stress-ng"
+    benchmark_type = BenchmarkType.STRESS_NG
     description = "stress-ng CPU stress test"
     _required_commands = ("stress-ng",)
 
@@ -72,7 +73,7 @@ class StressNGBenchmark(BenchmarkBase):
             message = str(e)
 
         return BenchmarkResult(
-            name="stress-ng",
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

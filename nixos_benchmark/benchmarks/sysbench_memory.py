@@ -9,6 +9,7 @@ from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
 from .sysbench_cpu import DEFAULT_SYSBENCH_THREADS
+from .types import BenchmarkType
 
 
 # Default constants
@@ -18,7 +19,7 @@ DEFAULT_SYSBENCH_MEMORY_OPERATION = "read"
 
 
 class SysbenchMemoryBenchmark(BenchmarkBase):
-    name = "sysbench-memory"
+    benchmark_type = BenchmarkType.SYSBENCH_MEMORY
     description = "sysbench memory throughput"
     _required_commands = ("sysbench",)
 
@@ -71,7 +72,7 @@ class SysbenchMemoryBenchmark(BenchmarkBase):
             message = str(e)
 
         return BenchmarkResult(
-            name="sysbench-memory",
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

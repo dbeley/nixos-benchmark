@@ -9,6 +9,7 @@ from typing import cast
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import find_free_tcp_port, run_command, wait_for_port
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 # Default constants
@@ -16,7 +17,7 @@ DEFAULT_NETPERF_DURATION = 3
 
 
 class NetperfBenchmark(BenchmarkBase):
-    name = "netperf"
+    benchmark_type = BenchmarkType.NETPERF
     description = "netperf TCP_STREAM loopback"
     _required_commands = ("netperf", "netserver")
 
@@ -70,7 +71,7 @@ class NetperfBenchmark(BenchmarkBase):
                 server.wait(timeout=5)
 
         return BenchmarkResult(
-            name="netperf",
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

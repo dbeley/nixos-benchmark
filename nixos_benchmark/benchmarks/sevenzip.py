@@ -7,12 +7,14 @@ import subprocess
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 class SevenZipBenchmark(BenchmarkBase):
-    name = "7zip-benchmark"
+    benchmark_type = BenchmarkType.SEVENZIP
     description = "7-Zip compression benchmark"
     _required_commands = ("7z",)
+    version_command = ("7z",)
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         command = ["7z", "b"]
@@ -53,7 +55,7 @@ class SevenZipBenchmark(BenchmarkBase):
             message = str(e)
 
         return BenchmarkResult(
-            name="7zip-benchmark",
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

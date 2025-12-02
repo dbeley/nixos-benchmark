@@ -8,6 +8,7 @@ import subprocess
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 # Default constants
@@ -17,7 +18,7 @@ DEFAULT_SYSBENCH_THREADS = 0
 
 
 class SysbenchCPUBenchmark(BenchmarkBase):
-    name = "sysbench-cpu"
+    benchmark_type = BenchmarkType.SYSBENCH_CPU
     description = "sysbench CPU benchmark"
     _required_commands = ("sysbench",)
 
@@ -64,7 +65,7 @@ class SysbenchCPUBenchmark(BenchmarkBase):
             message = str(e)
 
         return BenchmarkResult(
-            name="sysbench-cpu",
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

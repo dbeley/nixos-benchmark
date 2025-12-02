@@ -7,6 +7,7 @@ import subprocess
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import parse_float, run_command
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 DEFAULT_STRESSAPPTEST_SECONDS = 5
@@ -15,7 +16,7 @@ DEFAULT_STRESSAPPTEST_THREADS = 1
 
 
 class StressAppTestBenchmark(BenchmarkBase):
-    name = "stressapptest-memory"
+    benchmark_type = BenchmarkType.STRESSAPPTEST
     description = "stressapptest memory bandwidth"
     _required_commands = ("stressapptest",)
 
@@ -68,7 +69,7 @@ class StressAppTestBenchmark(BenchmarkBase):
             message = str(exc)
 
         return BenchmarkResult(
-            name=self.name,
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

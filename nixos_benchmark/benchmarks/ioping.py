@@ -8,6 +8,7 @@ from typing import cast
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 # Default constants
@@ -15,7 +16,7 @@ DEFAULT_IOPING_COUNT = 5
 
 
 class IOPingBenchmark(BenchmarkBase):
-    name = "ioping"
+    benchmark_type = BenchmarkType.IOPING
     description = "ioping latency probe"
     _required_commands = ("ioping",)
 
@@ -60,7 +61,7 @@ class IOPingBenchmark(BenchmarkBase):
             message = str(e)
 
         return BenchmarkResult(
-            name="ioping",
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

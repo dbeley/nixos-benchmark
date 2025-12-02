@@ -29,6 +29,7 @@ from .wrk import WrkHTTPBenchmark
 from .x264 import X264Benchmark
 from .x265 import X265Benchmark
 from .zstd import ZstdBenchmark
+from .types import BenchmarkType
 
 
 # Registry of all benchmarks
@@ -61,106 +62,106 @@ ALL_BENCHMARKS = [
     WrkHTTPBenchmark(),
 ]
 
-# Create a map from benchmark name to benchmark instance for easy lookup
-BENCHMARK_MAP = {bench.name: bench for bench in ALL_BENCHMARKS}
+# Create a map from benchmark type to benchmark instance for easy lookup
+BENCHMARK_MAP: dict[BenchmarkType, BenchmarkBase] = {bench.benchmark_type: bench for bench in ALL_BENCHMARKS}
 
 # Preset definitions - directly list benchmark classes
 PRESETS: dict[str, dict[str, object]] = {
     "balanced": {
         "description": "Quick mix of CPU and IO tests.",
         "benchmarks": (
-            BENCHMARK_MAP["openssl-speed"],
-            BENCHMARK_MAP["7zip-benchmark"],
-            BENCHMARK_MAP["john-benchmark"],
-            BENCHMARK_MAP["stress-ng"],
-            BENCHMARK_MAP["sysbench-cpu"],
-            BENCHMARK_MAP["sysbench-memory"],
-            BENCHMARK_MAP["fio-seq"],
-            BENCHMARK_MAP["sqlite-mixed"],
+            BenchmarkType.OPENSSL_SPEED,
+            BenchmarkType.SEVENZIP,
+            BenchmarkType.JOHN,
+            BenchmarkType.STRESS_NG,
+            BenchmarkType.SYSBENCH_CPU,
+            BenchmarkType.SYSBENCH_MEMORY,
+            BenchmarkType.FIO_SEQ,
+            BenchmarkType.SQLITE_MIXED,
         ),
     },
     "cpu": {
         "description": "CPU heavy synthetic workloads.",
         "benchmarks": (
-            BENCHMARK_MAP["openssl-speed"],
-            BENCHMARK_MAP["7zip-benchmark"],
-            BENCHMARK_MAP["john-benchmark"],
-            BENCHMARK_MAP["stockfish-bench"],
-            BENCHMARK_MAP["stress-ng"],
-            BENCHMARK_MAP["sysbench-cpu"],
-            BENCHMARK_MAP["zstd-compress"],
-            BENCHMARK_MAP["pigz-compress"],
-            BENCHMARK_MAP["x265-encode"],
-            BENCHMARK_MAP["lz4-benchmark"],
+            BenchmarkType.OPENSSL_SPEED,
+            BenchmarkType.SEVENZIP,
+            BenchmarkType.JOHN,
+            BenchmarkType.STOCKFISH,
+            BenchmarkType.STRESS_NG,
+            BenchmarkType.SYSBENCH_CPU,
+            BenchmarkType.ZSTD,
+            BenchmarkType.PIGZ,
+            BenchmarkType.X265,
+            BenchmarkType.LZ4,
         ),
     },
     "io": {
         "description": "Disk and filesystem focused tests.",
         "benchmarks": (
-            BENCHMARK_MAP["fio-seq"],
-            BENCHMARK_MAP["ioping"],
-            BENCHMARK_MAP["sqlite-mixed"],
-            BENCHMARK_MAP["sqlite-speedtest"],
-            BENCHMARK_MAP["cryptsetup-benchmark"],
+            BenchmarkType.FIO_SEQ,
+            BenchmarkType.IOPING,
+            BenchmarkType.SQLITE_MIXED,
+            BenchmarkType.SQLITE_SPEEDTEST,
+            BenchmarkType.CRYPTSETUP,
         ),
     },
     "memory": {
         "description": "Memory bandwidth and latency tests.",
         "benchmarks": (
-            BENCHMARK_MAP["sysbench-memory"],
-            BENCHMARK_MAP["tinymembench"],
-            BENCHMARK_MAP["stressapptest-memory"],
+            BenchmarkType.SYSBENCH_MEMORY,
+            BenchmarkType.TINYMEMBENCH,
+            BenchmarkType.STRESSAPPTEST,
         ),
     },
     "compression": {
         "description": "Compression and decompression throughput.",
         "benchmarks": (
-            BENCHMARK_MAP["7zip-benchmark"],
-            BENCHMARK_MAP["zstd-compress"],
-            BENCHMARK_MAP["pigz-compress"],
-            BENCHMARK_MAP["lz4-benchmark"],
+            BenchmarkType.SEVENZIP,
+            BenchmarkType.ZSTD,
+            BenchmarkType.PIGZ,
+            BenchmarkType.LZ4,
         ),
     },
     "crypto": {
         "description": "Cryptography focused benchmarks.",
         "benchmarks": (
-            BENCHMARK_MAP["openssl-speed"],
-            BENCHMARK_MAP["cryptsetup-benchmark"],
+            BenchmarkType.OPENSSL_SPEED,
+            BenchmarkType.CRYPTSETUP,
         ),
     },
     "database": {
         "description": "Database engines (SQLite only).",
         "benchmarks": (
-            BENCHMARK_MAP["sqlite-mixed"],
-            BENCHMARK_MAP["sqlite-speedtest"],
+            BenchmarkType.SQLITE_MIXED,
+            BenchmarkType.SQLITE_SPEEDTEST,
         ),
     },
     "gpu-light": {
         "description": "Lightweight GPU render sanity checks.",
         "benchmarks": (
-            BENCHMARK_MAP["glmark2"],
-            BENCHMARK_MAP["vkmark"],
+            BenchmarkType.GLMARK2,
+            BenchmarkType.VKMARK,
         ),
     },
     "gpu": {
         "description": "GPU render benchmarks (glmark2 and vkmark).",
         "benchmarks": (
-            BENCHMARK_MAP["glmark2"],
-            BENCHMARK_MAP["vkmark"],
-            BENCHMARK_MAP["clpeak"],
-            BENCHMARK_MAP["hashcat-gpu"],
+            BenchmarkType.GLMARK2,
+            BenchmarkType.VKMARK,
+            BenchmarkType.CLPEAK,
+            BenchmarkType.HASHCAT_GPU,
         ),
     },
     "network": {
         "description": "Loopback network throughput (netperf TCP_STREAM).",
         "benchmarks": (
-            BENCHMARK_MAP["netperf"],
-            BENCHMARK_MAP["wrk-http"],
+            BenchmarkType.NETPERF,
+            BenchmarkType.WRK_HTTP,
         ),
     },
     "all": {
         "description": "Run every available benchmark.",
-        "benchmarks": tuple(ALL_BENCHMARKS),
+        "benchmarks": tuple(BENCHMARK_MAP),
     },
 }
 
@@ -173,7 +174,7 @@ def get_presets_for_benchmark(benchmark: BenchmarkBase) -> tuple[str, ...]:
         if preset_name == "all":
             continue
         benchmarks = preset_config.get("benchmarks", [])
-        if isinstance(benchmarks, (list, tuple)) and benchmark in benchmarks:
+        if isinstance(benchmarks, (list, tuple)) and benchmark.benchmark_type in benchmarks:
             presets_list.append(preset_name)
     # "all" preset includes all benchmarks, so always add it
     presets_list.append("all")
@@ -187,6 +188,8 @@ def get_all_benchmarks():
 
 __all__ = [
     "ALL_BENCHMARKS",
+    "BENCHMARK_MAP",
+    "BenchmarkType",
     "PRESETS",
     "BenchmarkBase",
     "get_all_benchmarks",

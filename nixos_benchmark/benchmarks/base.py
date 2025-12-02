@@ -8,14 +8,52 @@ from collections.abc import Callable
 from typing import ClassVar, cast
 
 from ..models import BenchmarkResult
-from ..utils import check_requirements
+from ..utils import check_requirements, read_command_version
+from .types import BenchmarkType
 
 
 class BenchmarkBase(ABC):
     """Base class for all benchmarks."""
 
-    name: ClassVar[str]
+    benchmark_type: ClassVar[BenchmarkType]
     description: ClassVar[str]
+    version_command: ClassVar[tuple[str, ...] | None] = None
+
+    @property
+    def name(self) -> str:
+        return self.benchmark_type.value
+
+    def short_description(self) -> str:
+        """Short human summary for tooltips."""
+        return self.description
+
+    def get_version(self) -> str:
+        """Best-effort version string for the benchmark tool."""
+        candidates: list[tuple[str, ...]] = []
+        if self.version_command:
+            candidates.append(self.version_command)
+        required = getattr(self, "_required_commands", ())
+        if required:
+            primary = required[0]
+            candidates.extend(
+                (
+                    (primary, "--version"),
+                    (primary, "-version"),
+                    (primary, "-V"),
+                    (primary, "-v"),
+                    (primary, "version"),
+                )
+            )
+
+        seen: set[tuple[str, ...]] = set()
+        for candidate in candidates:
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            version = read_command_version(candidate)
+            if version:
+                return version
+        return ""
 
     def validate(self, args: argparse.Namespace | None = None) -> tuple[bool, str]:
         """Check if benchmark can run."""

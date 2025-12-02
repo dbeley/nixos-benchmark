@@ -1,0 +1,32 @@
+from __future__ import annotations
+
+from enum import StrEnum
+
+
+class BenchmarkType(StrEnum):
+    OPENSSL_SPEED = "openssl-speed"
+    SEVENZIP = "7zip-benchmark"
+    JOHN = "john-benchmark"
+    STOCKFISH = "stockfish-bench"
+    STRESS_NG = "stress-ng"
+    SYSBENCH_CPU = "sysbench-cpu"
+    SYSBENCH_MEMORY = "sysbench-memory"
+    STRESSAPPTEST = "stressapptest-memory"
+    TINYMEMBENCH = "tinymembench"
+    FIO_SEQ = "fio-seq"
+    IOPING = "ioping"
+    GLMARK2 = "glmark2"
+    VKMARK = "vkmark"
+    CLPEAK = "clpeak"
+    HASHCAT_GPU = "hashcat-gpu"
+    LZ4 = "lz4-benchmark"
+    ZSTD = "zstd-compress"
+    PIGZ = "pigz-compress"
+    CRYPTSETUP = "cryptsetup-benchmark"
+    SQLITE_MIXED = "sqlite-mixed"
+    SQLITE_SPEEDTEST = "sqlite-speedtest"
+    FFMPEG_TRANSCODE = "ffmpeg-transcode"
+    X264 = "x264-encode"
+    X265 = "x265-encode"
+    NETPERF = "netperf"
+    WRK_HTTP = "wrk-http"

@@ -9,6 +9,7 @@ from pathlib import Path
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 DEFAULT_X265_RESOLUTION = "1280x720"
@@ -18,7 +19,7 @@ DEFAULT_X265_CRF = 23
 
 
 class X265Benchmark(BenchmarkBase):
-    name = "x265-encode"
+    benchmark_type = BenchmarkType.X265
     description = "x265 encoder benchmark"
     _required_commands = ("x265", "ffmpeg")
 
@@ -99,7 +100,7 @@ class X265Benchmark(BenchmarkBase):
             pattern_path.unlink(missing_ok=True)
 
         return BenchmarkResult(
-            name=self.name,
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

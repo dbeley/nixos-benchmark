@@ -11,6 +11,7 @@ from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command, write_temp_data_file
 from .base import BenchmarkBase
 from .zstd import DEFAULT_COMPRESS_SIZE_MB
+from .types import BenchmarkType
 
 
 # Default constants
@@ -18,7 +19,7 @@ DEFAULT_PIGZ_LEVEL = 3
 
 
 class PigzBenchmark(BenchmarkBase):
-    name = "pigz-compress"
+    benchmark_type = BenchmarkType.PIGZ
     description = "pigz compress/decompress throughput"
     _required_commands = ("pigz",)
 
@@ -59,7 +60,7 @@ class PigzBenchmark(BenchmarkBase):
         }
 
         return BenchmarkResult(
-            name="pigz-compress",
+            benchmark_type=self.benchmark_type,
             status="ok",
             presets=(),
             metrics=BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data)),

@@ -7,6 +7,7 @@ import subprocess
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 # Default constants
@@ -16,7 +17,7 @@ DEFAULT_FFMPEG_CODEC = "libx264"
 
 
 class FFmpegBenchmark(BenchmarkBase):
-    name = "ffmpeg-transcode"
+    benchmark_type = BenchmarkType.FFMPEG_TRANSCODE
     description = "FFmpeg synthetic video transcode"
     _required_commands = ("ffmpeg",)
 
@@ -88,7 +89,7 @@ class FFmpegBenchmark(BenchmarkBase):
             message = str(e)
 
         return BenchmarkResult(
-            name="ffmpeg-transcode",
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

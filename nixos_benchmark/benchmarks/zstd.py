@@ -8,6 +8,7 @@ from typing import cast
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command, write_temp_data_file
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 # Default constants
@@ -16,7 +17,7 @@ DEFAULT_COMPRESS_SIZE_MB = 32
 
 
 class ZstdBenchmark(BenchmarkBase):
-    name = "zstd-compress"
+    benchmark_type = BenchmarkType.ZSTD
     description = "zstd compress/decompress throughput"
     _required_commands = ("zstd",)
 
@@ -71,7 +72,7 @@ class ZstdBenchmark(BenchmarkBase):
         }
 
         return BenchmarkResult(
-            name="zstd-compress",
+            benchmark_type=self.benchmark_type,
             status="ok",
             presets=(),
             metrics=BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data)),

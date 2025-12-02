@@ -7,10 +7,11 @@ import subprocess
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 class CryptsetupBenchmark(BenchmarkBase):
-    name = "cryptsetup-benchmark"
+    benchmark_type = BenchmarkType.CRYPTSETUP
     description = "cryptsetup cipher benchmark"
     _required_commands = ("cryptsetup",)
 
@@ -49,7 +50,7 @@ class CryptsetupBenchmark(BenchmarkBase):
             message = str(e)
 
         return BenchmarkResult(
-            name="cryptsetup-benchmark",
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

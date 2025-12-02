@@ -8,8 +8,15 @@ import sys
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TypeVar
 
-from .benchmarks import ALL_BENCHMARKS, PRESETS, get_presets_for_benchmark
+from .benchmarks import (
+    ALL_BENCHMARKS,
+    BENCHMARK_MAP,
+    PRESETS,
+    BenchmarkType,
+    get_presets_for_benchmark,
+)
 from .benchmarks.base import BenchmarkBase
 from .models import (
     BenchmarkMetrics,
@@ -48,14 +55,17 @@ class CommaSeparatedListAction(argparse.Action):
         setattr(namespace, self.dest, current)
 
 
-def unique_ordered(values: Sequence[str]) -> list[str]:
+T = TypeVar("T")
+
+
+def unique_ordered(values: Sequence[T]) -> list[T]:
     """Return unique values in order."""
     return list(dict.fromkeys(values))
 
 
-def expand_presets(presets: Sequence[str]) -> list[str]:
-    """Expand preset names into benchmark names."""
-    selected: set[str] = set()
+def expand_presets(presets: Sequence[str]) -> list[BenchmarkType]:
+    """Expand preset names into benchmark types."""
+    selected: list[BenchmarkType] = []
     if not presets:
         presets = ["balanced"]
     for preset in presets:
@@ -64,9 +74,18 @@ def expand_presets(presets: Sequence[str]) -> list[str]:
             continue
         benchmarks = config.get("benchmarks", [])
         if isinstance(benchmarks, (list, tuple)):
-            for bench in benchmarks:
-                selected.add(bench.name)
-    return sorted(selected)
+            for bench_type in benchmarks:
+                if isinstance(bench_type, BenchmarkType):
+                    selected.append(bench_type)
+    return unique_ordered(selected)
+
+
+def parse_benchmark_types(benchmark_names: Sequence[str]) -> list[BenchmarkType]:
+    """Convert user-provided benchmark names to BenchmarkType values."""
+    types: list[BenchmarkType] = []
+    for name in benchmark_names:
+        types.append(BenchmarkType(name))
+    return unique_ordered(types)
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
@@ -100,6 +119,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "--benchmarks",
         dest="benchmarks",
         action=CommaSeparatedListAction,
+        choices=sorted(bt.value for bt in BenchmarkType),
         metavar="BENCHMARK",
         default=[],
         help="Comma-separated benchmark names to run (skips preset expansion).",
@@ -156,22 +176,24 @@ def determine_output_path(args: argparse.Namespace, generated_at: datetime, syst
 def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
     """Execute a single benchmark instance."""
     benchmark_presets = get_presets_for_benchmark(benchmark)
+    benchmark_version = benchmark.get_version()
     ok, reason = benchmark.validate(args)
     if not ok:
         return BenchmarkResult(
-            name=benchmark.name,
+            benchmark_type=benchmark.benchmark_type,
             status="skipped",
             presets=benchmark_presets,
             metrics=BenchmarkMetrics({}),
             parameters=BenchmarkParameters({}),
             message=reason,
+            version=benchmark_version,
         )
 
     try:
         result = benchmark.execute(args)
     except FileNotFoundError as exc:
         return BenchmarkResult(
-            name=benchmark.name,
+            benchmark_type=benchmark.benchmark_type,
             status="skipped",
             presets=benchmark_presets,
             metrics=BenchmarkMetrics({}),
@@ -183,7 +205,7 @@ def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
         raw_output = exc.stdout if exc.stdout else ""
         command = " ".join(exc.cmd) if isinstance(exc.cmd, list) else str(exc.cmd)
         return BenchmarkResult(
-            name=benchmark.name,
+            benchmark_type=benchmark.benchmark_type,
             status="error",
             presets=benchmark_presets,
             metrics=BenchmarkMetrics({}),
@@ -191,6 +213,7 @@ def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
             message=f"Command failed with exit code {exc.returncode}",
             command=command,
             raw_output=raw_output,
+            version=benchmark_version,
         )
     except Exception as exc:
         # Try to preserve raw_output if it's a parsing error on a valid result
@@ -201,7 +224,7 @@ def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
             raw_output = context.stdout if context.stdout else ""
             command = " ".join(context.cmd) if isinstance(context.cmd, list) else str(context.cmd)
         return BenchmarkResult(
-            name=benchmark.name,
+            benchmark_type=benchmark.benchmark_type,
             status="error",
             presets=benchmark_presets,
             metrics=BenchmarkMetrics({}),
@@ -209,11 +232,12 @@ def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
             message=str(exc),
             command=command,
             raw_output=raw_output,
+            version=benchmark_version,
         )
 
     # Update result with presets from benchmark instance
     return BenchmarkResult(
-        name=result.name,
+        benchmark_type=result.benchmark_type,
         status=result.status,
         presets=benchmark_presets,
         metrics=result.metrics,
@@ -222,6 +246,7 @@ def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
         command=result.command,
         message=result.message,
         raw_output=result.raw_output,
+        version=result.version or benchmark_version,
     )
 
 
@@ -239,17 +264,18 @@ def main() -> int:
     requested_presets = unique_ordered(args.presets)
     if not args.benchmarks and not requested_presets:
         requested_presets = ["balanced"]
-    selected_names = unique_ordered(args.benchmarks) if args.benchmarks else expand_presets(requested_presets)
+    selected_benchmarks = (
+        parse_benchmark_types(unique_ordered(args.benchmarks)) if args.benchmarks else expand_presets(requested_presets)
+    )
 
-    if not selected_names:
+    if not selected_benchmarks:
         print("No benchmarks requested.", file=sys.stderr)
         return 1
 
-    benchmark_map = {bench.name: bench for bench in ALL_BENCHMARKS}
     results_with_benchmarks: list[tuple[BenchmarkResult, BenchmarkBase]] = []
-    for name in selected_names:
-        print(f"Executing {name}")
-        benchmark = benchmark_map[name]
+    for benchmark_type in selected_benchmarks:
+        print(f"Executing {benchmark_type.value}")
+        benchmark = BENCHMARK_MAP[benchmark_type]
         result = execute_benchmark(benchmark, args)
         results_with_benchmarks.append((result, benchmark))
 
@@ -266,7 +292,7 @@ def main() -> int:
         system=system_info,
         benchmarks=results,
         presets_requested=requested_presets,
-        benchmarks_requested=selected_names,
+        benchmarks_requested=selected_benchmarks,
     )
 
     output_path = determine_output_path(args, generated_at, system_info)

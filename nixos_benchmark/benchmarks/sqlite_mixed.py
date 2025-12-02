@@ -9,6 +9,7 @@ from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 # Default constants
@@ -17,8 +18,11 @@ DEFAULT_SQLITE_SELECTS = 1_000
 
 
 class SQLiteMixedBenchmark(BenchmarkBase):
-    name = "sqlite-mixed"
+    benchmark_type = BenchmarkType.SQLITE_MIXED
     description = "SQLite insert/select mix"
+
+    def get_version(self) -> str:
+        return f"SQLite {sqlite3.sqlite_version}"
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         row_count = DEFAULT_SQLITE_ROWS
@@ -56,7 +60,7 @@ class SQLiteMixedBenchmark(BenchmarkBase):
         total_duration = insert_duration + query_duration
 
         return BenchmarkResult(
-            name="sqlite-mixed",
+            benchmark_type=self.benchmark_type,
             status="ok",
             presets=(),
             metrics=BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data)),

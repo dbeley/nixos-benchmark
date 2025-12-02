@@ -8,6 +8,7 @@ from pathlib import Path
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command, write_temp_data_file
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 DEFAULT_LZ4_SIZE_MB = 64
@@ -16,7 +17,7 @@ DEFAULT_LZ4_TIME = 2  # seconds per level
 
 
 class LZ4Benchmark(BenchmarkBase):
-    name = "lz4-benchmark"
+    benchmark_type = BenchmarkType.LZ4
     description = "lz4 compression/decompression throughput"
     _required_commands = ("lz4",)
 
@@ -58,7 +59,7 @@ class LZ4Benchmark(BenchmarkBase):
             data_path.unlink(missing_ok=True)
 
         return BenchmarkResult(
-            name=self.name,
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

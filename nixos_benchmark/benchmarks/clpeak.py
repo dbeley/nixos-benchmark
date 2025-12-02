@@ -7,10 +7,11 @@ import subprocess
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 class CLPeakBenchmark(BenchmarkBase):
-    name = "clpeak"
+    benchmark_type = BenchmarkType.CLPEAK
     description = "OpenCL peak bandwidth/compute"
     _required_commands = ("clpeak",)
 
@@ -52,7 +53,7 @@ class CLPeakBenchmark(BenchmarkBase):
             message = str(e)
 
         return BenchmarkResult(
-            name="clpeak",
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

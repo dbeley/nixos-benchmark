@@ -11,6 +11,7 @@ from pathlib import Path
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import find_free_tcp_port, run_command, wait_for_port
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 DEFAULT_WRK_DURATION = 5
@@ -41,7 +42,7 @@ def _parse_transfer_value(token: str) -> float:
 
 
 class WrkHTTPBenchmark(BenchmarkBase):
-    name = "wrk-http"
+    benchmark_type = BenchmarkType.WRK_HTTP
     description = "wrk HTTP load against a local python server"
     _required_commands = ("wrk",)
 
@@ -58,8 +59,8 @@ class WrkHTTPBenchmark(BenchmarkBase):
             server = subprocess.Popen(
                 [sys.executable, "-m", "http.server", str(port), "--bind", "127.0.0.1"],
                 cwd=tmp_path,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 text=True,
             )
 
@@ -114,7 +115,7 @@ class WrkHTTPBenchmark(BenchmarkBase):
             message = str(exc)
 
         return BenchmarkResult(
-            name=self.name,
+            benchmark_type=self.benchmark_type,
             status=status,
             presets=(),
             metrics=metrics,

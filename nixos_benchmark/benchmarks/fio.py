@@ -10,6 +10,7 @@ from typing import cast
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 # Default constants
@@ -19,7 +20,7 @@ DEFAULT_FIO_BLOCK_KB = 1024
 
 
 class FIOBenchmark(BenchmarkBase):
-    name = "fio-seq"
+    benchmark_type = BenchmarkType.FIO_SEQ
     description = "fio sequential read/write"
     _required_commands = ("fio",)
 
@@ -80,7 +81,7 @@ class FIOBenchmark(BenchmarkBase):
         }
 
         return BenchmarkResult(
-            name="fio-seq",
+            benchmark_type=self.benchmark_type,
             status="ok",
             presets=(),
             metrics=BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data)),
