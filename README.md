@@ -1,93 +1,50 @@
 # nixos-benchmark
 
-This repository provides an all‑in‑one `nix-shell` with a curated set of benchmarking
-tools. Use it to quickly benchmark your system and compare results with others.
+Lightweight runner for a curated set of CPU, memory, IO, GPU, and network benchmarks. Everything is available through a reproducible Nix dev shell; results are stored as JSON with an optional HTML dashboard.
 
 ## Requirements
-- [Nix](https://nixos.org/) installed on your machine
-- Optional: [direnv](https://direnv.net/) if you prefer automatic shell loading
+- Nix with flakes enabled
+- Optional: direnv for automatic shell loading
 
-## Quick start
-All workflows now use flakes (Nix 2.4+ with flakes enabled).
-
+## Setup
 ```bash
-# enter a dev shell with all tools on PATH
-nix develop
-
-# list available presets/benchmarks
-nix run . -- --list-presets
-nix run . -- --list-benchmarks
-
-# run the default (balanced) suite
-nix run . -- --preset balanced
-
-# run with ad-hoc options while inside the dev shell
-nix develop -c python nixos_benchmark.py --preset cpu,io --html-summary ''
+# enter shell with all tools
+nix develop   # or: nix-shell, or direnv allow
 ```
 
-The runner prints each benchmark name as it executes and finishes with a short summary.
-
-## Benchmark presets
-
-The suite now groups benchmarks by what they test (CPU, IO, memory, GPU, etc.).
-Use presets to quickly select a workload mix:
-
+## Run benchmarks
 ```bash
+# list presets / benchmarks
 python nixos_benchmark.py --list-presets
-# run a CPU + IO focused pass
+python nixos_benchmark.py --list-benchmarks
+
+# default (balanced) suite
+python nixos_benchmark.py
+
+# target presets or specific benches
 python nixos_benchmark.py --preset cpu --preset io
-# the same selection can be expressed as a single comma-separated flag
-python nixos_benchmark.py --preset cpu,io
-# target the memory-focused preset
-python nixos_benchmark.py --preset memory
-# GPU-only runs (lightweight or full Unigine suite)
-python nixos_benchmark.py --preset gpu-light
-python nixos_benchmark.py --preset gpu
-# run everything (may take a long time)
-python nixos_benchmark.py --preset all
+python nixos_benchmark.py --benchmarks openssl-speed,fio-seq
+
+# write HTML dashboard alongside JSON
+python nixos_benchmark.py --html-summary results/index.html
 ```
 
-You can also target individual benchmarks:
+Presets keep the CLI short: `balanced` (default), `cpu`, `io`, `memory`, `compression`, `crypto`, `database`, `gpu-light`, `gpu`, `network`, `all`. Use `--preset all` if you want every benchmark.
 
-```bash
-python nixos_benchmark.py --benchmarks openssl-speed fio-seq sqlite-mixed
-```
+## Benchmarks
+- CPU: openssl speed, 7-Zip, John, Stockfish, stress-ng, sysbench cpu
+- Memory: sysbench memory, stressapptest, tinymembench
+- IO / storage: fio seq, ioping, sqlite mixed, sqlite speedtest, cryptsetup
+- Compression: zstd, pigz, lz4, x264, x265, ffmpeg transcode
+- GPU: glmark2, vkmark, clpeak, hashcat
+- Network: netperf, wrk (local HTTP)
 
-Each benchmark entry records its categories and which presets include it. This metadata
-is persisted in the JSON report and rendered in the HTML dashboard.
+Use `--list-benchmarks` to see the exact preset coverage for each entry.
 
-## Included tools
+## Reports
+- JSON per run in `results/` (git-ignored): system info (CPU, GPU, RAM, OS/kernel), requested presets/benchmarks, per-benchmark metrics, command, duration, tool version, and raw output.
+- HTML dashboard (`--html-summary path`) reads all JSON files in `results/` and shows run summaries with tooltips for presets, versions, and benchmark descriptions. A compact system card highlights CPU/GPU/RAM/OS/kernel from the latest run; hover a system name to see details for that row.
 
-The default `balanced` preset runs:
-
-- OpenSSL, 7-Zip, stress-ng, sysbench CPU (CPU)
-- sysbench memory, fio, sqlite (IO / storage / memory)
-
-Additional tools can be enabled via the `all` preset or explicit selection:
-
-- FFmpeg synthetic transcode and standalone x264 encode tests (fixed preset/resolution; not part of the standard presets)
-- SQLite mixed workload via the Python `sqlite3` module
-- John the Ripper CPU hash benchmark (in `balanced`/`cpu`)
-- Stockfish chess engine bench (in the `cpu` preset)
-- stressapptest memory bandwidth (in the `memory` preset)
-- hashcat GPU hash throughput (in the `gpu` preset; skipped if no device is present)
-- x265 encoder benchmark (in the `cpu` preset)
-- lz4 compression/decompression throughput (in `cpu`/`compression`)
-- wrk HTTP load generator against a local Python server (in the `network` preset)
-- GPU tests (glmark2 + vkmark; both run in the GPU presets)
-
-Use `--list-benchmarks` to see the full catalog along with category and preset metadata.
-
-## Notes on external tools
-
-- **GPU sanity checks**: glmark2 uses the offscreen renderer by default to avoid hijacking the display.
-  Use `--glmark2-mode onscreen` to flip that behavior when you want visible output. vkmark always renders onscreen.
-- **Unigine**: the commercial Unigine benchmarks aren’t included because their Linux binaries don’t expose
-  a reliable CLI to auto-start runs and capture results.
-
-## Reports and dashboard
-
-Each run emits a JSON file (see `results/`) capturing system info, requested presets,
-explicit benchmark selections, and per-benchmark metadata. When `--html-summary` is set
-the `results/index.html` dashboard is also updated. It now displays the presets used for
-each run and annotates every benchmark column with its categories and preset coverage.
+## Notes
+- glmark2 defaults to offscreen; pass `--glmark2-mode onscreen` if you want visible rendering.
+- No benchmark artifacts are committed; keep `results/` local.

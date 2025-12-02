@@ -50,15 +50,15 @@ class JohnBenchmark(BenchmarkBase):
             metrics=metrics,
             parameters=BenchmarkParameters({"runtime_secs": runtime, "hash_format": "sha512crypt"}),
             duration_seconds=duration,
-            command=" ".join(command),
+            command=self.format_command(command),
             raw_output=stdout,
             message=message,
         )
 
     def format_result(self, result: BenchmarkResult) -> str:
-        if result.status != "ok":
-            prefix = "Skipped" if result.status == "skipped" else "Error"
-            return f"{prefix}: {result.message}"
+        status_message = self.format_status_message(result)
+        if status_message:
+            return status_message
         cps = result.metrics.get("c_per_sec")
         if cps is not None:
             return f"{cps:,.0f} c/s"

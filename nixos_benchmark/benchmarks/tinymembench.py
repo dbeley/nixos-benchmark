@@ -55,9 +55,9 @@ class TinyMemBenchBenchmark(BenchmarkBase):
 
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
-        if result.status != "ok":
-            prefix = "Skipped" if result.status == "skipped" else "Error"
-            return f"{prefix}: {result.message}"
+        status_message = self.format_status_message(result)
+        if status_message:
+            return status_message
 
         memcpy = result.metrics.get("memcpy_mb_per_s")
         if memcpy is None:

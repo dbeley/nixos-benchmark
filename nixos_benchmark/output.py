@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, TypedDict
 
 from .benchmarks import BENCHMARK_MAP, BenchmarkType
+from .benchmarks.base import BenchmarkBase
 from .models import (
     BenchmarkMetrics,
     BenchmarkParameters,
@@ -53,10 +54,8 @@ def describe_benchmark(bench: BenchmarkResult) -> str:
         return benchmark_instance.format_result(bench)
 
     # Fallback for unknown benchmarks
-    if bench.status != "ok":
-        prefix = "Skipped" if bench.status == "skipped" else "Error"
-        return f"{prefix}: {bench.message}"
-    return ""
+    status_message = BenchmarkBase.format_status_message(bench)
+    return status_message or ""
 
 
 def _benchmark_type_from_name(name: str) -> BenchmarkType | None:
@@ -257,7 +256,6 @@ def _system_details_text(system: dict[str, object]) -> str:
 
 def _build_system_summary_html(
     rows: list[RowWithCells],
-    default_timestamp: datetime,
 ) -> str:
     if not rows:
         return ""
@@ -529,7 +527,7 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
 
     html_path.parent.mkdir(parents=True, exist_ok=True)
 
-    system_summary_html = _build_system_summary_html(rows, default_timestamp)
+    system_summary_html = _build_system_summary_html(rows)
     header_cells = _build_header_cells(bench_columns, bench_metadata)
     body_rows = _build_body_rows(rows)
     table_html = "\n".join(body_rows)

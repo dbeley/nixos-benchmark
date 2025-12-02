@@ -87,15 +87,15 @@ class FIOBenchmark(BenchmarkBase):
             metrics=BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data)),
             parameters=BenchmarkParameters({"size_mb": size_mb, "runtime_s": runtime, "block_kb": block_kb}),
             duration_seconds=duration,
-            command=f"fio --output-format=json {job_path}",
+            command=self.format_command(["fio", "--output-format=json", str(job_path)]),
             raw_output=stdout,
         )
 
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
-        if result.status != "ok":
-            prefix = "Skipped" if result.status == "skipped" else "Error"
-            return f"{prefix}: {result.message}"
+        status_message = self.format_status_message(result)
+        if status_message:
+            return status_message
 
         read_bw = result.metrics.get("seqread_mib_per_s")
         write_bw = result.metrics.get("seqwrite_mib_per_s")

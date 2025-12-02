@@ -81,7 +81,7 @@ class StockfishBenchmark(BenchmarkBase):
             metrics=metrics,
             parameters=BenchmarkParameters({"threads": threads, "limit_secs": limit_seconds, "hash_mb": 128}),
             duration_seconds=duration,
-            command=" ".join(command),
+            command=self.format_command(command),
             raw_output=stdout,
             message=message,
         )
@@ -94,9 +94,9 @@ class StockfishBenchmark(BenchmarkBase):
         return float(match.group(1))
 
     def format_result(self, result: BenchmarkResult) -> str:
-        if result.status != "ok":
-            prefix = "Skipped" if result.status == "skipped" else "Error"
-            return f"{prefix}: {result.message}"
+        status_message = self.format_status_message(result)
+        if status_message:
+            return status_message
 
         nps = result.metrics.get("nodes_per_sec")
         if nps is not None:

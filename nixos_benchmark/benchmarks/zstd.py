@@ -30,7 +30,7 @@ class ZstdBenchmark(BenchmarkBase):
 
         try:
             start = time.perf_counter()
-            command = [
+            compress_command = [
                 "zstd",
                 "-q",
                 "-f",
@@ -39,14 +39,14 @@ class ZstdBenchmark(BenchmarkBase):
                 "-o",
                 str(compressed_path),
             ]
-            stdout, _, returncode = run_command(command)
+            stdout, _, returncode = run_command(compress_command)
             if returncode != 0:
-                raise subprocess.CalledProcessError(returncode, command, stdout)
+                raise subprocess.CalledProcessError(returncode, compress_command, stdout)
             compress_duration = time.perf_counter() - start
 
             data_path.unlink(missing_ok=True)
             start = time.perf_counter()
-            command = [
+            decompress_command = [
                 "zstd",
                 "-d",
                 "-q",
@@ -55,9 +55,9 @@ class ZstdBenchmark(BenchmarkBase):
                 "-o",
                 str(decompressed_path),
             ]
-            stdout, _, returncode = run_command(command)
+            stdout, _, returncode = run_command(decompress_command)
             if returncode != 0:
-                raise subprocess.CalledProcessError(returncode, command, stdout)
+                raise subprocess.CalledProcessError(returncode, decompress_command, stdout)
             decompress_duration = time.perf_counter() - start
         finally:
             data_path.unlink(missing_ok=True)
@@ -78,15 +78,15 @@ class ZstdBenchmark(BenchmarkBase):
             metrics=BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data)),
             parameters=BenchmarkParameters({"level": level, "size_mb": size_mb}),
             duration_seconds=compress_duration + decompress_duration,
-            command=f"zstd -q -f -{level} {data_path} -o {compressed_path}",
-            raw_output="",
+            command=self.format_command(compress_command),
+            raw_output=stdout,
         )
 
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
-        if result.status != "ok":
-            prefix = "Skipped" if result.status == "skipped" else "Error"
-            return f"{prefix}: {result.message}"
+        status_message = self.format_status_message(result)
+        if status_message:
+            return status_message
 
         comp = result.metrics.get("compress_mb_per_s")
         decomp = result.metrics.get("decompress_mb_per_s")

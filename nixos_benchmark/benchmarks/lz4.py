@@ -64,7 +64,7 @@ class LZ4Benchmark(BenchmarkBase):
             metrics=metrics,
             parameters=BenchmarkParameters({"size_mb": size_mb, "level": level, "time_per_level_secs": time_per_level}),
             duration_seconds=duration,
-            command=" ".join(command),
+            command=self.format_command(command),
             raw_output=stdout,
             message=message,
         )
@@ -81,9 +81,9 @@ class LZ4Benchmark(BenchmarkBase):
         return comp, decomp
 
     def format_result(self, result: BenchmarkResult) -> str:
-        if result.status != "ok":
-            prefix = "Skipped" if result.status == "skipped" else "Error"
-            return f"{prefix}: {result.message}"
+        status_message = self.format_status_message(result)
+        if status_message:
+            return status_message
 
         comp = result.metrics.get("compress_mb_per_s")
         decomp = result.metrics.get("decompress_mb_per_s")

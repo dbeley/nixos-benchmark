@@ -203,7 +203,7 @@ def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
     except subprocess.CalledProcessError as exc:
         # Preserve command output for debugging
         raw_output = exc.stdout if exc.stdout else ""
-        command = " ".join(exc.cmd) if isinstance(exc.cmd, list) else str(exc.cmd)
+        command = BenchmarkBase.format_command(exc.cmd) if exc.cmd else ""
         return BenchmarkResult(
             benchmark_type=benchmark.benchmark_type,
             status="error",
@@ -222,7 +222,7 @@ def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
         if hasattr(exc, "__context__") and isinstance(exc.__context__, subprocess.CalledProcessError):
             context = exc.__context__
             raw_output = context.stdout if context.stdout else ""
-            command = " ".join(context.cmd) if isinstance(context.cmd, list) else str(context.cmd)
+            command = BenchmarkBase.format_command(context.cmd) if context.cmd else ""
         return BenchmarkResult(
             benchmark_type=benchmark.benchmark_type,
             status="error",

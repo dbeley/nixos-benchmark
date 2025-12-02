@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import shlex
 from abc import ABC
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import ClassVar, cast
 
 from ..models import BenchmarkResult
@@ -22,6 +23,22 @@ class BenchmarkBase(ABC):
     @property
     def name(self) -> str:
         return self.benchmark_type.value
+
+    @staticmethod
+    def format_command(command: Sequence[str] | str) -> str:
+        """Render the executed command safely for logging and reports."""
+        if isinstance(command, str):
+            return command
+        return shlex.join([str(part) for part in command])
+
+    @staticmethod
+    def format_status_message(result: BenchmarkResult) -> str | None:
+        """Common status prefix for skipped/error cases."""
+        if result.status == "ok":
+            return None
+        prefix = "Skipped" if result.status == "skipped" else "Error"
+        message = result.message.strip()
+        return f"{prefix}: {message}" if message else prefix
 
     def short_description(self) -> str:
         """Short human summary for tooltips."""

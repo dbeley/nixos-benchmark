@@ -101,16 +101,16 @@ class FFmpegBenchmark(BenchmarkBase):
                 }
             ),
             duration_seconds=duration,
-            command=" ".join(command),
+            command=self.format_command(command),
             raw_output=stdout,
             message=message,
         )
 
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
-        if result.status != "ok":
-            prefix = "Skipped" if result.status == "skipped" else "Error"
-            return f"{prefix}: {result.message}"
+        status_message = self.format_status_message(result)
+        if status_message:
+            return status_message
 
         fps = result.metrics.get("reported_fps")
         if (fps is None or fps <= 0) and "effective_fps" in result.metrics.data:

@@ -66,9 +66,9 @@ class CLPeakBenchmark(BenchmarkBase):
 
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
-        if result.status != "ok":
-            prefix = "Skipped" if result.status == "skipped" else "Error"
-            return f"{prefix}: {result.message}"
+        status_message = self.format_status_message(result)
+        if status_message:
+            return status_message
 
         bandwidth = result.metrics.get("global_memory_bandwidth_gb_per_s")
         if bandwidth is None and result.metrics.data:
