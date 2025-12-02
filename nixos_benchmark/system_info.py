@@ -6,6 +6,7 @@ import os
 import platform
 import re
 import subprocess
+from pathlib import Path
 
 from .models import SystemInfo
 
@@ -13,7 +14,7 @@ from .models import SystemInfo
 def _read_mem_total_bytes() -> int | None:
     """Read MemTotal from /proc/meminfo (bytes)."""
     try:
-        with open("/proc/meminfo", encoding="utf-8") as handle:
+        with Path("/proc/meminfo").open(encoding="utf-8") as handle:
             for line in handle:
                 if line.startswith("MemTotal:"):
                     parts = line.split()
@@ -27,7 +28,7 @@ def _read_mem_total_bytes() -> int | None:
 def _detect_cpu_model() -> str:
     """Best-effort CPU model string."""
     try:
-        with open("/proc/cpuinfo", encoding="utf-8") as handle:
+        with Path("/proc/cpuinfo").open(encoding="utf-8") as handle:
             for line in handle:
                 if line.startswith("model name"):
                     return line.split(":", 1)[1].strip()

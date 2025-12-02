@@ -83,5 +83,5 @@ class HashcatBenchmark(BenchmarkBase):
 
         hps = result.metrics.get("hashes_per_sec")
         if hps is not None:
-            return f"{hps/1_000_000:.1f} MH/s"
+            return f"{hps / 1_000_000:.1f} MH/s"
         return ""

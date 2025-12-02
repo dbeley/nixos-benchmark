@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import re
 import subprocess
-from pathlib import Path
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command, write_temp_data_file
@@ -63,9 +62,7 @@ class LZ4Benchmark(BenchmarkBase):
             status=status,
             presets=(),
             metrics=metrics,
-            parameters=BenchmarkParameters(
-                {"size_mb": size_mb, "level": level, "time_per_level_secs": time_per_level}
-            ),
+            parameters=BenchmarkParameters({"size_mb": size_mb, "level": level, "time_per_level_secs": time_per_level}),
             duration_seconds=duration,
             command=" ".join(command),
             raw_output=stdout,

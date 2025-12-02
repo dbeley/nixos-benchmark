@@ -73,9 +73,7 @@ class StressAppTestBenchmark(BenchmarkBase):
             status=status,
             presets=(),
             metrics=metrics,
-            parameters=BenchmarkParameters(
-                {"seconds": seconds, "memory_mb": memory_mb, "threads": threads}
-            ),
+            parameters=BenchmarkParameters({"seconds": seconds, "memory_mb": memory_mb, "threads": threads}),
             duration_seconds=duration,
             command=" ".join(command),
             raw_output=stdout,

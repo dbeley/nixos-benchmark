@@ -24,12 +24,12 @@ from .stressapptest import StressAppTestBenchmark
 from .sysbench_cpu import SysbenchCPUBenchmark
 from .sysbench_memory import SysbenchMemoryBenchmark
 from .tinymembench import TinyMemBenchBenchmark
+from .types import BenchmarkType
 from .vkmark import VKMarkBenchmark
 from .wrk import WrkHTTPBenchmark
 from .x264 import X264Benchmark
 from .x265 import X265Benchmark
 from .zstd import ZstdBenchmark
-from .types import BenchmarkType
 
 
 # Registry of all benchmarks
@@ -189,9 +189,9 @@ def get_all_benchmarks():
 __all__ = [
     "ALL_BENCHMARKS",
     "BENCHMARK_MAP",
-    "BenchmarkType",
     "PRESETS",
     "BenchmarkBase",
+    "BenchmarkType",
     "get_all_benchmarks",
     "get_presets_for_benchmark",
 ]

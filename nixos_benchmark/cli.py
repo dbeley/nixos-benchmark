@@ -58,7 +58,7 @@ class CommaSeparatedListAction(argparse.Action):
 T = TypeVar("T")
 
 
-def unique_ordered(values: Sequence[T]) -> list[T]:
+def unique_ordered(values: Sequence[T]) -> list[T]:  # noqa: UP047
     """Return unique values in order."""
     return list(dict.fromkeys(values))
 

@@ -5,8 +5,9 @@ from __future__ import annotations
 import html
 import json
 import re
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import datetime
+from typing import Any, TypedDict
 
 from .benchmarks import BENCHMARK_MAP, BenchmarkType
 from .models import (
@@ -15,6 +16,29 @@ from .models import (
     BenchmarkReport,
     BenchmarkResult,
 )
+
+
+class ReportRow(TypedDict):
+    file: str
+    generated: str
+    generated_dt: datetime
+    system: dict[str, object]
+    presets: list[str]
+    benchmarks: list[dict[str, object]]
+
+
+class Cell(TypedDict):
+    text: str
+    version: str
+
+
+class RowWithCells(TypedDict):
+    file: str
+    generated: str
+    generated_dt: datetime
+    system: dict[str, object]
+    presets: list[str]
+    cells: list[Cell]
 
 
 def sanitize_for_filename(value: str) -> str:
@@ -48,143 +72,220 @@ def write_json_report(report: BenchmarkReport, output_path: Path) -> None:
     output_path.write_text(json.dumps(report.to_dict(), indent=2))
 
 
-def build_html_summary(results_dir: Path, html_path: Path) -> None:
-    """Build HTML dashboard summarizing all benchmark runs in results_dir."""
-    json_files = sorted(results_dir.glob("*.json"))
-    reports = []
-    bench_metadata: dict[str, dict[str, set[str]]] = {}
-    default_timestamp = datetime.min
+def _parse_generated(value: str, default_timestamp: datetime) -> datetime:
+    """Parse an ISO timestamp, falling back to a default value."""
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return default_timestamp
 
-    def _parse_generated(value: str) -> datetime:
-        try:
-            return datetime.fromisoformat(value)
-        except ValueError:
-            return default_timestamp
+
+def _as_str(value: object, default: str = "") -> str:
+    """Coerce a value to string for safer typing."""
+    text = str(value) if value is not None else ""
+    return text if text else default
+
+
+def _as_str_list(value: object) -> list[str]:
+    """Ensure presets/labels are string lists."""
+    if isinstance(value, (list, tuple, set)):
+        return [str(item) for item in value if str(item)]
+    return []
+
+
+def _as_metrics_dict(value: object) -> dict[str, float | str | int]:
+    """Filter metrics payload to supported primitive values."""
+    if not isinstance(value, dict):
+        return {}
+    filtered: dict[str, float | str | int] = {}
+    for key, metric in value.items():
+        if isinstance(metric, (float, int, str)):
+            filtered[str(key)] = metric
+    return filtered
+
+
+def _as_parameters_dict(value: object) -> dict[str, Any]:
+    """Coerce parameters payload into a string-keyed dict."""
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): val for key, val in value.items()}
+
+
+def _as_float(value: object, default: float = 0.0) -> float:
+    """Safely convert duration-like values to float."""
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+
+
+def _load_reports_and_metadata(
+    json_files: list[Path],
+    default_timestamp: datetime,
+) -> tuple[list[ReportRow], dict[str, dict[str, set[str]]]]:
+    """Load JSON reports and collect per-benchmark metadata."""
+    reports: list[ReportRow] = []
+    bench_metadata: dict[str, dict[str, set[str]]] = {}
 
     for path in json_files:
         try:
-            data = json.loads(path.read_text())
+            raw = path.read_text()
+            data: dict[str, Any] = json.loads(raw)
         except (json.JSONDecodeError, OSError):
             continue
-        reports.append((path, data))
-        for bench in data.get("benchmarks", []):
-            name = bench.get("name", "")
+
+        presets_raw = data.get("presets_requested", []) or []
+        presets = [str(p) for p in presets_raw] if isinstance(presets_raw, list) else []
+        benchmarks_raw = data.get("benchmarks", []) or []
+        benchmarks: list[dict[str, object]] = [bench for bench in benchmarks_raw if isinstance(bench, dict)]
+
+        # basic shape for each row
+        reports.append(
+            {
+                "file": path.name,
+                "generated": data.get("generated_at", "unknown"),
+                "generated_dt": _parse_generated(data.get("generated_at", "unknown"), default_timestamp),
+                "system": data.get("system", {}) or {},
+                "presets": presets,
+                "benchmarks": benchmarks,
+            }
+        )
+
+        for bench in benchmarks:
+            name = _as_str(bench.get("name", ""))
             bench_type = _benchmark_type_from_name(name)
             if not name or bench_type is None:
                 continue
             meta = bench_metadata.setdefault(name, {"presets": set(), "versions": set()})
-            meta["presets"].update(bench.get("presets", []))
+            meta["presets"].update(_as_str_list(bench.get("presets", [])))
             version = bench.get("version")
             if version:
                 meta["versions"].add(str(version))
 
-    bench_columns = sorted(bench_metadata.keys())
-    if not reports or not bench_columns:
-        return
+    return reports, bench_metadata
 
-    rows = []
-    for path, data in reports:
-        bench_map = {bench.get("name"): bench for bench in data.get("benchmarks", [])}
-        cells = []
+
+def _build_rows(
+    reports: list[ReportRow],
+    bench_columns: list[str],
+) -> list[RowWithCells]:
+    """Build table rows from loaded reports and benchmark columns."""
+    rows: list[RowWithCells] = []
+
+    for report in reports:
+        bench_map = {_as_str(bench.get("name", "")): bench for bench in report["benchmarks"]}
+        cells: list[Cell] = []
         for bench_name in bench_columns:
             bench_dict = bench_map.get(bench_name, {})
-            version_value = str(bench_dict.get("version", "") or "")
-            # Convert dict to BenchmarkResult for describe_benchmark
+            version_value = _as_str(bench_dict.get("version", ""))
             description = ""
             if bench_dict:
-                bench_type = _benchmark_type_from_name(bench_dict.get("name", ""))
+                bench_type = _benchmark_type_from_name(_as_str(bench_dict.get("name", "")))
                 if bench_type is not None:
                     bench_result = BenchmarkResult(
                         benchmark_type=bench_type,
-                        status=bench_dict.get("status", "ok"),
-                        presets=tuple(bench_dict.get("presets", [])),
-                        metrics=BenchmarkMetrics(bench_dict.get("metrics", {})),
-                        parameters=BenchmarkParameters(bench_dict.get("parameters", {})),
-                        duration_seconds=bench_dict.get("duration_seconds", 0.0),
-                        command=bench_dict.get("command", ""),
-                        message=bench_dict.get("message", ""),
-                        raw_output=bench_dict.get("raw_output", ""),
-                        version=bench_dict.get("version", ""),
+                        status=_as_str(bench_dict.get("status", "ok"), "ok"),
+                        presets=tuple(_as_str_list(bench_dict.get("presets", []))),
+                        metrics=BenchmarkMetrics(_as_metrics_dict(bench_dict.get("metrics", {}))),
+                        parameters=BenchmarkParameters(_as_parameters_dict(bench_dict.get("parameters", {}))),
+                        duration_seconds=_as_float(bench_dict.get("duration_seconds", 0.0)),
+                        command=_as_str(bench_dict.get("command", "")),
+                        message=_as_str(bench_dict.get("message", "")),
+                        raw_output=_as_str(bench_dict.get("raw_output", "")),
+                        version=_as_str(bench_dict.get("version", "")),
                     )
                     description = describe_benchmark(bench_result)
             cells.append({"text": description or "—", "version": version_value})
+
         rows.append(
             {
-                "file": path.name,
-                "generated": data.get("generated_at", "unknown"),
-                "generated_dt": _parse_generated(data.get("generated_at", "unknown")),
-                "system": data.get("system", {}),
-                "presets": data.get("presets_requested", []),
+                "file": report["file"],
+                "generated": report["generated"],
+                "generated_dt": report["generated_dt"],
+                "system": report["system"],
+                "presets": report["presets"],
                 "cells": cells,
             }
         )
 
-    html_path.parent.mkdir(parents=True, exist_ok=True)
+    return rows
 
-    def _format_memory_label(value: object) -> str:
-        try:
-            bytes_value = float(value)  # type: ignore[arg-type]
-        except (TypeError, ValueError):
-            return "Unknown RAM"
-        if bytes_value <= 0:
-            return "Unknown RAM"
-        gib = bytes_value / (1024**3)
-        return f"{gib:.1f} GiB"
 
-    def _system_cell_label(system: dict[str, object]) -> str:
-        hostname = str(system.get("hostname", "") or "").strip()
-        machine = str(system.get("machine", "") or "").strip()
-        if hostname and machine:
-            return f"{hostname} ({machine})"
-        return hostname or machine or "n/a"
+def _format_memory_label(value: object) -> str:
+    try:
+        bytes_value = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return "Unknown RAM"
+    if bytes_value <= 0:
+        return "Unknown RAM"
+    gib = bytes_value / (1024**3)
+    return f"{gib:.1f} GiB"
 
-    def _system_details_text(system: dict[str, object]) -> str:
-        parts = []
-        cpu_label = system.get("cpu_model") or system.get("processor")
-        if cpu_label:
-            parts.append(f"CPU: {cpu_label}")
-        gpus = system.get("gpus") or []
-        if isinstance(gpus, (list, tuple)):
-            gpu_label = ", ".join(str(gpu) for gpu in gpus if str(gpu).strip())
-        else:
-            gpu_label = str(gpus) if gpus else ""
-        if gpu_label:
-            parts.append(f"GPU: {gpu_label}")
-        mem_label = _format_memory_label(system.get("memory_total_bytes"))
-        if mem_label:
-            parts.append(f"RAM: {mem_label}")
-        os_name = system.get("os_name") or system.get("platform")
-        os_version = system.get("os_version") or ""
-        if os_name:
-            parts.append(f"OS: {os_name} {os_version}".strip())
-        kernel = system.get("kernel_version") or ""
-        if kernel:
-            parts.append(f"Linux: {kernel}")
-        return "\n".join(parts) or "System details unavailable"
 
-    system_summary_html = ""
-    if rows:
-        latest_row = max(rows, key=lambda row: row.get("generated_dt", default_timestamp) or default_timestamp)
-        latest_system = latest_row.get("system", {})
-        gpus = latest_system.get("gpus") or []
-        gpu_label: str
-        if isinstance(gpus, (list, tuple)):
-            gpu_label = " / ".join(str(gpu) for gpu in gpus if str(gpu).strip()) or "Unknown GPU"
-        else:
-            gpu_label = str(gpus) if gpus else "Unknown GPU"
-        cpu_label = str(latest_system.get("cpu_model") or latest_system.get("processor") or "Unknown CPU")
-        os_label = str(latest_system.get("os_name") or latest_system.get("platform") or "Unknown OS")
-        os_version = str(latest_system.get("os_version") or "")
-        if os_version:
-            os_label = f"{os_label} {os_version}".strip()
-        kernel_label = str(latest_system.get("kernel_version") or latest_system.get("platform") or "")
-        ram_label = _format_memory_label(latest_system.get("memory_total_bytes"))
-        subtitle_bits = [f"Latest run: {latest_row.get('file', 'n/a')} · {latest_row.get('generated', 'unknown')}"]
-        hostnames = {str(r.get("system", {}).get("hostname", "") or "") for r in rows}
-        if len({hn for hn in hostnames if hn}) > 1:
-            subtitle_bits.append("Multiple systems detected; hover a system name for details.")
-        subtitle = " \u00b7 ".join(subtitle_bits)
-        system_summary_html = f"""
+def _system_cell_label(system: dict[str, object]) -> str:
+    hostname = str(system.get("hostname", "") or "").strip()
+    machine = str(system.get("machine", "") or "").strip()
+    if hostname and machine:
+        return f"{hostname} ({machine})"
+    return hostname or machine or "n/a"
+
+
+def _system_details_text(system: dict[str, object]) -> str:
+    parts = []
+    cpu_label = system.get("cpu_model") or system.get("processor")
+    if cpu_label:
+        parts.append(f"CPU: {cpu_label}")
+    gpus = system.get("gpus") or []
+    if isinstance(gpus, (list, tuple)):
+        gpu_label = ", ".join(str(gpu) for gpu in gpus if str(gpu).strip())
+    else:
+        gpu_label = str(gpus) if gpus else ""
+    if gpu_label:
+        parts.append(f"GPU: {gpu_label}")
+    mem_label = _format_memory_label(system.get("memory_total_bytes"))
+    if mem_label:
+        parts.append(f"RAM: {mem_label}")
+    os_name = system.get("os_name") or system.get("platform")
+    os_version = system.get("os_version") or ""
+    if os_name:
+        parts.append(f"OS: {os_name} {os_version}".strip())
+    kernel = system.get("kernel_version") or ""
+    if kernel:
+        parts.append(f"Linux: {kernel}")
+    return "\n".join(parts) or "System details unavailable"
+
+
+def _build_system_summary_html(
+    rows: list[RowWithCells],
+    default_timestamp: datetime,
+) -> str:
+    if not rows:
+        return ""
+
+    latest_row = max(rows, key=lambda row: row["generated_dt"])
+    latest_system = latest_row["system"]
+    gpus = latest_system.get("gpus") or []
+    gpu_label: str
+    if isinstance(gpus, (list, tuple)):
+        gpu_label = " / ".join(str(gpu) for gpu in gpus if str(gpu).strip()) or "Unknown GPU"
+    else:
+        gpu_label = str(gpus) if gpus else "Unknown GPU"
+    cpu_label = str(latest_system.get("cpu_model") or latest_system.get("processor") or "Unknown CPU")
+    os_label = str(latest_system.get("os_name") or latest_system.get("platform") or "Unknown OS")
+    os_version = str(latest_system.get("os_version") or "")
+    if os_version:
+        os_label = f"{os_label} {os_version}".strip()
+    kernel_label = str(latest_system.get("kernel_version") or latest_system.get("platform") or "")
+    ram_label = _format_memory_label(latest_system.get("memory_total_bytes"))
+    subtitle_bits = [
+        f"Latest run: {latest_row.get('file', 'n/a')} · {latest_row.get('generated', 'unknown')}",
+    ]
+    hostnames = {str(r["system"].get("hostname", "") or "") for r in rows}
+    if len({hn for hn in hostnames if hn}) > 1:
+        subtitle_bits.append("Multiple systems detected; hover a system name for details.")
+    subtitle = " \u00b7 ".join(subtitle_bits)
+
+    return f"""
   <section class="system-summary">
     <div>
       <h2>System Info</h2>
@@ -209,13 +310,17 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
       </div>
       <div class="info-item">
         <div class="label">Linux</div>
-        <div class="value">{html.escape(kernel_label or 'Unknown')}</div>
+        <div class="value">{html.escape(kernel_label or "Unknown")}</div>
       </div>
     </div>
   </section>
 """
 
-    # Build header cells for benchmark columns
+
+def _build_header_cells(
+    bench_columns: list[str],
+    bench_metadata: dict[str, dict[str, set[str]]],
+) -> str:
     header_cells = ""
     for name in bench_columns:
         meta = bench_metadata.get(name, {"presets": set(), "versions": set()})
@@ -228,20 +333,17 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
         if summary:
             tooltip_parts.append(summary)
         tooltip = " &#10;".join(html.escape(part) for part in tooltip_parts)
-        header_cells += (
-            f'<th class="sortable" data-type="text" '
-            f'title="{tooltip}">'
-            f"{html.escape(name)}"
-            "</th>"
-        )
+        header_cells += f'<th class="sortable" data-type="text" title="{tooltip}">{html.escape(name)}</th>'
+    return header_cells
 
-    # Build body rows
-    body_rows = []
+
+def _build_body_rows(rows: list[RowWithCells]) -> list[str]:
+    body_rows: list[str] = []
     for row in rows:
         system = row["system"]
         system_label = _system_cell_label(system)
         system_details = html.escape(_system_details_text(system)).replace("\n", "&#10;")
-        preset_label = ", ".join(row.get("presets", [])) or "n/a"
+        preset_label = ", ".join(row["presets"]) or "n/a"
         cell_html = "".join(
             f'<td title="{html.escape(cell.get("version") or "Version unknown")}">'
             f"{html.escape(cell.get('text', '—'))}"
@@ -257,10 +359,15 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
             f"{cell_html}"
             "</tr>"
         )
+    return body_rows
 
-    table_html = "\n".join(body_rows)
 
-    document = f"""<!doctype html>
+def _render_html_document(
+    system_summary_html: str,
+    header_cells: str,
+    table_html: str,
+) -> str:
+    return f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -406,5 +513,27 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
 </body>
 </html>
 """
+
+
+def build_html_summary(results_dir: Path, html_path: Path) -> None:
+    """Build HTML dashboard summarizing all benchmark runs in results_dir."""
+    json_files = sorted(results_dir.glob("*.json"))
+    default_timestamp = datetime.min.replace(tzinfo=UTC)
+
+    reports, bench_metadata = _load_reports_and_metadata(json_files, default_timestamp)
+    bench_columns = sorted(bench_metadata.keys())
+    if not reports or not bench_columns:
+        return
+
+    rows = _build_rows(reports, bench_columns)
+
+    html_path.parent.mkdir(parents=True, exist_ok=True)
+
+    system_summary_html = _build_system_summary_html(rows, default_timestamp)
+    header_cells = _build_header_cells(bench_columns, bench_metadata)
+    body_rows = _build_body_rows(rows)
+    table_html = "\n".join(body_rows)
+    document = _render_html_document(system_summary_html, header_cells, table_html)
+
     html_path.write_text(document)
     print(f"Updated {html_path} ({len(rows)} runs tracked)")

@@ -21,3 +21,4 @@ extend-exclude = [
 [default.extend-words]
 # Project-specific words that are not typos
 # Add any domain-specific terms here if needed
+wrk = "wrk"

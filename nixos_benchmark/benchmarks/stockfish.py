@@ -23,6 +23,7 @@ class StockfishBenchmark(BenchmarkBase):
         try:
             completed = subprocess.run(
                 ["stockfish"],
+                check=False,
                 input="uci\nquit\n",
                 text=True,
                 stdout=subprocess.PIPE,
@@ -99,5 +100,5 @@ class StockfishBenchmark(BenchmarkBase):
 
         nps = result.metrics.get("nodes_per_sec")
         if nps is not None:
-            return f"{nps/1_000_000:.2f} Mnps"
+            return f"{nps / 1_000_000:.2f} Mnps"
         return ""

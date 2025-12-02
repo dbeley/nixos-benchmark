@@ -8,6 +8,7 @@ from typing import Any
 
 from .benchmarks.types import BenchmarkType
 
+
 @dataclass
 class BenchmarkMetrics:
     """Type-safe container for benchmark-specific metrics."""

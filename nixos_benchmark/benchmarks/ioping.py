@@ -28,10 +28,11 @@ class IOPingBenchmark(BenchmarkBase):
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
         try:
-            match = re.search(
-                r"min/avg/max/mdev = ([\d.]+)\s*(\w+)\s*/\s*([\d.]+)\s*(\w+)\s*/\s*([\d.]+)\s*(\w+)\s*/\s*([\d.]+)\s*(\w+)",
-                stdout,
+            pattern = (
+                r"min/avg/max/mdev = ([\d.]+)\s*(\w+)\s*/\s*([\d.]+)\s*(\w+)\s*/"
+                r"\s*([\d.]+)\s*(\w+)\s*/\s*([\d.]+)\s*(\w+)"
             )
+            match = re.search(pattern, stdout)
             if not match:
                 raise ValueError("Unable to parse ioping summary")
 
