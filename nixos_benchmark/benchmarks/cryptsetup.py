@@ -23,7 +23,7 @@ class CryptsetupBenchmark(BenchmarkBase):
         try:
             metrics_data: dict[str, float | str | int] = {}
             pattern = re.compile(
-                r"^(?P<cipher>[a-z0-9-]+)\s+(?P<keybits>\d+)b\s+(?P<enc>[\d.]+)\s+MiB/s\s+(?P<dec>[\d.]+)\s+MiB/s",
+                r"^\s*(?P<cipher>[a-z0-9-]+)\s+(?P<keybits>\d+)b\s+(?P<enc>[\d.]+)\s+MiB/s\s+(?P<dec>[\d.]+)\s+MiB/s",
                 flags=re.IGNORECASE,
             )
             for line in stdout.splitlines():

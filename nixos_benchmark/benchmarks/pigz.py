@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -24,13 +25,14 @@ class PigzBenchmark(BenchmarkBase):
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         level = DEFAULT_PIGZ_LEVEL
         size_mb = DEFAULT_COMPRESS_SIZE_MB
+        processes = max(os.cpu_count() or 1, 1)
         data_path = write_temp_data_file(size_mb)
         compressed_path = Path(f"{data_path}.gz")
         decompressed_path = compressed_path.with_suffix("")
 
         try:
             start = time.perf_counter()
-            command = ["pigz", "-f", "-k", "-p", "0", f"-{level}", str(data_path)]
+            command = ["pigz", "-f", "-k", "-p", str(processes), f"-{level}", str(data_path)]
             stdout, _, returncode = run_command(command)
             if returncode != 0:
                 raise subprocess.CalledProcessError(returncode, command, stdout)
@@ -53,6 +55,7 @@ class PigzBenchmark(BenchmarkBase):
             "decompress_mb_per_s": size_mb / decompress_duration if decompress_duration else 0.0,
             "level": level,
             "size_mb": size_mb,
+            "processes": processes,
         }
 
         return BenchmarkResult(

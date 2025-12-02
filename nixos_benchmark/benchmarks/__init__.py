@@ -10,7 +10,6 @@ from .fio import FIOBenchmark
 from .glmark2 import GLMark2Benchmark
 from .hashcat import HashcatBenchmark
 from .ioping import IOPingBenchmark
-from .iperf3 import IPerf3Benchmark
 from .john import JohnBenchmark
 from .lz4 import LZ4Benchmark
 from .netperf import NetperfBenchmark
@@ -58,7 +57,6 @@ ALL_BENCHMARKS = [
     FFmpegBenchmark(),
     X264Benchmark(),
     X265Benchmark(),
-    IPerf3Benchmark(),
     NetperfBenchmark(),
     WrkHTTPBenchmark(),
 ]
@@ -154,9 +152,8 @@ PRESETS: dict[str, dict[str, object]] = {
         ),
     },
     "network": {
-        "description": "Loopback network throughput tests.",
+        "description": "Loopback network throughput (netperf TCP_STREAM).",
         "benchmarks": (
-            BENCHMARK_MAP["iperf3-loopback"],
             BENCHMARK_MAP["netperf"],
             BENCHMARK_MAP["wrk-http"],
         ),

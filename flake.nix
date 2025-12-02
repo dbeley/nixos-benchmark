@@ -30,7 +30,6 @@
           x265
           john
           hashcat
-          iperf3
           netperf
           wrk
           stressapptest

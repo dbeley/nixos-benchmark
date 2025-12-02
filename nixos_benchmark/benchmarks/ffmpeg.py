@@ -50,15 +50,29 @@ class FFmpegBenchmark(BenchmarkBase):
 
         try:
             metrics_data: dict[str, float | str | int] = {}
+            reported_fps: float | None = None
+            speed_factor: float | None = None
             fps_matches = re.findall(r"fps=\s*([\d.]+)", stdout)
             speed_matches = re.findall(r"speed=\s*([\d.]+)x", stdout)
             if fps_matches:
-                metrics_data["reported_fps"] = float(fps_matches[-1])
+                reported_fps = float(fps_matches[-1])
+                metrics_data["reported_fps"] = reported_fps
             if speed_matches:
-                metrics_data["speed_factor"] = float(speed_matches[-1])
+                speed_factor = float(speed_matches[-1])
+                metrics_data["speed_factor"] = speed_factor
 
+            total_frames = duration_secs * 30
+            effective_fps: float | None = None
+            if reported_fps is not None and reported_fps > 0:
+                effective_fps = reported_fps
+            elif duration > 0:
+                effective_fps = total_frames / duration
+            elif speed_factor is not None:
+                effective_fps = 30.0 * speed_factor
+
+            if effective_fps is not None:
+                metrics_data["effective_fps"] = effective_fps
             if metrics_data:
-                total_frames = duration_secs * 30
                 metrics_data["frames"] = total_frames
                 metrics_data["codec"] = codec
 
@@ -98,6 +112,8 @@ class FFmpegBenchmark(BenchmarkBase):
             return f"{prefix}: {result.message}"
 
         fps = result.metrics.get("reported_fps")
+        if (fps is None or fps <= 0) and "effective_fps" in result.metrics.data:
+            fps = result.metrics.get("effective_fps")
         if fps is not None:
             return f"{fps:.1f} fps"
         return ""

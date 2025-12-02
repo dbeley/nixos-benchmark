@@ -27,15 +27,28 @@ class IOPingBenchmark(BenchmarkBase):
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
         try:
-            match = re.search(r"min/avg/max/mdev = ([\d.]+)/([\d.]+)/([\d.]+)/([\d.]+) ms", stdout)
+            match = re.search(
+                r"min/avg/max/mdev = ([\d.]+)\s*(\w+)\s*/\s*([\d.]+)\s*(\w+)\s*/\s*([\d.]+)\s*(\w+)\s*/\s*([\d.]+)\s*(\w+)",
+                stdout,
+            )
             if not match:
                 raise ValueError("Unable to parse ioping summary")
 
+            def to_ms(value: str, unit: str) -> float:
+                unit_lower = unit.lower()
+                if unit_lower.startswith("us"):
+                    return float(value) / 1000.0
+                if unit_lower.startswith("ms"):
+                    return float(value)
+                if unit_lower.startswith("s"):
+                    return float(value) * 1000.0
+                raise ValueError(f"Unknown latency unit: {unit}")
+
             metrics_data = {
-                "latency_min_ms": float(match.group(1)),
-                "latency_avg_ms": float(match.group(2)),
-                "latency_max_ms": float(match.group(3)),
-                "latency_mdev_ms": float(match.group(4)),
+                "latency_min_ms": to_ms(match.group(1), match.group(2)),
+                "latency_avg_ms": to_ms(match.group(3), match.group(4)),
+                "latency_max_ms": to_ms(match.group(5), match.group(6)),
+                "latency_mdev_ms": to_ms(match.group(7), match.group(8)),
                 "requests": count,
             }
             status = "ok"
