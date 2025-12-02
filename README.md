@@ -67,6 +67,13 @@ Additional tools can be enabled via the `all` preset or explicit selection:
 
 - FFmpeg synthetic transcode and standalone x264 encode tests (fixed preset/resolution; not part of the standard presets)
 - SQLite mixed workload via the Python `sqlite3` module
+- John the Ripper CPU hash benchmark (in `balanced`/`cpu`)
+- Stockfish chess engine bench (in the `cpu` preset)
+- stressapptest memory bandwidth (in the `memory` preset)
+- hashcat GPU hash throughput (in the `gpu` preset; skipped if no device is present)
+- x265 encoder benchmark (in the `cpu` preset)
+- lz4 compression/decompression throughput (in `cpu`/`compression`)
+- wrk HTTP load generator against a local Python server (in the `network` preset)
 - GPU tests (glmark2 + vkmark; both run in the GPU presets)
 
 Use `--list-benchmarks` to see the full catalog along with category and preset metadata.

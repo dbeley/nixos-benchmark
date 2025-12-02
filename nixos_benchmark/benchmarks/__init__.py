@@ -8,19 +8,26 @@ from .cryptsetup import CryptsetupBenchmark
 from .ffmpeg import FFmpegBenchmark
 from .fio import FIOBenchmark
 from .glmark2 import GLMark2Benchmark
+from .hashcat import HashcatBenchmark
 from .ioping import IOPingBenchmark
+from .john import JohnBenchmark
+from .lz4 import LZ4Benchmark
 from .netperf import NetperfBenchmark
 from .openssl import OpenSSLBenchmark
 from .pigz import PigzBenchmark
 from .sevenzip import SevenZipBenchmark
 from .sqlite_mixed import SQLiteMixedBenchmark
 from .sqlite_speedtest import SQLiteSpeedtestBenchmark
+from .stockfish import StockfishBenchmark
 from .stress_ng import StressNGBenchmark
+from .stressapptest import StressAppTestBenchmark
 from .sysbench_cpu import SysbenchCPUBenchmark
 from .sysbench_memory import SysbenchMemoryBenchmark
 from .tinymembench import TinyMemBenchBenchmark
 from .vkmark import VKMarkBenchmark
+from .wrk import WrkHTTPBenchmark
 from .x264 import X264Benchmark
+from .x265 import X265Benchmark
 from .zstd import ZstdBenchmark
 
 
@@ -28,15 +35,20 @@ from .zstd import ZstdBenchmark
 ALL_BENCHMARKS = [
     OpenSSLBenchmark(),
     SevenZipBenchmark(),
+    JohnBenchmark(),
+    StockfishBenchmark(),
     StressNGBenchmark(),
     SysbenchCPUBenchmark(),
     SysbenchMemoryBenchmark(),
+    StressAppTestBenchmark(),
     TinyMemBenchBenchmark(),
     FIOBenchmark(),
     IOPingBenchmark(),
     GLMark2Benchmark(),
     VKMarkBenchmark(),
     CLPeakBenchmark(),
+    HashcatBenchmark(),
+    LZ4Benchmark(),
     ZstdBenchmark(),
     PigzBenchmark(),
     CryptsetupBenchmark(),
@@ -44,7 +56,9 @@ ALL_BENCHMARKS = [
     SQLiteSpeedtestBenchmark(),
     FFmpegBenchmark(),
     X264Benchmark(),
+    X265Benchmark(),
     NetperfBenchmark(),
+    WrkHTTPBenchmark(),
 ]
 
 # Create a map from benchmark name to benchmark instance for easy lookup
@@ -57,6 +71,7 @@ PRESETS: dict[str, dict[str, object]] = {
         "benchmarks": (
             BENCHMARK_MAP["openssl-speed"],
             BENCHMARK_MAP["7zip-benchmark"],
+            BENCHMARK_MAP["john-benchmark"],
             BENCHMARK_MAP["stress-ng"],
             BENCHMARK_MAP["sysbench-cpu"],
             BENCHMARK_MAP["sysbench-memory"],
@@ -69,10 +84,14 @@ PRESETS: dict[str, dict[str, object]] = {
         "benchmarks": (
             BENCHMARK_MAP["openssl-speed"],
             BENCHMARK_MAP["7zip-benchmark"],
+            BENCHMARK_MAP["john-benchmark"],
+            BENCHMARK_MAP["stockfish-bench"],
             BENCHMARK_MAP["stress-ng"],
             BENCHMARK_MAP["sysbench-cpu"],
             BENCHMARK_MAP["zstd-compress"],
             BENCHMARK_MAP["pigz-compress"],
+            BENCHMARK_MAP["x265-encode"],
+            BENCHMARK_MAP["lz4-benchmark"],
         ),
     },
     "io": {
@@ -90,6 +109,7 @@ PRESETS: dict[str, dict[str, object]] = {
         "benchmarks": (
             BENCHMARK_MAP["sysbench-memory"],
             BENCHMARK_MAP["tinymembench"],
+            BENCHMARK_MAP["stressapptest-memory"],
         ),
     },
     "compression": {
@@ -98,6 +118,7 @@ PRESETS: dict[str, dict[str, object]] = {
             BENCHMARK_MAP["7zip-benchmark"],
             BENCHMARK_MAP["zstd-compress"],
             BENCHMARK_MAP["pigz-compress"],
+            BENCHMARK_MAP["lz4-benchmark"],
         ),
     },
     "crypto": {
@@ -127,12 +148,14 @@ PRESETS: dict[str, dict[str, object]] = {
             BENCHMARK_MAP["glmark2"],
             BENCHMARK_MAP["vkmark"],
             BENCHMARK_MAP["clpeak"],
+            BENCHMARK_MAP["hashcat-gpu"],
         ),
     },
     "network": {
         "description": "Loopback network throughput (netperf TCP_STREAM).",
         "benchmarks": (
             BENCHMARK_MAP["netperf"],
+            BENCHMARK_MAP["wrk-http"],
         ),
     },
     "all": {

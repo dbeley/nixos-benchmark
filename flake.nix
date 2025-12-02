@@ -16,16 +16,23 @@
           p7zip
           tinymembench
           clpeak
+          lz4
           zstd
           pigz
           cryptsetup
           stress-ng
+          stockfish
           fio
           ioping
           glmark2
           vkmark
           openssl
+          x265
+          john
+          hashcat
           netperf
+          wrk
+          stressapptest
           ffmpeg
           x264
           sqlite
