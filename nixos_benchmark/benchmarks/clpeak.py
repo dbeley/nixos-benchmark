@@ -22,30 +22,8 @@ class CLPeakBenchmark(BenchmarkBase):
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
         try:
-            if "no platforms found" in stdout.lower() or "clgetplatformids" in stdout.lower():
-                raise ValueError("No OpenCL platforms found")
-
-            metrics_data: dict[str, float | str | int] = {}
-            bandwidth_pattern = re.compile(r"Global memory bandwidth.*?:\s*([\d.]+)\s*GB/s", flags=re.IGNORECASE)
-            compute_patterns = [
-                (r"Single-precision.*?:\s*([\d.]+)\s*GFLOPS", "compute_sp_gflops"),
-                (r"Double-precision.*?:\s*([\d.]+)\s*GFLOPS", "compute_dp_gflops"),
-                (r"Integer.*?:\s*([\d.]+)\s*GIOPS", "compute_int_giops"),
-            ]
-            for line in stdout.splitlines():
-                bw_match = bandwidth_pattern.search(line)
-                if bw_match:
-                    metrics_data["global_memory_bandwidth_gb_per_s"] = float(bw_match.group(1))
-                for pattern, key in compute_patterns:
-                    match = re.search(pattern, line, flags=re.IGNORECASE)
-                    if match:
-                        metrics_data[key] = float(match.group(1))
-
-            if not metrics_data:
-                raise ValueError("Unable to parse clpeak metrics")
-
+            metrics = self.parse_metrics(stdout)
             status = "ok"
-            metrics = BenchmarkMetrics(metrics_data)
             message = ""
         except ValueError as e:
             status = "error"
@@ -63,6 +41,63 @@ class CLPeakBenchmark(BenchmarkBase):
             raw_output=stdout,
             message=message,
         )
+
+    def parse_metrics(self, stdout: str) -> BenchmarkMetrics:
+        """Extract structured metrics from clpeak output."""
+        if "no platforms found" in stdout.lower() or "clgetplatformids" in stdout.lower():
+            raise ValueError("No OpenCL platforms found")
+
+        metrics_data: dict[str, float | str | int] = {}
+        section_values: dict[str, list[float]] = {
+            "bandwidth": [],
+            "compute_sp": [],
+            "compute_dp": [],
+            "compute_int": [],
+        }
+
+        current_section: str | None = None
+        for line in stdout.splitlines():
+            section = self._detect_section(line)
+            if section == "reset":
+                current_section = None
+                continue
+            if section:
+                current_section = section
+            if current_section:
+                section_values[current_section].extend(self._extract_numbers(line))
+
+        if section_values["bandwidth"]:
+            metrics_data["global_memory_bandwidth_gb_per_s"] = max(section_values["bandwidth"])
+        if section_values["compute_sp"]:
+            metrics_data["compute_sp_gflops"] = max(section_values["compute_sp"])
+        if section_values["compute_dp"]:
+            metrics_data["compute_dp_gflops"] = max(section_values["compute_dp"])
+        if section_values["compute_int"]:
+            metrics_data["compute_int_giops"] = max(section_values["compute_int"])
+
+        if not metrics_data:
+            raise ValueError("Unable to parse clpeak metrics")
+
+        return BenchmarkMetrics(metrics_data)
+
+    @staticmethod
+    def _extract_numbers(text: str) -> list[float]:
+        return [float(match) for match in re.findall(r"[-+]?\d+(?:\.\d+)?", text)]
+
+    @staticmethod
+    def _detect_section(line: str) -> str | None:
+        lower_line = line.lower()
+        if not lower_line.strip():
+            return "reset"
+        if "global memory bandwidth" in lower_line:
+            return "bandwidth"
+        if "single-precision compute" in lower_line:
+            return "compute_sp"
+        if "double-precision compute" in lower_line:
+            return "compute_dp"
+        if "integer compute" in lower_line:
+            return "compute_int"
+        return None
 
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
