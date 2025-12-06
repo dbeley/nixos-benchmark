@@ -254,65 +254,39 @@ def _system_details_text(system: dict[str, object]) -> str:
     return "\n".join(parts) or "System details unavailable"
 
 
-def _build_system_summary_html(
-    rows: list[RowWithCells],
-) -> str:
-    if not rows:
-        return ""
-
-    latest_row = max(rows, key=lambda row: row["generated_dt"])
-    latest_system = latest_row["system"]
-    gpus = latest_system.get("gpus") or []
-    gpu_label: str
+def _format_gpu_label(system: dict[str, object]) -> str:
+    gpus = system.get("gpus") or []
     if isinstance(gpus, (list, tuple)):
-        gpu_label = " / ".join(str(gpu) for gpu in gpus if str(gpu).strip()) or "Unknown GPU"
-    else:
-        gpu_label = str(gpus) if gpus else "Unknown GPU"
-    cpu_label = str(latest_system.get("cpu_model") or latest_system.get("processor") or "Unknown CPU")
-    os_label = str(latest_system.get("os_name") or latest_system.get("platform") or "Unknown OS")
-    os_version = str(latest_system.get("os_version") or "")
-    if os_version:
-        os_label = f"{os_label} {os_version}".strip()
-    kernel_label = str(latest_system.get("kernel_version") or latest_system.get("platform") or "")
-    ram_label = _format_memory_label(latest_system.get("memory_total_bytes"))
-    subtitle_bits = [
-        f"Latest run: {latest_row.get('file', 'n/a')} · {latest_row.get('generated', 'unknown')}",
-    ]
-    hostnames = {str(r["system"].get("hostname", "") or "") for r in rows}
-    if len({hn for hn in hostnames if hn}) > 1:
-        subtitle_bits.append("Multiple systems detected; hover a system name for details.")
-    subtitle = " \u00b7 ".join(subtitle_bits)
+        labels = [str(gpu) for gpu in gpus if str(gpu).strip()]
+        return " / ".join(labels)
+    return str(gpus) if gpus else ""
 
-    return f"""
-  <section class="system-summary">
-    <div>
-      <h2>System Info</h2>
-      <p class="summary-subtitle">{html.escape(subtitle)}</p>
-    </div>
-    <div class="info-grid">
-      <div class="info-item">
-        <div class="label">CPU</div>
-        <div class="value">{html.escape(cpu_label)}</div>
-      </div>
-      <div class="info-item">
-        <div class="label">GPU</div>
-        <div class="value">{html.escape(gpu_label)}</div>
-      </div>
-      <div class="info-item">
-        <div class="label">RAM</div>
-        <div class="value">{html.escape(ram_label)}</div>
-      </div>
-      <div class="info-item">
-        <div class="label">OS</div>
-        <div class="value">{html.escape(os_label)}</div>
-      </div>
-      <div class="info-item">
-        <div class="label">Linux</div>
-        <div class="value">{html.escape(kernel_label or "Unknown")}</div>
-      </div>
-    </div>
-  </section>
-"""
+
+def _system_meta_line(system: dict[str, object]) -> str:
+    parts = []
+    cpu_label = system.get("cpu_model") or system.get("processor")
+    if cpu_label:
+        parts.append(str(cpu_label))
+
+    gpu_label = _format_gpu_label(system)
+    if gpu_label:
+        parts.append(gpu_label)
+
+    ram_label = _format_memory_label(system.get("memory_total_bytes"))
+    if ram_label and not ram_label.lower().startswith("unknown"):
+        parts.append(ram_label)
+
+    os_name = system.get("os_name") or system.get("platform")
+    os_version = system.get("os_version") or ""
+    if os_name:
+        parts.append(f"{os_name} {os_version}".strip())
+
+    kernel = system.get("kernel_version") or ""
+    if kernel:
+        label = str(kernel)
+        parts.append(label if label.lower().startswith("linux") else f"Linux {label}")
+
+    return " · ".join(str(part) for part in parts if str(part).strip())
 
 
 def _build_header_cells(
@@ -340,20 +314,33 @@ def _build_body_rows(rows: list[RowWithCells]) -> list[str]:
     for row in rows:
         system = row["system"]
         system_label = _system_cell_label(system)
+        system_meta = _system_meta_line(system)
         system_details = html.escape(_system_details_text(system)).replace("\n", "&#10;")
+        system_html = f'<div class="system-label">{html.escape(system_label)}</div>'
+        if system_meta:
+            system_html += f'<div class="system-meta">{html.escape(system_meta)}</div>'
+
         preset_label = ", ".join(row["presets"]) or "n/a"
-        cell_html = "".join(
-            f'<td title="{html.escape(cell.get("version") or "Version unknown")}">'
-            f"{html.escape(cell.get('text', '—'))}"
-            "</td>"
-            for cell in row["cells"]
-        )
+        preset_html = f'<div class="preset-label">{html.escape(preset_label)}</div>'
+
+        cell_parts: list[str] = []
+        for cell in row["cells"]:
+            version_value = _as_str(cell.get("version", ""))
+            version_display = version_value or "unknown"
+            description = _as_str(cell.get("text", "—")) or "—"
+            cell_parts.append(
+                f'<td title="Version: {html.escape(version_display)}">'
+                f'<div class="cell-main">{html.escape(description)}</div>'
+                f'<div class="cell-version">{html.escape(f"v{version_display}" if version_value else "version unknown")}</div>'
+                "</td>"
+            )
+        cell_html = "".join(cell_parts)
         body_rows.append(
             "<tr>"
-            f'<td><a href="{html.escape(row["file"])}">{html.escape(row["file"])}</a></td>'
-            f"<td>{html.escape(row['generated'])}</td>"
-            f'<td title="{system_details}">{html.escape(system_label)}</td>'
-            f"<td>{html.escape(preset_label)}</td>"
+            f'<td class="run-file"><a href="{html.escape(row["file"])}">{html.escape(row["file"])}</a></td>'
+            f'<td class="run-generated">{html.escape(row["generated"])}</td>'
+            f'<td class="run-system" title="{system_details}">{system_html}</td>'
+            f'<td class="run-presets">{preset_html}</td>'
             f"{cell_html}"
             "</tr>"
         )
@@ -361,7 +348,6 @@ def _build_body_rows(rows: list[RowWithCells]) -> list[str]:
 
 
 def _render_html_document(
-    system_summary_html: str,
     header_cells: str,
     table_html: str,
 ) -> str:
@@ -371,39 +357,22 @@ def _render_html_document(
   <meta charset="utf-8">
   <title>NixOS Benchmark Runs</title>
   <style>
-    body {{ font-family: system-ui, sans-serif; margin: 2rem; }}
-    .system-summary {{
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 1rem 1.25rem;
-      margin: 0 0 1.5rem;
-      background: linear-gradient(145deg, #fdfdfd, #f5f5f5);
-    }}
-    .summary-subtitle {{
-      margin: 0.2rem 0 0;
-      color: #555;
-      font-size: 0.95rem;
-    }}
-    .info-grid {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 0.5rem 1rem;
-      margin-top: 0.8rem;
-    }}
-    .info-item .label {{
-      font-size: 0.8rem;
-      color: #555;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-    }}
-    .info-item .value {{
-      font-weight: 600;
-      margin-top: 0.15rem;
-    }}
-    table {{ border-collapse: collapse; width: 100%; }}
-    th, td {{ border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }}
-    th {{ background: #f3f3f3; }}
-    tr:nth-child(even) {{ background: #fafafa; }}
+    body {{ font-family: system-ui, sans-serif; margin: 2rem; color: #1f2429; background: #fdfdfd; }}
+    h1 {{ margin: 0 0 1rem; }}
+    table {{ border-collapse: collapse; width: 100%; background: #fff; border: 1px solid #d9d9d9; }}
+    th, td {{ border: 1px solid #e3e3e3; padding: 0.45rem 0.6rem; text-align: left; vertical-align: top; }}
+    th {{ background: #f4f6f8; font-weight: 700; }}
+    tr:nth-child(even) {{ background: #fbfbfc; }}
+
+    .run-file a {{ color: #0b73e0; text-decoration: none; }}
+    .run-file a:hover {{ text-decoration: underline; }}
+    .run-generated {{ white-space: nowrap; color: #3c4650; }}
+    .run-system {{ min-width: 16rem; }}
+    .system-label {{ font-weight: 700; }}
+    .system-meta {{ color: #5a646f; font-size: 0.9rem; margin-top: 0.1rem; line-height: 1.25; }}
+    .run-presets .preset-label {{ color: #1f2429; font-size: 0.95rem; }}
+    .cell-main {{ font-weight: 600; }}
+    .cell-version {{ color: #5a646f; font-size: 0.8rem; margin-top: 0.2rem; }}
 
     /* Sortable headers */
     th.sortable {{
@@ -431,7 +400,6 @@ def _render_html_document(
 </head>
 <body>
   <h1>Benchmark Runs</h1>
-  {system_summary_html}
   <table id="benchmark-table">
     <thead>
       <tr>
@@ -527,11 +495,10 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
 
     html_path.parent.mkdir(parents=True, exist_ok=True)
 
-    system_summary_html = _build_system_summary_html(rows)
     header_cells = _build_header_cells(bench_columns, bench_metadata)
     body_rows = _build_body_rows(rows)
     table_html = "\n".join(body_rows)
-    document = _render_html_document(system_summary_html, header_cells, table_html)
+    document = _render_html_document(header_cells, table_html)
 
     html_path.write_text(document)
     print(f"Updated {html_path} ({len(rows)} runs tracked)")

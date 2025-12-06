@@ -99,7 +99,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--html-summary",
         default="results/index.html",
-        help="Optional HTML dashboard path (empty string to disable).",
+        help="HTML dashboard path (default: results/index.html).",
     )
     parser.add_argument(
         "--hostname",
