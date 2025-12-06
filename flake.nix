@@ -65,6 +65,7 @@
             # Pre-commit and linting tools
             prek
             ruff
+            python3Packages.flake8
             typos
             python3Packages.mypy
             # Additional formatting and checking tools

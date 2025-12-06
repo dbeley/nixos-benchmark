@@ -6,11 +6,14 @@ import argparse
 import shlex
 from abc import ABC
 from collections.abc import Callable, Sequence
-from typing import ClassVar, cast
+from typing import TYPE_CHECKING, ClassVar, cast
 
-from ..models import BenchmarkResult
 from ..utils import check_requirements, read_command_version
-from .types import BenchmarkType
+
+
+if TYPE_CHECKING:
+    from ..models import BenchmarkResult
+    from . import BenchmarkType
 
 
 class BenchmarkBase(ABC):

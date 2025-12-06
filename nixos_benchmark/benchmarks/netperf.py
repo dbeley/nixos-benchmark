@@ -8,8 +8,8 @@ from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import find_free_tcp_port, run_command, wait_for_port
+from . import BenchmarkType
 from .base import BenchmarkBase
-from .types import BenchmarkType
 
 
 # Default constants

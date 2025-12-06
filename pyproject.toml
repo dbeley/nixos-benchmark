@@ -74,6 +74,12 @@ known-first-party = ["nixos_benchmark"]
 force-single-line = false
 lines-after-imports = 2
 
+[tool.flake8]
+max-line-length = 120
+extend-ignore = [
+    "E203", # whitespace before ':', conflicts with PEP 8 slicing style
+]
+
 [tool.mypy]
 python_version = "3.13"
 warn_return_any = true

@@ -8,8 +8,8 @@ from pathlib import Path
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
+from . import BenchmarkType
 from .base import BenchmarkBase
-from .types import BenchmarkType
 
 
 DEFAULT_JOHN_RUNTIME = 5

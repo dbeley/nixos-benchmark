@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
+from . import BenchmarkType
 from .base import BenchmarkBase
 from .sqlite_mixed import DEFAULT_SQLITE_ROWS, DEFAULT_SQLITE_SELECTS
-from .types import BenchmarkType
 
 
 class SQLiteSpeedtestBenchmark(BenchmarkBase):

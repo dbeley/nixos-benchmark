@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from .benchmarks.types import BenchmarkType
+
+if TYPE_CHECKING:
+    from .benchmarks import BenchmarkType
 
 
 @dataclass
