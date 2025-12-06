@@ -1,24 +1,25 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- Root contains the main runner `nixos_benchmark.py`; no packages beyond the standard library are imported at runtime.
-- `shell.nix` defines the reproducible toolchain (Python, ffmpeg, fio, glmark2, stress-ng, etc.). Load it directly or via direnv.
-- `results/` is generated output (JSON reports and optional `index.html`) and is git-ignored; keep it that way when sharing changes.
+- `nixos_benchmark/` is the Python package; run it via `python -m nixos_benchmark` or `nix run`.
+- `flake.nix` defines the runnable package and dev shell (Python, ffmpeg, fio, glmark2, stress-ng, etc.); `shell.nix` simply imports it for `nix-shell`/direnv.
+- `results/` holds generated reports (JSON and optional HTML dashboard) and remains git-ignored.
 
 ## Build, Test, and Development Commands
-- Start a dev shell with all tools: `nix-shell` (or `direnv allow` if using direnv).
-- List presets/benchmarks: `python nixos_benchmark.py --list-presets` and `--list-benchmarks`.
-- Run the default suite: `python nixos_benchmark.py` (uses the `balanced` preset; writes `results/<timestamp>-<host>.json`).
-- Targeted runs: `python nixos_benchmark.py --preset cpu --preset io` or `python nixos_benchmark.py --benchmarks openssl-speed,fio-seq`.
-- Update the HTML dashboard while running: add `--html-summary results/index.html`. Disable HTML generation with `--html-summary ''`.
+- Enter the toolchain with `nix develop` (flakes) or `nix-shell`/`direnv allow`.
+- List presets/benchmarks: `python -m nixos_benchmark --list-presets` and `--list-benchmarks` (or `nix run . -- --list-presets`).
+- Run the default suite: `python -m nixos_benchmark` (uses the `balanced` preset; writes `results/<timestamp>-<host>.json`).
+- Targeted runs: `python -m nixos_benchmark --preset cpu --preset io` or `python -m nixos_benchmark --benchmarks openssl-speed,fio-seq`.
+- HTML dashboard defaults to `results/index.html`; disable with `--html-summary ''` or point it elsewhere with `--html-summary path`.
 
 ## Coding Style & Naming Conventions
-- Python code follows PEP 8 (4-space indents, snake_case functions/variables). Keep type hints and dataclasses consistent with existing patterns.
+- Python 3.13+, standard library only at runtime; keep helpers small and pure.
+- Follow PEP 8 with existing type hints/dataclasses; ruff enforces formatting (120-char lines, import ordering).
 - CLI flags use long-form kebab-case (e.g., `--list-presets`, `--output`). Maintain argparse help text clarity.
-- Prefer small, pure helpers; avoid hard-coding paths beyond `results/` and temp files.
+- Avoid hard-coding paths beyond `results/` and temp files.
 
 ## Testing Guidelines
-- There is no separate test suite; validate changes by running a minimal preset: `python nixos_benchmark.py --preset cpu --output results/smoke.json --html-summary ''`.
+- There is no separate test suite; validate changes with a minimal preset: `python -m nixos_benchmark --preset cpu --output results/smoke.json --html-summary ''`.
 - For parsing changes, run the specific benchmark the parser targets and inspect the JSON output for expected keys/metrics.
 - Keep `results/` outputs local; do not commit benchmark artifacts.
 
