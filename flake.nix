@@ -11,6 +11,7 @@
           inherit system;
           config.allowUnfree = true;
         };
+        src = pkgs.lib.cleanSource ./.;
 
         benchmarkTools = with pkgs; [
           p7zip
@@ -46,6 +47,7 @@
           name = "nixos-benchmark";
           runtimeInputs = benchmarkTools;
           text = ''
+            export PYTHONPATH="${src}:$PYTHONPATH"
             python -m nixos_benchmark "$@"
           '';
         };
