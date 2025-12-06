@@ -76,8 +76,8 @@ PRESETS: dict[str, dict[str, object]] = {
         "description": "Quick mix of CPU and IO tests.",
         "benchmarks": (
             # CPU
-            BenchmarkType.OPENSSL_SPEED,
             BenchmarkType.SEVENZIP,
+            BenchmarkType.OPENSSL_SPEED,
             BenchmarkType.ZSTD,
             BenchmarkType.STRESS_NG,
             BenchmarkType.SYSBENCH_CPU,
@@ -87,6 +87,7 @@ PRESETS: dict[str, dict[str, object]] = {
             BenchmarkType.FIO_SEQ,
             BenchmarkType.SQLITE_MIXED,
             # GPU
+            BenchmarkType.GLMARK2,
             BenchmarkType.FURMARK_VK,
         ),
     },
