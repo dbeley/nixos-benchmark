@@ -34,6 +34,7 @@ class ReportRow(TypedDict):
 class Cell(TypedDict):
     text: str
     version: str
+    has_result: bool
 
 
 class RowWithCells(TypedDict):
@@ -197,7 +198,7 @@ def _build_rows(
                         version=_as_str(bench_dict.get("version", "")),
                     )
                     description = describe_benchmark(bench_result)
-            cells.append({"text": description or "—", "version": version_value})
+            cells.append({"text": description or "—", "version": version_value, "has_result": bool(bench_dict)})
 
         rows.append(
             {
@@ -342,9 +343,10 @@ def _build_body_rows(rows: list[RowWithCells]) -> list[str]:
         cell_parts: list[str] = []
         for cell in row["cells"]:
             version_value = _as_str(cell.get("version", ""))
-            version_display = version_value or "unknown"
             description = _as_str(cell.get("text", "—")) or "—"
-            version_text = (version_display if version_value else "version unknown") if cell.get("text") else ""
+            has_result = bool(cell.get("has_result"))
+            version_display = (version_value or "unknown") if has_result else ""
+            version_text = (version_display if version_value else "version unknown") if has_result else ""
             cell_parts.append(
                 f'<td title="Version: {html.escape(version_display)}">'
                 f'<div class="cell-main">{html.escape(description)}</div>'
