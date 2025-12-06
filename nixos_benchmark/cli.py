@@ -8,6 +8,7 @@ import sys
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from time import perf_counter
 from typing import TypeVar
 
 from .benchmarks import (
@@ -274,7 +275,11 @@ def main() -> int:
     for benchmark_type in selected_benchmarks:
         print(f"Executing {benchmark_type.value}")
         benchmark = BENCHMARK_MAP[benchmark_type]
+        start_time = perf_counter()
         result = execute_benchmark(benchmark, args)
+        elapsed_seconds = result.duration_seconds or perf_counter() - start_time
+        status_note = "" if result.status == "ok" else f" ({result.status})"
+        print(f"Finished {benchmark_type.value} in {elapsed_seconds:.2f}s{status_note}")
         results_with_benchmarks.append((result, benchmark))
 
     if not results_with_benchmarks:
