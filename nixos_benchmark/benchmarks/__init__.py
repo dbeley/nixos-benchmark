@@ -7,6 +7,7 @@ from .clpeak import CLPeakBenchmark
 from .cryptsetup import CryptsetupBenchmark
 from .ffmpeg import FFmpegBenchmark
 from .fio import FIOBenchmark
+from .furmark import FurmarkBenchmark
 from .glmark2 import GLMark2Benchmark
 from .hashcat import HashcatBenchmark
 from .ioping import IOPingBenchmark
@@ -47,6 +48,10 @@ ALL_BENCHMARKS = [
     IOPingBenchmark(),
     GLMark2Benchmark(),
     VKMarkBenchmark(),
+    FurmarkBenchmark("furmark-gl", BenchmarkType.FURMARK_GL, "FurMark OpenGL"),
+    FurmarkBenchmark("furmark-vk", BenchmarkType.FURMARK_VK, "FurMark Vulkan"),
+    FurmarkBenchmark("furmark-knot-gl", BenchmarkType.FURMARK_KNOT_GL, "FurMark knot OpenGL"),
+    FurmarkBenchmark("furmark-knot-vk", BenchmarkType.FURMARK_KNOT_VK, "FurMark knot Vulkan"),
     CLPeakBenchmark(),
     HashcatBenchmark(),
     LZ4Benchmark(),
@@ -70,14 +75,19 @@ PRESETS: dict[str, dict[str, object]] = {
     "balanced": {
         "description": "Quick mix of CPU and IO tests.",
         "benchmarks": (
+            # CPU
             BenchmarkType.OPENSSL_SPEED,
             BenchmarkType.SEVENZIP,
-            BenchmarkType.JOHN,
+            BenchmarkType.ZSTD,
             BenchmarkType.STRESS_NG,
             BenchmarkType.SYSBENCH_CPU,
+            # MEMORY
             BenchmarkType.SYSBENCH_MEMORY,
+            # IO
             BenchmarkType.FIO_SEQ,
             BenchmarkType.SQLITE_MIXED,
+            # GPU
+            BenchmarkType.FURMARK_VK,
         ),
     },
     "cpu": {
@@ -91,8 +101,10 @@ PRESETS: dict[str, dict[str, object]] = {
             BenchmarkType.SYSBENCH_CPU,
             BenchmarkType.ZSTD,
             BenchmarkType.PIGZ,
+            BenchmarkType.X264,
             BenchmarkType.X265,
             BenchmarkType.LZ4,
+            BenchmarkType.FFMPEG_TRANSCODE,
         ),
     },
     "io": {
@@ -137,23 +149,27 @@ PRESETS: dict[str, dict[str, object]] = {
         ),
     },
     "gpu-light": {
-        "description": "Lightweight GPU render sanity checks.",
+        "description": "Quick GPU tests.",
         "benchmarks": (
             BenchmarkType.GLMARK2,
-            BenchmarkType.VKMARK,
+            BenchmarkType.FURMARK_VK,
         ),
     },
     "gpu": {
-        "description": "GPU render benchmarks (glmark2 and vkmark).",
+        "description": "GPU render benchmarks and compute tests.",
         "benchmarks": (
             BenchmarkType.GLMARK2,
             BenchmarkType.VKMARK,
+            BenchmarkType.FURMARK_GL,
+            BenchmarkType.FURMARK_VK,
+            BenchmarkType.FURMARK_KNOT_GL,
+            BenchmarkType.FURMARK_KNOT_VK,
             BenchmarkType.CLPEAK,
             BenchmarkType.HASHCAT_GPU,
         ),
     },
     "network": {
-        "description": "Loopback network throughput (netperf TCP_STREAM).",
+        "description": "Loopback network throughput.",
         "benchmarks": (
             BenchmarkType.NETPERF,
             BenchmarkType.WRK_HTTP,

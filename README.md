@@ -19,6 +19,7 @@ nix run github:dbeley/nixos-benchmark -- --benchmarks openssl-speed,fio-seq
 ## Requirements
 - Nix with flakes enabled
 - Optional: direnv for automatic shell loading
+- Unfree GPU tools: set `NIXPKGS_ALLOW_UNFREE=1` when running (needed for FurMark)
 
 
 ## Benchmarks
@@ -29,7 +30,7 @@ Available presets: `balanced` (default), `cpu`, `io`, `memory`, `compression`, `
 - Memory: sysbench memory, stressapptest, tinymembench
 - IO / storage: fio seq, ioping, sqlite mixed, sqlite speedtest, cryptsetup
 - Compression: zstd, pigz, lz4, x264, x265, ffmpeg transcode
-- GPU: glmark2, vkmark, clpeak, hashcat
+- GPU: glmark2, vkmark, furmark-gl, furmark-vk, furmark-knot-gl, furmark-knot-vk, clpeak, hashcat
 - Network: netperf, wrk (local HTTP)
 
 Use `--list-benchmarks` to see the exact preset coverage for each entry.

@@ -27,6 +27,7 @@
           ioping
           glmark2
           vkmark
+          furmark
           openssl
           x265
           john
@@ -47,6 +48,7 @@
           name = "nixos-benchmark";
           runtimeInputs = benchmarkTools;
           text = ''
+            export NIXPKGS_ALLOW_UNFREE=1
             export PYTHONPATH="${src}:$PYTHONPATH"
             python -m nixos_benchmark "$@"
           '';
@@ -68,6 +70,9 @@
             # Additional formatting and checking tools
             nixpkgs-fmt
           ]);
+          shellHook = ''
+            export NIXPKGS_ALLOW_UNFREE=1
+          '';
         };
       });
 }

@@ -16,8 +16,8 @@ from .types import BenchmarkType
 class BenchmarkBase(ABC):
     """Base class for all benchmarks."""
 
-    benchmark_type: ClassVar[BenchmarkType]
-    description: ClassVar[str]
+    benchmark_type: BenchmarkType
+    description: str
     version_command: ClassVar[tuple[str, ...] | None] = None
 
     @property
@@ -90,6 +90,3 @@ class BenchmarkBase(ABC):
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""
         raise NotImplementedError(f"{self.__class__.__name__} must implement format_result()")
-
-
-# PRESETS will be defined in __init__.py after ALL_BENCHMARKS is available

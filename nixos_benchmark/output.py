@@ -344,7 +344,7 @@ def _build_body_rows(rows: list[RowWithCells]) -> list[str]:
             version_value = _as_str(cell.get("version", ""))
             version_display = version_value or "unknown"
             description = _as_str(cell.get("text", "—")) or "—"
-            version_text = version_display if version_value else "version unknown"
+            version_text = (version_display if version_value else "version unknown") if cell.get("text") else ""
             cell_parts.append(
                 f'<td title="Version: {html.escape(version_display)}">'
                 f'<div class="cell-main">{html.escape(description)}</div>'
