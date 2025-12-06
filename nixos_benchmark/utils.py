@@ -69,6 +69,9 @@ def read_command_version(command: Sequence[str]) -> str:
     except FileNotFoundError:
         return ""
 
+    if completed.returncode != 0:
+        return ""
+
     output = completed.stdout.strip()
     if not output:
         return ""

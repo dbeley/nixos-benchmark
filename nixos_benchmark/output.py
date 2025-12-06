@@ -344,21 +344,26 @@ def _build_body_rows(rows: list[RowWithCells]) -> list[str]:
             version_value = _as_str(cell.get("version", ""))
             version_display = version_value or "unknown"
             description = _as_str(cell.get("text", "—")) or "—"
+            version_text = version_display if version_value else "version unknown"
             cell_parts.append(
                 f'<td title="Version: {html.escape(version_display)}">'
                 f'<div class="cell-main">{html.escape(description)}</div>'
-                f'<div class="cell-version">{html.escape(f"v{version_display}" if version_value else "version unknown")}</div>'
+                f'<div class="cell-version">{html.escape(version_text)}</div>'
                 "</td>"
             )
         cell_html = "".join(cell_parts)
+        generated_cell = (
+            f'<td class="run-generated" data-sort="{html.escape(generated_sort_value)}" '
+            f'title="{html.escape(generated_title)}">'
+            f"{html.escape(generated_display)}</td>"
+        )
         body_rows.append(
             "<tr>"
-            f'<td class="run-file"><a href="{html.escape(row["file"])}">{html.escape(row["file"])}</a></td>'
-            f'<td class="run-generated" data-sort="{html.escape(generated_sort_value)}" title="{html.escape(generated_title)}">'
-            f"{html.escape(generated_display)}</td>"
             f'<td class="run-system" title="{system_details}">{system_html}</td>'
             f'<td class="run-presets">{preset_html}</td>'
+            f"{generated_cell}"
             f"{cell_html}"
+            f'<td class="run-file"><a href="{html.escape(row["file"])}">{html.escape(row["file"])}</a></td>'
             "</tr>"
         )
     return body_rows
@@ -420,11 +425,11 @@ def _render_html_document(
   <table id="benchmark-table">
     <thead>
       <tr>
-        <th class="sortable" data-type="text">Result</th>
-        <th class="sortable" data-type="date">Generated</th>
         <th class="sortable" data-type="text">System</th>
         <th class="sortable" data-type="text">Presets</th>
+        <th class="sortable run-generated-header" data-type="date">Run Date</th>
         {header_cells}
+        <th class="sortable" data-type="text">Report</th>
       </tr>
     </thead>
     <tbody>
@@ -434,7 +439,7 @@ def _render_html_document(
   <script>
     document.addEventListener('DOMContentLoaded', function () {{
       const table = document.getElementById('benchmark-table');
-      const headers = table.querySelectorAll('thead th');
+      const headers = Array.from(table.querySelectorAll('thead th'));
       const tbody = table.querySelector('tbody');
 
       function getCellValue(row, index) {{
@@ -489,10 +494,13 @@ def _render_html_document(
         }});
       }});
 
-      // Default sort: by Generated (2nd col = index 1), newest first
-      const generatedHeader = headers[1];
-      generatedHeader.setAttribute('data-order', 'desc');
-      sortByColumn(1, generatedHeader.getAttribute('data-type') || 'date', 'desc');
+      // Default sort: by Run Date column, newest first
+      const generatedHeader = headers.find(h => h.classList.contains('run-generated-header'));
+      if (generatedHeader) {{
+        const generatedIndex = headers.indexOf(generatedHeader);
+        generatedHeader.setAttribute('data-order', 'desc');
+        sortByColumn(generatedIndex, generatedHeader.getAttribute('data-type') || 'date', 'desc');
+      }}
     }});
   </script>
 </body>

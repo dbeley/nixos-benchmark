@@ -19,6 +19,7 @@ class JohnBenchmark(BenchmarkBase):
     benchmark_type = BenchmarkType.JOHN
     description = "John the Ripper CPU hash benchmark (sha512crypt)"
     _required_commands = ("john",)
+    version_command = ("john", "--list=build-info")
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         runtime = DEFAULT_JOHN_RUNTIME
