@@ -103,6 +103,11 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="HTML dashboard path (default: results/index.html).",
     )
     parser.add_argument(
+        "--html-only",
+        action="store_true",
+        help="Refresh the HTML dashboard from existing results and exit without running benchmarks.",
+    )
+    parser.add_argument(
         "--hostname",
         default="",
         help="Override the hostname stored in the report (also used for auto filenames).",
@@ -158,6 +163,67 @@ def list_benchmarks() -> int:
         presets = ", ".join(get_presets_for_benchmark(benchmark))
         print(f"  {benchmark.name:<20} presets: {presets} - {benchmark.description}")
     return 0
+
+
+def handle_early_exit(args: argparse.Namespace) -> int | None:
+    """Handle flags that terminate execution before running benchmarks."""
+    if args.list_presets:
+        return list_presets()
+    if args.list_benchmarks:
+        return list_benchmarks()
+    if args.html_only:
+        if not args.html_summary:
+            print("Cannot refresh HTML without an output path. Provide --html-summary.", file=sys.stderr)
+            return 1
+        html_path = Path(args.html_summary)
+        build_html_summary(html_path.parent, html_path)
+        return 0
+    return None
+
+
+def select_requested_presets(args: argparse.Namespace) -> list[str]:
+    """Resolve preset names, applying the default when nothing was requested."""
+    requested_presets = unique_ordered(args.presets)
+    if not args.benchmarks and not requested_presets:
+        return ["balanced"]
+    return requested_presets
+
+
+def resolve_selected_benchmarks(args: argparse.Namespace, requested_presets: list[str]) -> list[BenchmarkType]:
+    """Determine which benchmarks to execute from flags."""
+    if args.benchmarks:
+        benchmark_names = unique_ordered(args.benchmarks)
+        return parse_benchmark_types(benchmark_names)
+    return expand_presets(requested_presets)
+
+
+def run_selected_benchmarks(selected_benchmarks: Sequence[BenchmarkType], args: argparse.Namespace):
+    """Execute benchmarks and keep their instances alongside results."""
+    results_with_benchmarks: list[tuple[BenchmarkResult, BenchmarkBase]] = []
+    for benchmark_type in selected_benchmarks:
+        print(f"Executing {benchmark_type.value}")
+        benchmark = BENCHMARK_MAP[benchmark_type]
+        start_time = perf_counter()
+        result = execute_benchmark(benchmark, args)
+        elapsed_seconds = result.duration_seconds or perf_counter() - start_time
+        status_note = "" if result.status == "ok" else f" ({result.status})"
+        print(f"Finished {benchmark_type.value} in {elapsed_seconds:.2f}s{status_note}")
+        results_with_benchmarks.append((result, benchmark))
+    return results_with_benchmarks
+
+
+def print_result_summaries(results_with_benchmarks: Sequence[tuple[BenchmarkResult, BenchmarkBase]]) -> None:
+    """Render concise result summaries to stdout."""
+    for result, benchmark in results_with_benchmarks:
+        summary = benchmark.format_result(result)
+        if summary:
+            print(f"{result.name}: {summary}")
+
+
+def write_html_summary_if_requested(output_path: Path, html_summary: str) -> None:
+    """Write HTML dashboard when configured."""
+    if html_summary:
+        build_html_summary(output_path.parent, Path(html_summary))
 
 
 def determine_output_path(args: argparse.Namespace, generated_at: datetime, system_info) -> Path:
@@ -253,34 +319,18 @@ def main() -> int:
     """Main entry point for the benchmark suite."""
     parser = build_argument_parser()
     args = parser.parse_args()
+    early_exit = handle_early_exit(args)
+    if early_exit is not None:
+        return early_exit
 
-    if args.list_presets:
-        return list_presets()
-
-    if args.list_benchmarks:
-        return list_benchmarks()
-
-    requested_presets = unique_ordered(args.presets)
-    if not args.benchmarks and not requested_presets:
-        requested_presets = ["balanced"]
-    selected_benchmarks = (
-        parse_benchmark_types(unique_ordered(args.benchmarks)) if args.benchmarks else expand_presets(requested_presets)
-    )
+    requested_presets = select_requested_presets(args)
+    selected_benchmarks = resolve_selected_benchmarks(args, requested_presets)
 
     if not selected_benchmarks:
         print("No benchmarks requested.", file=sys.stderr)
         return 1
 
-    results_with_benchmarks: list[tuple[BenchmarkResult, BenchmarkBase]] = []
-    for benchmark_type in selected_benchmarks:
-        print(f"Executing {benchmark_type.value}")
-        benchmark = BENCHMARK_MAP[benchmark_type]
-        start_time = perf_counter()
-        result = execute_benchmark(benchmark, args)
-        elapsed_seconds = result.duration_seconds or perf_counter() - start_time
-        status_note = "" if result.status == "ok" else f" ({result.status})"
-        print(f"Finished {benchmark_type.value} in {elapsed_seconds:.2f}s{status_note}")
-        results_with_benchmarks.append((result, benchmark))
+    results_with_benchmarks = run_selected_benchmarks(selected_benchmarks, args)
 
     if not results_with_benchmarks:
         print("No benchmarks executed.", file=sys.stderr)
@@ -302,12 +352,7 @@ def main() -> int:
     write_json_report(report, output_path)
 
     print(f"Wrote {output_path}")
-    for result, benchmark in results_with_benchmarks:
-        summary = benchmark.format_result(result)
-        if summary:
-            print(f"{result.name}: {summary}")
-
-    if args.html_summary:
-        build_html_summary(output_path.parent, Path(args.html_summary))
+    print_result_summaries(results_with_benchmarks)
+    write_html_summary_if_requested(output_path, args.html_summary)
 
     return 0

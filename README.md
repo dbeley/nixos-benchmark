@@ -38,6 +38,7 @@ Use `--list-benchmarks` to see the exact preset coverage for each entry.
 ## Reports
 - JSON per run in `results/` (git-ignored): system info (CPU, GPU, RAM, OS/kernel), requested presets/benchmarks, per-benchmark metrics, command, duration, tool version, and raw output.
 - HTML dashboard (`--html-summary path` to override the output filename) reads all JSON files in `results/` and shows run summaries. Each row carries its own system details and benchmark versions; hover a system name for a tooltip if you need the full breakdown.
+- Refresh the HTML dashboard without running benchmarks: `python -m nixos_benchmark --html-only` (or `nix run . -- --html-only`) reads existing JSON results and writes to the `--html-summary` path.
 
 ## Notes
 - glmark2 defaults to offscreen; pass `--glmark2-mode onscreen` if you want visible rendering.
