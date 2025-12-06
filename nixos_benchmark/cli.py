@@ -113,7 +113,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="Override the hostname stored in the report (also used for auto filenames).",
     )
     parser.add_argument(
-        "--preset",
+        "--presets",
         dest="presets",
         action=CommaSeparatedListAction,
         metavar="PRESET",

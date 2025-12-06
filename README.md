@@ -12,7 +12,7 @@ nix run github:dbeley/nixos-benchmark -- --list-benchmarks
 nix run github:dbeley/nixos-benchmark --
 
 # target presets or specific benches
-nix run github:dbeley/nixos-benchmark -- --preset cpu --preset io
+nix run github:dbeley/nixos-benchmark -- --presets cpu --presets io
 nix run github:dbeley/nixos-benchmark -- --benchmarks openssl-speed,fio-seq
 ```
 
@@ -24,7 +24,7 @@ nix run github:dbeley/nixos-benchmark -- --benchmarks openssl-speed,fio-seq
 
 ## Benchmarks
 
-Available presets: `balanced` (default), `cpu`, `io`, `memory`, `compression`, `crypto`, `database`, `gpu-light`, `gpu`, `network`, `all`. Use `--preset all` if you want every benchmark.
+Available presets: `balanced` (default), `cpu`, `io`, `memory`, `compression`, `crypto`, `database`, `gpu-light`, `gpu`, `network`, `all`. Use `--presets all` if you want every benchmark.
 
 - CPU: openssl speed, 7-Zip, John, Stockfish, stress-ng, sysbench cpu
 - Memory: sysbench memory, stressapptest, tinymembench
