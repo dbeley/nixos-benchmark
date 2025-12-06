@@ -19,6 +19,9 @@ from .models import (
 )
 
 
+UNKNOWN_TIMESTAMP = datetime.min.replace(tzinfo=UTC)
+
+
 class ReportRow(TypedDict):
     file: str
     generated: str
@@ -289,6 +292,15 @@ def _system_meta_line(system: dict[str, object]) -> str:
     return " · ".join(str(part) for part in parts if str(part).strip())
 
 
+def _format_generated_cell(generated: str, generated_dt: datetime) -> tuple[str, str, str]:
+    """Return display text, sort value, and tooltip label for generated column."""
+    raw_label = generated or "unknown"
+    if generated_dt != UNKNOWN_TIMESTAMP:
+        pretty = generated_dt.strftime("%b %d, %Y, %H:%M:%S %Z")
+        return pretty, generated_dt.isoformat(), raw_label
+    return raw_label, raw_label, raw_label
+
+
 def _build_header_cells(
     bench_columns: list[str],
     bench_metadata: dict[str, dict[str, set[str]]],
@@ -323,6 +335,10 @@ def _build_body_rows(rows: list[RowWithCells]) -> list[str]:
         preset_label = ", ".join(row["presets"]) or "n/a"
         preset_html = f'<div class="preset-label">{html.escape(preset_label)}</div>'
 
+        generated_display, generated_sort_value, generated_title = _format_generated_cell(
+            row["generated"], row["generated_dt"]
+        )
+
         cell_parts: list[str] = []
         for cell in row["cells"]:
             version_value = _as_str(cell.get("version", ""))
@@ -338,7 +354,8 @@ def _build_body_rows(rows: list[RowWithCells]) -> list[str]:
         body_rows.append(
             "<tr>"
             f'<td class="run-file"><a href="{html.escape(row["file"])}">{html.escape(row["file"])}</a></td>'
-            f'<td class="run-generated">{html.escape(row["generated"])}</td>'
+            f'<td class="run-generated" data-sort="{html.escape(generated_sort_value)}" title="{html.escape(generated_title)}">'
+            f"{html.escape(generated_display)}</td>"
             f'<td class="run-system" title="{system_details}">{system_html}</td>'
             f'<td class="run-presets">{preset_html}</td>'
             f"{cell_html}"
@@ -421,7 +438,9 @@ def _render_html_document(
       const tbody = table.querySelector('tbody');
 
       function getCellValue(row, index) {{
-        return row.children[index].textContent.trim();
+        const cell = row.children[index];
+        const sortValue = cell.getAttribute('data-sort');
+        return (sortValue || cell.textContent).trim();
       }}
 
       function parseValue(value, type) {{
@@ -484,7 +503,7 @@ def _render_html_document(
 def build_html_summary(results_dir: Path, html_path: Path) -> None:
     """Build HTML dashboard summarizing all benchmark runs in results_dir."""
     json_files = sorted(results_dir.glob("*.json"))
-    default_timestamp = datetime.min.replace(tzinfo=UTC)
+    default_timestamp = UNKNOWN_TIMESTAMP
 
     reports, bench_metadata = _load_reports_and_metadata(json_files, default_timestamp)
     bench_columns = sorted(bench_metadata.keys())
