@@ -6,8 +6,8 @@ import subprocess
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command, write_temp_data_file
-from . import BenchmarkType
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 DEFAULT_LZ4_SIZE_MB = 64

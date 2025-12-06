@@ -7,9 +7,9 @@ import subprocess
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
-from . import BenchmarkType
 from .base import BenchmarkBase
 from .sysbench_cpu import DEFAULT_SYSBENCH_THREADS
+from .types import BenchmarkType
 
 
 # Default constants

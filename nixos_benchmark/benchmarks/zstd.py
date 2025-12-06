@@ -7,8 +7,8 @@ from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command, write_temp_data_file
-from . import BenchmarkType
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 # Default constants

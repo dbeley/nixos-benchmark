@@ -13,7 +13,7 @@ from ..utils import check_requirements, read_command_version
 
 if TYPE_CHECKING:
     from ..models import BenchmarkResult
-    from . import BenchmarkType
+    from .types import BenchmarkType
 
 
 class BenchmarkBase(ABC):

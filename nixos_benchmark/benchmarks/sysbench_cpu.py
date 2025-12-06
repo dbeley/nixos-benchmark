@@ -7,8 +7,8 @@ import subprocess
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
-from . import BenchmarkType
 from .base import BenchmarkBase
+from .types import BenchmarkType
 
 
 # Default constants
