@@ -63,6 +63,44 @@ def _parse_lspci_gpu_lines(output: str, *, mm_format: bool) -> list[str]:
     return gpus
 
 
+def _parse_glxinfo_gpus(output: str) -> list[str]:
+    """Extract GPU renderer names from glxinfo -B output."""
+    gpus: list[str] = []
+    for line in output.splitlines():
+        stripped = line.strip()
+        lower = stripped.lower()
+        if lower.startswith("device:") or "opengl renderer string" in lower:
+            parts = stripped.split(":", 1)
+            if len(parts) == 2:
+                name = parts[1].strip()
+                if name:
+                    gpus.append(name)
+    # Deduplicate while preserving order
+    return list(dict.fromkeys(gpus))
+
+
+def _detect_glxinfo_gpus() -> tuple[str, ...]:
+    """Detect GPUs using glxinfo renderer info."""
+    glxinfo = shutil.which("glxinfo")
+    if not glxinfo:
+        return ()
+    try:
+        completed = subprocess.run(
+            [glxinfo, "-B"],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=5,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError, OSError):
+        return ()
+    if not completed.stdout:
+        return ()
+    gpus = _parse_glxinfo_gpus(completed.stdout)
+    return tuple(gpus) if gpus else ()
+
+
 def _detect_gpus() -> tuple[str, ...]:
     """Detect GPU descriptions using available system tools."""
     # Prefer nvidia-smi when available to get the marketed GPU name
@@ -83,6 +121,11 @@ def _detect_gpus() -> tuple[str, ...]:
                     return tuple(dict.fromkeys(names))
         except (FileNotFoundError, subprocess.SubprocessError, OSError):
             pass
+
+    # Next, try glxinfo which is available in the dev shell/runtime
+    glxinfo_gpus = _detect_glxinfo_gpus()
+    if glxinfo_gpus:
+        return glxinfo_gpus
 
     # Fall back to lspci probing
     for command, mm_format in ((["lspci", "-mm"], True), (["lspci"], False)):
