@@ -23,7 +23,6 @@ class BenchmarkType(StrEnum):
     FURMARK_KNOT_VK = "furmark-knot-vk"
     CLPEAK = "clpeak"
     HASHCAT_GPU = "hashcat-gpu"
-    UNIXBENCH = "unixbench"
     LZ4 = "lz4-benchmark"
     ZSTD = "zstd-compress"
     PIGZ = "pigz-compress"

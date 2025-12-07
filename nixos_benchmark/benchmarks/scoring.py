@@ -118,12 +118,6 @@ CPU_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
         higher_is_better=True,
         formatter=lambda value: f"{value:,.0f} events/s",
     ),
-    BenchmarkType.UNIXBENCH: ScoreRule(
-        metric="index_score",
-        label="Index score",
-        higher_is_better=True,
-        formatter=lambda value: f"{value:.1f} index",
-    ),
     BenchmarkType.GEEKBENCH: ScoreRule(
         metric="multi_core_score",
         label="CPU score",

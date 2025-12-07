@@ -90,14 +90,15 @@ PRESETS: dict[str, dict[str, object]] = {
             BenchmarkType.ZSTD,
             BenchmarkType.STRESS_NG,
             BenchmarkType.SYSBENCH_CPU,
+            BenchmarkType.GEEKBENCH,
             # MEMORY
             BenchmarkType.SYSBENCH_MEMORY,
             # IO
             BenchmarkType.FIO_SEQ,
             BenchmarkType.SQLITE_MIXED,
             # GPU
-            BenchmarkType.GLMARK2,
             BenchmarkType.FURMARK_VK,
+            BenchmarkType.GEEKBENCH_GPU_VULKAN,
         ),
     },
     "cpu": {
@@ -109,7 +110,6 @@ PRESETS: dict[str, dict[str, object]] = {
             BenchmarkType.STOCKFISH,
             BenchmarkType.STRESS_NG,
             BenchmarkType.SYSBENCH_CPU,
-            BenchmarkType.UNIXBENCH,
             BenchmarkType.GEEKBENCH,
             BenchmarkType.ZSTD,
             BenchmarkType.PIGZ,
@@ -165,8 +165,8 @@ PRESETS: dict[str, dict[str, object]] = {
     "gpu-light": {
         "description": "Quick GPU tests.",
         "benchmarks": (
-            BenchmarkType.GLMARK2,
             BenchmarkType.FURMARK_VK,
+            BenchmarkType.GEEKBENCH_GPU_VULKAN,
         ),
     },
     "gpu": {
