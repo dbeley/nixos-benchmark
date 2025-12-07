@@ -997,33 +997,9 @@ def _convert_svg_to_png(svg_paths: list[Path]) -> list[Path]:
     return png_paths
 
 
-def _build_charts_notice(charts: list[Path], html_dir: Path) -> str:
-    """Return a small HTML block linking to generated charts."""
-    if not charts:
-        return ""
-    items = []
-    for chart in sorted(charts):
-        try:
-            rel = chart.relative_to(html_dir)
-        except ValueError:
-            rel = chart
-        label = rel.name
-        items.append(f'<li><a href="{html.escape(str(rel))}">{html.escape(label)}</a></li>')
-    if not items:
-        return ""
-    return (
-        '<section class="charts-note">'
-        "<h2>Benchmark charts</h2>"
-        "<p>Charts are saved as standalone SVG files:</p>"
-        f'<ul class="chart-links">{"".join(items)}</ul>'
-        "</section>"
-    )
-
-
 def _render_html_document(
     header_cells: str,
     table_html: str,
-    charts_notice_html: str,
 ) -> str:
     return f"""<!doctype html>
 <html lang="en">
@@ -1047,14 +1023,6 @@ def _render_html_document(
     .run-presets .preset-label {{ color: #1f2429; font-size: 0.95rem; }}
     .cell-main {{ font-weight: 600; }}
     .cell-version {{ color: #5a646f; font-size: 0.8rem; margin-top: 0.2rem; }}
-
-    /* Charts notice */
-    .charts-note {{ margin-bottom: 1.4rem; padding: 0.75rem 1rem; border: 1px solid #e3e8ef;
-      background: #f8fafc; border-radius: 8px; }}
-    .charts-note h2 {{ margin: 0 0 0.4rem; font-size: 1.1rem; }}
-    .charts-note p {{ margin: 0 0 0.4rem; color: #4b5563; }}
-    .chart-links {{ margin: 0; padding-left: 1.2rem; }}
-    .chart-links li {{ margin: 0.15rem 0; }}
 
     /* Sortable headers */
     th.sortable {{
@@ -1082,7 +1050,6 @@ def _render_html_document(
 </head>
 <body>
   <h1>Benchmark Runs</h1>
-  {charts_notice_html}
   <table id="benchmark-table">
     <thead>
       <tr>
@@ -1193,8 +1160,7 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
     generated_svgs.extend(_write_svg_charts(html_path.parent, "gpu", gpu_series))
     generated_pngs = _convert_svg_to_png(generated_svgs)
     chart_files = generated_pngs or generated_svgs
-    charts_notice_html = _build_charts_notice(chart_files, html_path.parent)
-    document = _render_html_document(header_cells, table_html, charts_notice_html)
+    document = _render_html_document(header_cells, table_html)
 
     html_path.write_text(document)
     print(f"Updated {html_path} ({len(rows)} runs tracked)")
