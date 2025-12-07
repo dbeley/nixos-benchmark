@@ -30,7 +30,6 @@ from .sysbench_cpu import SysbenchCPUBenchmark
 from .sysbench_memory import SysbenchMemoryBenchmark
 from .tinymembench import TinyMemBenchBenchmark
 from .types import BenchmarkType
-from .vkmark import VKMarkBenchmark
 from .wrk import WrkHTTPBenchmark
 from .x264 import X264Benchmark
 from .x265 import X265Benchmark
@@ -53,7 +52,6 @@ ALL_BENCHMARKS = [
     BonnieBenchmark(),
     IOPingBenchmark(),
     GLMark2Benchmark(),
-    VKMarkBenchmark(),
     FurmarkBenchmark("furmark-gl", BenchmarkType.FURMARK_GL, "FurMark OpenGL"),
     FurmarkBenchmark("furmark-vk", BenchmarkType.FURMARK_VK, "FurMark Vulkan"),
     FurmarkBenchmark("furmark-knot-gl", BenchmarkType.FURMARK_KNOT_GL, "FurMark knot OpenGL"),
@@ -173,7 +171,6 @@ PRESETS: dict[str, dict[str, object]] = {
         "description": "GPU render benchmarks and compute tests.",
         "benchmarks": (
             BenchmarkType.GLMARK2,
-            BenchmarkType.VKMARK,
             BenchmarkType.FURMARK_GL,
             BenchmarkType.FURMARK_VK,
             BenchmarkType.FURMARK_KNOT_GL,

@@ -16,7 +16,6 @@ class BenchmarkType(StrEnum):
     FIO_SEQ = "fio-seq"
     IOPING = "ioping"
     GLMARK2 = "glmark2"
-    VKMARK = "vkmark"
     FURMARK_GL = "furmark-gl"
     FURMARK_VK = "furmark-vk"
     FURMARK_KNOT_GL = "furmark-knot-gl"

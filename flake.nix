@@ -29,7 +29,6 @@
           bonnie
           glmark2
           mesa-demos
-          vkmark
           furmark
           geekbench
           openssl

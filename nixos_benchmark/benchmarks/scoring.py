@@ -175,13 +175,6 @@ GPU_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
         higher_is_better=True,
         formatter=lambda value: f"{value:.0f} pts",
     ),
-    BenchmarkType.VKMARK: ScoreRule(
-        metric="fps_avg",
-        label="Average FPS",
-        higher_is_better=True,
-        extractor=lambda result: _first_numeric(result.metrics.get("fps_avg"), result.metrics.get("fps_max")),
-        formatter=lambda value: f"{value:.1f} fps",
-    ),
     BenchmarkType.FURMARK_GL: ScoreRule(
         metric="fps_avg",
         label="Average FPS",

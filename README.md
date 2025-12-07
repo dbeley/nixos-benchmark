@@ -30,7 +30,7 @@ Available presets: `balanced` (default), `cpu`, `io`, `memory`, `compression`, `
 - Memory: sysbench memory, stressapptest, tinymembench
 - IO / storage: fio seq, ioping, iozone, bonnie++, sqlite mixed, sqlite speedtest, cryptsetup
 - Compression: zstd, pigz, lz4, x264, x265, ffmpeg transcode
-- GPU: glmark2, vkmark, furmark-gl, furmark-vk, furmark-knot-gl, furmark-knot-vk, clpeak, hashcat, geekbench gpu (default + vulkan)
+- GPU: glmark2, furmark-gl, furmark-vk, furmark-knot-gl, furmark-knot-vk, clpeak, hashcat, geekbench gpu (default + vulkan)
 - Network: netperf, wrk (local HTTP)
 
 Use `--list-benchmarks` to see the exact preset coverage for each entry.
