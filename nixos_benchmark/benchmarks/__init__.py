@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 from .base import BenchmarkBase
+from .bonnie import BonnieBenchmark
 from .clpeak import CLPeakBenchmark
 from .cryptsetup import CryptsetupBenchmark
 from .ffmpeg import FFmpegBenchmark
 from .fio import FIOBenchmark
 from .furmark import FurmarkBenchmark
+from .geekbench import GeekbenchBenchmark, GeekbenchGPUBenchmark
 from .glmark2 import GLMark2Benchmark
 from .hashcat import HashcatBenchmark
 from .ioping import IOPingBenchmark
+from .iozone import IozoneBenchmark
 from .john import JohnBenchmark
 from .lz4 import LZ4Benchmark
 from .netperf import NetperfBenchmark
@@ -45,6 +48,8 @@ ALL_BENCHMARKS = [
     StressAppTestBenchmark(),
     TinyMemBenchBenchmark(),
     FIOBenchmark(),
+    IozoneBenchmark(),
+    BonnieBenchmark(),
     IOPingBenchmark(),
     GLMark2Benchmark(),
     VKMarkBenchmark(),
@@ -65,6 +70,8 @@ ALL_BENCHMARKS = [
     X265Benchmark(),
     NetperfBenchmark(),
     WrkHTTPBenchmark(),
+    GeekbenchBenchmark(),
+    GeekbenchGPUBenchmark(),
 ]
 
 # Create a map from benchmark type to benchmark instance for easy lookup
@@ -100,6 +107,8 @@ PRESETS: dict[str, dict[str, object]] = {
             BenchmarkType.STOCKFISH,
             BenchmarkType.STRESS_NG,
             BenchmarkType.SYSBENCH_CPU,
+            BenchmarkType.UNIXBENCH,
+            BenchmarkType.GEEKBENCH,
             BenchmarkType.ZSTD,
             BenchmarkType.PIGZ,
             BenchmarkType.X264,
@@ -113,6 +122,8 @@ PRESETS: dict[str, dict[str, object]] = {
         "benchmarks": (
             BenchmarkType.FIO_SEQ,
             BenchmarkType.IOPING,
+            BenchmarkType.IOZONE,
+            BenchmarkType.BONNIE,
             BenchmarkType.SQLITE_MIXED,
             BenchmarkType.SQLITE_SPEEDTEST,
             BenchmarkType.CRYPTSETUP,
@@ -167,6 +178,7 @@ PRESETS: dict[str, dict[str, object]] = {
             BenchmarkType.FURMARK_KNOT_VK,
             BenchmarkType.CLPEAK,
             BenchmarkType.HASHCAT_GPU,
+            BenchmarkType.GEEKBENCH_GPU,
         ),
     },
     "network": {

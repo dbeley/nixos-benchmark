@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import platform
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -63,7 +64,27 @@ def _parse_lspci_gpu_lines(output: str, *, mm_format: bool) -> list[str]:
 
 
 def _detect_gpus() -> tuple[str, ...]:
-    """Detect GPU descriptions using lspci if available."""
+    """Detect GPU descriptions using available system tools."""
+    # Prefer nvidia-smi when available to get the marketed GPU name
+    nvidia_smi = shutil.which("nvidia-smi")
+    if nvidia_smi:
+        try:
+            completed = subprocess.run(
+                [nvidia_smi, "--query-gpu=name", "--format=csv,noheader"],
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=5,
+            )
+            if completed.stdout:
+                names = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+                if names:
+                    return tuple(dict.fromkeys(names))
+        except (FileNotFoundError, subprocess.SubprocessError, OSError):
+            pass
+
+    # Fall back to lspci probing
     for command, mm_format in ((["lspci", "-mm"], True), (["lspci"], False)):
         try:
             completed = subprocess.run(

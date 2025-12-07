@@ -5,9 +5,14 @@ from __future__ import annotations
 import html
 import json
 import re
+import shutil
+import subprocess
+from collections import defaultdict
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 
 from .benchmarks import BENCHMARK_MAP, BenchmarkType
 from .benchmarks.base import BenchmarkBase
@@ -29,6 +34,7 @@ class ReportRow(TypedDict):
     system: dict[str, object]
     presets: list[str]
     benchmarks: list[dict[str, object]]
+    benchmark_results: list[BenchmarkResult]
 
 
 class Cell(TypedDict):
@@ -44,6 +50,36 @@ class RowWithCells(TypedDict):
     system: dict[str, object]
     presets: list[str]
     cells: list[Cell]
+
+
+GraphDirection = Literal["higher", "lower"]
+
+
+@dataclass(frozen=True)
+class ScoreRule:
+    metric: str
+    label: str
+    higher_is_better: bool = True
+    extractor: Callable[[BenchmarkResult], float | None] | None = None
+    formatter: Callable[[float], str] | None = None
+
+    def extract(self, result: BenchmarkResult) -> float | None:
+        if result.status != "ok":
+            return None
+        return self.extractor(result) if self.extractor else _metric_number(result.metrics, self.metric)
+
+    def format_value(self, value: float) -> str:
+        if self.formatter:
+            return self.formatter(value)
+        return f"{value:,.2f}"
+
+
+class GraphBar(TypedDict):
+    label: str
+    value: float
+    display: str
+    report_file: str
+    system_meta: str
 
 
 def sanitize_for_filename(value: str) -> str:
@@ -67,6 +103,305 @@ def _benchmark_type_from_name(name: str) -> BenchmarkType | None:
         return BenchmarkType(name)
     except ValueError:
         return None
+
+
+def _coerce_number(value: object) -> float | None:
+    """Convert arbitrary values to float when possible."""
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+
+
+def _metric_number(metrics: BenchmarkMetrics, key: str, scale: float = 1.0) -> float | None:
+    """Fetch a numeric metric and apply an optional scale."""
+    number = _coerce_number(metrics.get(key))
+    if number is None:
+        return None
+    return number * scale
+
+
+def _first_numeric(*values: object) -> float | None:
+    """Return the first value that can be coerced to a float."""
+    for value in values:
+        number = _coerce_number(value)
+        if number is not None:
+            return number
+    return None
+
+
+def _max_numeric(values: Iterable[float]) -> float | None:
+    """Return max value or None for empty iterables."""
+    numbers = list(values)
+    return max(numbers) if numbers else None
+
+
+def _mean_numeric(values: Iterable[float | None]) -> float | None:
+    """Return the arithmetic mean of numeric values, ignoring missing entries."""
+    numbers = [value for value in values if value is not None]
+    if not numbers:
+        return None
+    return sum(numbers) / len(numbers)
+
+
+def _format_hash_rate(hashes_per_sec: float) -> str:
+    """Pretty-format a hash rate with dynamic units."""
+    units = ["H/s", "kH/s", "MH/s", "GH/s", "TH/s"]
+    value = hashes_per_sec
+    unit = units[0]
+    for candidate in units[1:]:
+        if value < 1000:
+            break
+        value /= 1000
+        unit = candidate
+    return f"{value:.1f} {unit}"
+
+
+CPU_BENCHMARK_TYPES: tuple[BenchmarkType, ...] = (
+    BenchmarkType.OPENSSL_SPEED,
+    BenchmarkType.SEVENZIP,
+    BenchmarkType.JOHN,
+    BenchmarkType.STOCKFISH,
+    BenchmarkType.STRESS_NG,
+    BenchmarkType.SYSBENCH_CPU,
+    BenchmarkType.UNIXBENCH,
+    BenchmarkType.GEEKBENCH,
+    BenchmarkType.ZSTD,
+    BenchmarkType.PIGZ,
+    BenchmarkType.X264,
+    BenchmarkType.X265,
+    BenchmarkType.LZ4,
+    BenchmarkType.FFMPEG_TRANSCODE,
+)
+
+GPU_BENCHMARK_TYPES: tuple[BenchmarkType, ...] = (
+    BenchmarkType.GLMARK2,
+    BenchmarkType.VKMARK,
+    BenchmarkType.FURMARK_GL,
+    BenchmarkType.FURMARK_VK,
+    BenchmarkType.FURMARK_KNOT_GL,
+    BenchmarkType.FURMARK_KNOT_VK,
+    BenchmarkType.CLPEAK,
+    BenchmarkType.HASHCAT_GPU,
+    BenchmarkType.GEEKBENCH_GPU,
+)
+
+CPU_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
+    BenchmarkType.OPENSSL_SPEED: ScoreRule(
+        metric="max_kbytes_per_sec",
+        label="AES throughput (MiB/s)",
+        higher_is_better=True,
+        extractor=lambda result: _metric_number(result.metrics, "max_kbytes_per_sec", scale=1 / 1024),
+        formatter=lambda value: f"{value:.1f} MiB/s",
+    ),
+    BenchmarkType.SEVENZIP: ScoreRule(
+        metric="total_rating_mips",
+        label="Total rating (MIPS)",
+        higher_is_better=True,
+        formatter=lambda value: f"{value:,.0f} MIPS",
+    ),
+    BenchmarkType.JOHN: ScoreRule(
+        metric="c_per_sec",
+        label="Cracks per second",
+        higher_is_better=True,
+        formatter=lambda value: f"{value:,.0f} c/s",
+    ),
+    BenchmarkType.STOCKFISH: ScoreRule(
+        metric="nodes_per_sec",
+        label="Nodes per second",
+        higher_is_better=True,
+        formatter=lambda value: f"{value / 1_000_000:.2f} Mnps",
+    ),
+    BenchmarkType.STRESS_NG: ScoreRule(
+        metric="bogo_ops_per_sec_real",
+        label="Bogo-ops per second",
+        higher_is_better=True,
+        formatter=lambda value: f"{value:,.0f} ops/s",
+    ),
+    BenchmarkType.SYSBENCH_CPU: ScoreRule(
+        metric="events_per_sec",
+        label="Events per second",
+        higher_is_better=True,
+        formatter=lambda value: f"{value:,.0f} events/s",
+    ),
+    BenchmarkType.UNIXBENCH: ScoreRule(
+        metric="index_score",
+        label="Index score",
+        higher_is_better=True,
+        formatter=lambda value: f"{value:.1f} index",
+    ),
+    BenchmarkType.GEEKBENCH: ScoreRule(
+        metric="multi_core_score",
+        label="CPU score",
+        higher_is_better=True,
+        extractor=lambda result: _first_numeric(
+            result.metrics.get("multi_core_score"), result.metrics.get("single_core_score")
+        ),
+        formatter=lambda value: f"{value:,.0f} pts",
+    ),
+    BenchmarkType.ZSTD: ScoreRule(
+        metric="compress_mb_per_s",
+        label="Compression throughput (MB/s)",
+        higher_is_better=True,
+        formatter=lambda value: f"{value:,.0f} MB/s",
+    ),
+    BenchmarkType.PIGZ: ScoreRule(
+        metric="compress_mb_per_s",
+        label="Compression throughput (MB/s)",
+        higher_is_better=True,
+        formatter=lambda value: f"{value:,.0f} MB/s",
+    ),
+    BenchmarkType.LZ4: ScoreRule(
+        metric="compress_mb_per_s",
+        label="Compression throughput (MB/s)",
+        higher_is_better=True,
+        formatter=lambda value: f"{value:,.0f} MB/s",
+    ),
+    BenchmarkType.X264: ScoreRule(
+        metric="fps",
+        label="Encoding FPS",
+        higher_is_better=True,
+        formatter=lambda value: f"{value:.1f} fps",
+    ),
+    BenchmarkType.X265: ScoreRule(
+        metric="fps",
+        label="Encoding FPS",
+        higher_is_better=True,
+        formatter=lambda value: f"{value:.1f} fps",
+    ),
+    BenchmarkType.FFMPEG_TRANSCODE: ScoreRule(
+        metric="effective_fps",
+        label="Transcode FPS",
+        higher_is_better=True,
+        extractor=lambda result: _first_numeric(
+            result.metrics.get("effective_fps"), result.metrics.get("reported_fps")
+        ),
+        formatter=lambda value: f"{value:.1f} fps",
+    ),
+}
+
+GPU_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
+    BenchmarkType.GLMARK2: ScoreRule(
+        metric="score",
+        label="glmark2 score",
+        higher_is_better=True,
+        formatter=lambda value: f"{value:.0f} pts",
+    ),
+    BenchmarkType.VKMARK: ScoreRule(
+        metric="fps_avg",
+        label="Average FPS",
+        higher_is_better=True,
+        extractor=lambda result: _first_numeric(result.metrics.get("fps_avg"), result.metrics.get("fps_max")),
+        formatter=lambda value: f"{value:.1f} fps",
+    ),
+    BenchmarkType.FURMARK_GL: ScoreRule(
+        metric="fps_avg",
+        label="Average FPS",
+        higher_is_better=True,
+        extractor=lambda result: _first_numeric(result.metrics.get("fps_avg")),
+        formatter=lambda value: f"{value:.1f} fps",
+    ),
+    BenchmarkType.FURMARK_VK: ScoreRule(
+        metric="fps_avg",
+        label="Average FPS",
+        higher_is_better=True,
+        extractor=lambda result: _first_numeric(result.metrics.get("fps_avg")),
+        formatter=lambda value: f"{value:.1f} fps",
+    ),
+    BenchmarkType.FURMARK_KNOT_GL: ScoreRule(
+        metric="fps_avg",
+        label="Average FPS",
+        higher_is_better=True,
+        extractor=lambda result: _first_numeric(result.metrics.get("fps_avg")),
+        formatter=lambda value: f"{value:.1f} fps",
+    ),
+    BenchmarkType.FURMARK_KNOT_VK: ScoreRule(
+        metric="fps_avg",
+        label="Average FPS",
+        higher_is_better=True,
+        extractor=lambda result: _first_numeric(result.metrics.get("fps_avg")),
+        formatter=lambda value: f"{value:.1f} fps",
+    ),
+    BenchmarkType.CLPEAK: ScoreRule(
+        metric="global_memory_bandwidth_gb_per_s",
+        label="Peak bandwidth (GB/s)",
+        higher_is_better=True,
+        extractor=lambda result: _first_numeric(
+            result.metrics.get("global_memory_bandwidth_gb_per_s"),
+            _max_numeric(v for v in result.metrics.data.values() if isinstance(v, (int, float))),
+        ),
+        formatter=lambda value: f"{value:.1f} GB/s",
+    ),
+    BenchmarkType.HASHCAT_GPU: ScoreRule(
+        metric="hashes_per_sec",
+        label="Hash throughput",
+        higher_is_better=True,
+        formatter=_format_hash_rate,
+    ),
+    BenchmarkType.GEEKBENCH_GPU: ScoreRule(
+        metric="compute_score",
+        label="Compute score",
+        higher_is_better=True,
+        extractor=lambda result: _first_numeric(
+            result.metrics.get("compute_score"),
+            result.metrics.get("vulkan_score"),
+            result.metrics.get("opencl_score"),
+            result.metrics.get("metal_score"),
+            result.metrics.get("cuda_score"),
+        ),
+        formatter=lambda value: f"{value:,.0f} pts",
+    ),
+}
+
+IO_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
+    BenchmarkType.FIO_SEQ: ScoreRule(
+        metric="seqread_mib_per_s",
+        label="Seq throughput (MiB/s)",
+        higher_is_better=True,
+        extractor=lambda result: _mean_numeric(
+            [
+                _metric_number(result.metrics, "seqread_mib_per_s"),
+                _metric_number(result.metrics, "seqwrite_mib_per_s"),
+            ]
+        ),
+        formatter=lambda value: f"{value:.1f} MiB/s",
+    ),
+    BenchmarkType.BONNIE: ScoreRule(
+        metric="block_read_mb_s",
+        label="Block throughput (MiB/s)",
+        higher_is_better=True,
+        extractor=lambda result: _mean_numeric(
+            [
+                _metric_number(result.metrics, "block_read_mb_s"),
+                _metric_number(result.metrics, "block_write_mb_s"),
+            ]
+        ),
+        formatter=lambda value: f"{value:.1f} MiB/s",
+    ),
+    BenchmarkType.IOZONE: ScoreRule(
+        metric="read_mb_s",
+        label="I/O throughput (MiB/s)",
+        higher_is_better=True,
+        extractor=lambda result: _mean_numeric(
+            [
+                _metric_number(result.metrics, "read_mb_s"),
+                _metric_number(result.metrics, "reread_mb_s"),
+                _metric_number(result.metrics, "write_mb_s"),
+                _metric_number(result.metrics, "rewrite_mb_s"),
+            ]
+        ),
+        formatter=lambda value: f"{value:.1f} MiB/s",
+    ),
+}
+
+SCORE_RULES: dict[BenchmarkType, ScoreRule] = {**CPU_SCORE_RULES, **GPU_SCORE_RULES, **IO_SCORE_RULES}
+
+
+def _score_rule_for_type(bench_type: BenchmarkType | None) -> ScoreRule | None:
+    """Return the scoring rule for a benchmark, if defined."""
+    if bench_type is None:
+        return None
+    return SCORE_RULES.get(bench_type)
 
 
 def write_json_report(report: BenchmarkReport, output_path: Path) -> None:
@@ -122,6 +457,25 @@ def _as_float(value: object, default: float = 0.0) -> float:
         return default
 
 
+def _parse_benchmark_result(bench_dict: dict[str, object]) -> BenchmarkResult | None:
+    """Convert a raw benchmark dictionary into a BenchmarkResult object."""
+    bench_type = _benchmark_type_from_name(_as_str(bench_dict.get("name", "")))
+    if bench_type is None:
+        return None
+    return BenchmarkResult(
+        benchmark_type=bench_type,
+        status=_as_str(bench_dict.get("status", "ok"), "ok"),
+        presets=tuple(_as_str_list(bench_dict.get("presets", []))),
+        metrics=BenchmarkMetrics(_as_metrics_dict(bench_dict.get("metrics", {}))),
+        parameters=BenchmarkParameters(_as_parameters_dict(bench_dict.get("parameters", {}))),
+        duration_seconds=_as_float(bench_dict.get("duration_seconds", 0.0)),
+        command=_as_str(bench_dict.get("command", "")),
+        message=_as_str(bench_dict.get("message", "")),
+        raw_output=_as_str(bench_dict.get("raw_output", "")),
+        version=_as_str(bench_dict.get("version", "")),
+    )
+
+
 def _load_reports_and_metadata(
     json_files: list[Path],
     default_timestamp: datetime,
@@ -141,6 +495,11 @@ def _load_reports_and_metadata(
         presets = [str(p) for p in presets_raw] if isinstance(presets_raw, list) else []
         benchmarks_raw = data.get("benchmarks", []) or []
         benchmarks: list[dict[str, object]] = [bench for bench in benchmarks_raw if isinstance(bench, dict)]
+        benchmark_results: list[BenchmarkResult] = []
+        for bench_dict in benchmarks:
+            parsed = _parse_benchmark_result(bench_dict)
+            if parsed:
+                benchmark_results.append(parsed)
 
         # basic shape for each row
         reports.append(
@@ -151,17 +510,18 @@ def _load_reports_and_metadata(
                 "system": data.get("system", {}) or {},
                 "presets": presets,
                 "benchmarks": benchmarks,
+                "benchmark_results": benchmark_results,
             }
         )
 
-        for bench in benchmarks:
-            name = _as_str(bench.get("name", ""))
-            bench_type = _benchmark_type_from_name(name)
+        for bench_result in benchmark_results:
+            name = bench_result.name
+            bench_type = bench_result.benchmark_type
             if not name or bench_type is None:
                 continue
             meta = bench_metadata.setdefault(name, {"presets": set(), "versions": set()})
-            meta["presets"].update(_as_str_list(bench.get("presets", [])))
-            version = bench.get("version")
+            meta["presets"].update(bench_result.presets)
+            version = bench_result.version
             if version:
                 meta["versions"].add(str(version))
 
@@ -176,29 +536,18 @@ def _build_rows(
     rows: list[RowWithCells] = []
 
     for report in reports:
-        bench_map = {_as_str(bench.get("name", "")): bench for bench in report["benchmarks"]}
+        bench_map = {bench.name: bench for bench in report.get("benchmark_results", [])}
+        raw_bench_map = {_as_str(bench.get("name", "")): bench for bench in report["benchmarks"]}
         cells: list[Cell] = []
         for bench_name in bench_columns:
-            bench_dict = bench_map.get(bench_name, {})
-            version_value = _as_str(bench_dict.get("version", ""))
-            description = ""
-            if bench_dict:
-                bench_type = _benchmark_type_from_name(_as_str(bench_dict.get("name", "")))
-                if bench_type is not None:
-                    bench_result = BenchmarkResult(
-                        benchmark_type=bench_type,
-                        status=_as_str(bench_dict.get("status", "ok"), "ok"),
-                        presets=tuple(_as_str_list(bench_dict.get("presets", []))),
-                        metrics=BenchmarkMetrics(_as_metrics_dict(bench_dict.get("metrics", {}))),
-                        parameters=BenchmarkParameters(_as_parameters_dict(bench_dict.get("parameters", {}))),
-                        duration_seconds=_as_float(bench_dict.get("duration_seconds", 0.0)),
-                        command=_as_str(bench_dict.get("command", "")),
-                        message=_as_str(bench_dict.get("message", "")),
-                        raw_output=_as_str(bench_dict.get("raw_output", "")),
-                        version=_as_str(bench_dict.get("version", "")),
-                    )
-                    description = describe_benchmark(bench_result)
-            cells.append({"text": description or "—", "version": version_value, "has_result": bool(bench_dict)})
+            bench_result = bench_map.get(bench_name)
+            raw_bench = raw_bench_map.get(bench_name, {})
+            if bench_result is None and raw_bench:
+                bench_result = _parse_benchmark_result(raw_bench)
+            version_value = bench_result.version if bench_result else _as_str(raw_bench.get("version", ""))
+            description = describe_benchmark(bench_result) if bench_result else ""
+            has_result = bool(bench_result or raw_bench)
+            cells.append({"text": description or "—", "version": version_value, "has_result": has_result})
 
         rows.append(
             {
@@ -266,6 +615,11 @@ def _format_gpu_label(system: dict[str, object]) -> str:
     return str(gpus) if gpus else ""
 
 
+def _format_cpu_label(system: dict[str, object]) -> str:
+    cpu_label = system.get("cpu_model") or system.get("processor") or ""
+    return str(cpu_label)
+
+
 def _system_meta_line(system: dict[str, object]) -> str:
     parts = []
     cpu_label = system.get("cpu_model") or system.get("processor")
@@ -317,6 +671,10 @@ def _build_header_cells(
         tooltip_parts = [f"Presets: {preset_label}", f"Version: {versions}"]
         if summary:
             tooltip_parts.append(summary)
+        rule = _score_rule_for_type(bench_type) if bench_type else None
+        if rule:
+            direction_text = "Higher is better" if rule.higher_is_better else "Lower is better"
+            tooltip_parts.append(f"{rule.label} · {direction_text}")
         tooltip = " &#10;".join(html.escape(part) for part in tooltip_parts)
         header_cells += f'<th class="sortable" data-type="text" title="{tooltip}">{html.escape(name)}</th>'
     return header_cells
@@ -371,9 +729,301 @@ def _build_body_rows(rows: list[RowWithCells]) -> list[str]:
     return body_rows
 
 
+def _graph_label_for_system(system: dict[str, object], bench_type: BenchmarkType) -> str:
+    """Build a compact label (CPU/GPU with hostname)."""
+    hostname = _as_str(system.get("hostname", ""))
+    base_label = _format_cpu_label(system) if bench_type in CPU_BENCHMARK_TYPES else _format_gpu_label(system)
+    if not base_label:
+        base_label = "Unknown CPU" if bench_type in CPU_BENCHMARK_TYPES else "Unknown GPU"
+    suffix_parts = [part for part in (hostname, _as_str(system.get("machine", ""))) if part]
+    suffix = f" ({', '.join(suffix_parts)})" if suffix_parts else ""
+    return f"{base_label}{suffix}"
+
+
+def _collect_graph_series(
+    reports: list[ReportRow],
+    benchmark_types: Iterable[BenchmarkType],
+) -> dict[BenchmarkType, list[GraphBar]]:
+    """Collect per-benchmark series for chart rendering."""
+    series: dict[BenchmarkType, list[GraphBar]] = defaultdict(list)
+    for report in reports:
+        system = report["system"]
+        system_meta = _system_meta_line(system)
+        for bench in report.get("benchmark_results", []):
+            if bench.benchmark_type not in benchmark_types:
+                continue
+            rule = _score_rule_for_type(bench.benchmark_type)
+            if not rule:
+                continue
+            score_value = rule.extract(bench)
+            if score_value is None:
+                continue
+            label = _graph_label_for_system(system, bench.benchmark_type)
+            series[bench.benchmark_type].append(
+                {
+                    "label": label,
+                    "value": score_value,
+                    "display": rule.format_value(score_value),
+                    "report_file": report["file"],
+                    "system_meta": system_meta or "System details unavailable",
+                }
+            )
+    return series
+
+
+def _normalize_width(value: float, min_value: float, max_value: float, higher_is_better: bool) -> float:
+    """Convert raw values to a bar width percentage."""
+    min_width = 10.0
+    if higher_is_better:
+        if max_value <= 0:
+            return 100.0
+        width = (value / max_value) * 100
+    else:
+        positive_min = min((v for v in (min_value, max_value, value) if v > 0), default=None)
+        baseline = positive_min if positive_min is not None else (min_value if min_value != 0 else 1.0)
+        width = (baseline / value) * 100 if value else 100.0
+    return max(min_width, min(100.0, width))
+
+
+def _build_graph_section(
+    title: str,
+    bench_types: Iterable[BenchmarkType],
+    series: dict[BenchmarkType, list[GraphBar]],
+) -> str:
+    cards: list[str] = []
+    for bench_type in bench_types:
+        bars = series.get(bench_type, [])
+        if not bars:
+            continue
+        rule = _score_rule_for_type(bench_type)
+        if not rule:
+            continue
+        sorted_bars = sorted(bars, key=lambda bar: bar["value"], reverse=rule.higher_is_better)
+        values = [bar["value"] for bar in sorted_bars]
+        max_value = max(values)
+        min_value = min(values)
+        direction_text = "Higher is better" if rule.higher_is_better else "Lower is better"
+        bench_instance = BENCHMARK_MAP.get(bench_type)
+        bench_title = bench_instance.description if bench_instance else bench_type.value
+
+        bar_html_parts: list[str] = []
+        for bar in sorted_bars:
+            width_pct = _normalize_width(bar["value"], min_value, max_value, rule.higher_is_better)
+            tooltip_lines = [
+                f"Score: {bar['display']}",
+                direction_text,
+                f"Report: {bar['report_file']}",
+                bar["system_meta"],
+            ]
+            tooltip = " &#10;".join(html.escape(line) for line in tooltip_lines if line)
+            bar_html_parts.append(
+                f'<div class="bar-row" title="{tooltip}">'
+                f'<div class="bar-label">{html.escape(bar["label"])}</div>'
+                f'<div class="bar-track"><div class="bar-fill" style="width:{width_pct:.1f}%;"></div></div>'
+                f'<div class="bar-value">{html.escape(bar["display"])}</div>'
+                "</div>"
+            )
+
+        cards.append(
+            '<section class="chart-card">'
+            '<header class="chart-card-header">'
+            f'<div class="chart-title">{html.escape(bench_title)}</div>'
+            f'<div class="chart-subtitle">{html.escape(rule.label)} · {html.escape(direction_text)}</div>'
+            "</header>"
+            f'<div class="bar-list">{"".join(bar_html_parts)}</div>'
+            "</section>"
+        )
+
+    if not cards:
+        return ""
+
+    return (
+        '<section class="chart-section">'
+        '<div class="chart-heading">'
+        f"<h2>{html.escape(title)}</h2>"
+        '<p class="chart-note">Sorted best to worst based on reported scores.</p>'
+        "</div>"
+        f'<div class="chart-grid">{"".join(cards)}</div>'
+        "</section>"
+    )
+
+
+def _build_graphs(reports: list[ReportRow]) -> str:
+    """Build HTML for CPU/GPU comparison charts."""
+    cpu_series = _collect_graph_series(reports, CPU_BENCHMARK_TYPES)
+    gpu_series = _collect_graph_series(reports, GPU_BENCHMARK_TYPES)
+    sections = [
+        _build_graph_section("CPU Benchmarks", CPU_BENCHMARK_TYPES, cpu_series),
+        _build_graph_section("GPU Benchmarks", GPU_BENCHMARK_TYPES, gpu_series),
+    ]
+    return "\n".join(section for section in sections if section)
+
+
+def _svg_escape(text: str) -> str:
+    return html.escape(text, quote=True)
+
+
+def _wrap_label(text: str, max_len: int = 32) -> list[str]:
+    """Wrap labels at word boundaries for better readability."""
+    words = text.split()
+    if not words:
+        return [""]
+    lines: list[str] = []
+    current: list[str] = []
+    for word in words:
+        candidate = " ".join([*current, word]) if current else word
+        if len(candidate) <= max_len:
+            current.append(word)
+        else:
+            if current:
+                lines.append(" ".join(current))
+            current = [word]
+    if current:
+        lines.append(" ".join(current))
+    return lines
+
+
+def _render_svg_chart(title: str, subtitle: str, bars: list[GraphBar], rule: ScoreRule) -> str:
+    """Render a single bar chart as an SVG image."""
+    bar_height = 28
+    bar_gap = 12
+    left_pad = 380
+    right_pad = 150
+    track_width = 760
+    chart_width = left_pad + track_width + right_pad
+    header_height = 54
+    body_height = len(bars) * (bar_height + bar_gap)
+    total_height = header_height + body_height + 20
+
+    values = [bar["value"] for bar in bars]
+    max_value = max(values)
+    min_value = min(values)
+
+    bar_elements: list[str] = []
+    y = header_height
+    for bar in bars:
+        width_pct = _normalize_width(bar["value"], min_value, max_value, rule.higher_is_better)
+        fill_width = (width_pct / 100.0) * track_width
+        label_lines = _wrap_label(bar["label"])
+        label_text = "".join(
+            f'<tspan x="12" dy="{0 if idx == 0 else 16}">{_svg_escape(line)}</tspan>'
+            for idx, line in enumerate(label_lines)
+        )
+        bar_elements.append(
+            f'<g transform="translate(0,{y})" aria-label="{_svg_escape(bar["label"])}">'
+            f'<text y="{bar_height / 2 + 4}" font-size="14" font-family="system-ui,sans-serif" '
+            f'fill="#0f172a">{label_text}</text>'
+            f'<rect x="{left_pad}" y="4" width="{track_width}" height="{bar_height}" rx="6" '
+            f'fill="#e5e7eb" />'
+            f'<rect x="{left_pad}" y="4" width="{fill_width:.1f}" height="{bar_height}" rx="6" '
+            f'fill="url(#barGradient)" />'
+            f'<text x="{left_pad + track_width + 10}" y="{bar_height / 2 + 5}" '
+            f'font-size="14" font-family="system-ui,sans-serif" font-weight="700" fill="#111827">'
+            f"{_svg_escape(bar['display'])}"
+            "</text>"
+            "</g>"
+        )
+        y += bar_height + bar_gap
+
+    direction_text = "Higher is better" if rule.higher_is_better else "Lower is better"
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{chart_width}" height="{total_height}" '
+        f'viewBox="0 0 {chart_width} {total_height}">'
+        "<defs>"
+        '<linearGradient id="barGradient" x1="0%" x2="100%" y1="0%" y2="0%">'
+        '<stop offset="0%" stop-color="#1da1f2"/>'
+        '<stop offset="50%" stop-color="#3b82f6"/>'
+        '<stop offset="100%" stop-color="#2563eb"/>'
+        "</linearGradient>"
+        "</defs>"
+        f'<rect width="100%" height="100%" fill="#ffffff"/>'
+        f'<text x="12" y="24" font-size="17" font-family="system-ui,sans-serif" '
+        f'font-weight="700" fill="#0b1221">{_svg_escape(title)}</text>'
+        f'<text x="12" y="44" font-size="14" font-family="system-ui,sans-serif" fill="#4b5563">'
+        f"{_svg_escape(subtitle)} · {_svg_escape(direction_text)}</text>"
+        f"{''.join(bar_elements)}"
+        "</svg>"
+    )
+
+
+def _write_svg_charts(base_dir: Path, category: str, series: dict[BenchmarkType, list[GraphBar]]) -> list[Path]:
+    """Write per-benchmark SVG charts to disk and return generated paths."""
+    if not series:
+        return []
+    charts_dir = base_dir / "charts"
+    charts_dir.mkdir(parents=True, exist_ok=True)
+    generated: list[Path] = []
+
+    for bench_type, bars in series.items():
+        if not bars:
+            continue
+        rule = _score_rule_for_type(bench_type)
+        if not rule:
+            continue
+        bench_instance = BENCHMARK_MAP.get(bench_type)
+        bench_title = bench_instance.description if bench_instance else bench_type.value
+        sorted_bars = sorted(bars, key=lambda bar: bar["value"], reverse=rule.higher_is_better)
+        subtitle = rule.label
+        svg = _render_svg_chart(bench_title, subtitle, sorted_bars, rule)
+        filename = sanitize_for_filename(f"{category}-{bench_type.value}.svg")
+        output_path = charts_dir / filename
+        output_path.write_text(svg)
+        generated.append(output_path)
+
+    return generated
+
+
+def _convert_svg_to_png(svg_paths: list[Path]) -> list[Path]:
+    """Convert SVG charts to PNG using ImageMagick if available."""
+    converter = shutil.which("convert") or shutil.which("magick")
+    if not converter:
+        return []
+
+    png_paths: list[Path] = []
+    for svg_path in svg_paths:
+        png_path = svg_path.with_suffix(".png")
+        try:
+            completed = subprocess.run(
+                [converter, "-density", "220", "-background", "white", svg_path, png_path],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if completed.returncode == 0 and png_path.exists():
+                png_paths.append(png_path)
+        except (OSError, subprocess.SubprocessError):
+            continue
+    return png_paths
+
+
+def _build_charts_notice(charts: list[Path], html_dir: Path) -> str:
+    """Return a small HTML block linking to generated charts."""
+    if not charts:
+        return ""
+    items = []
+    for chart in sorted(charts):
+        try:
+            rel = chart.relative_to(html_dir)
+        except ValueError:
+            rel = chart
+        label = rel.name
+        items.append(f'<li><a href="{html.escape(str(rel))}">{html.escape(label)}</a></li>')
+    if not items:
+        return ""
+    return (
+        '<section class="charts-note">'
+        "<h2>Benchmark charts</h2>"
+        "<p>Charts are saved as standalone SVG files:</p>"
+        f'<ul class="chart-links">{"".join(items)}</ul>'
+        "</section>"
+    )
+
+
 def _render_html_document(
     header_cells: str,
     table_html: str,
+    charts_notice_html: str,
 ) -> str:
     return f"""<!doctype html>
 <html lang="en">
@@ -397,6 +1047,14 @@ def _render_html_document(
     .run-presets .preset-label {{ color: #1f2429; font-size: 0.95rem; }}
     .cell-main {{ font-weight: 600; }}
     .cell-version {{ color: #5a646f; font-size: 0.8rem; margin-top: 0.2rem; }}
+
+    /* Charts notice */
+    .charts-note {{ margin-bottom: 1.4rem; padding: 0.75rem 1rem; border: 1px solid #e3e8ef;
+      background: #f8fafc; border-radius: 8px; }}
+    .charts-note h2 {{ margin: 0 0 0.4rem; font-size: 1.1rem; }}
+    .charts-note p {{ margin: 0 0 0.4rem; color: #4b5563; }}
+    .chart-links {{ margin: 0; padding-left: 1.2rem; }}
+    .chart-links li {{ margin: 0.15rem 0; }}
 
     /* Sortable headers */
     th.sortable {{
@@ -424,6 +1082,7 @@ def _render_html_document(
 </head>
 <body>
   <h1>Benchmark Runs</h1>
+  {charts_notice_html}
   <table id="benchmark-table">
     <thead>
       <tr>
@@ -527,7 +1186,17 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
     header_cells = _build_header_cells(bench_columns, bench_metadata)
     body_rows = _build_body_rows(rows)
     table_html = "\n".join(body_rows)
-    document = _render_html_document(header_cells, table_html)
+    cpu_series = _collect_graph_series(reports, CPU_BENCHMARK_TYPES)
+    gpu_series = _collect_graph_series(reports, GPU_BENCHMARK_TYPES)
+    generated_svgs = []
+    generated_svgs.extend(_write_svg_charts(html_path.parent, "cpu", cpu_series))
+    generated_svgs.extend(_write_svg_charts(html_path.parent, "gpu", gpu_series))
+    generated_pngs = _convert_svg_to_png(generated_svgs)
+    chart_files = generated_pngs or generated_svgs
+    charts_notice_html = _build_charts_notice(chart_files, html_path.parent)
+    document = _render_html_document(header_cells, table_html, charts_notice_html)
 
     html_path.write_text(document)
     print(f"Updated {html_path} ({len(rows)} runs tracked)")
+    if chart_files:
+        print(f"Wrote {len(chart_files)} chart file(s) to {chart_files[0].parent}/")

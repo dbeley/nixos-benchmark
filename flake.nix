@@ -24,10 +24,14 @@
           stress-ng
           stockfish
           fio
+          iozone
           ioping
+          bonnie
           glmark2
+          mesa-demos
           vkmark
           furmark
+          geekbench
           openssl
           x265
           john
