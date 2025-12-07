@@ -26,11 +26,11 @@ nix run github:dbeley/nixos-benchmark -- --benchmarks openssl-speed,fio-seq
 
 Available presets: `balanced` (default), `cpu`, `io`, `memory`, `compression`, `crypto`, `database`, `gpu-light`, `gpu`, `network`, `all`. Use `--presets all` if you want every benchmark.
 
-- CPU: openssl speed, 7-Zip, John, Stockfish, stress-ng, sysbench cpu, unixbench, geekbench
+- CPU: openssl speed, 7-Zip, John, Stockfish, stress-ng, sysbench cpu, geekbench
 - Memory: sysbench memory, stressapptest, tinymembench
 - IO / storage: fio seq, ioping, iozone, bonnie++, sqlite mixed, sqlite speedtest, cryptsetup
 - Compression: zstd, pigz, lz4, x264, x265, ffmpeg transcode
-- GPU: glmark2, glxgears, vkmark, furmark-gl, furmark-vk, furmark-knot-gl, furmark-knot-vk, clpeak, hashcat
+- GPU: glmark2, vkmark, furmark-gl, furmark-vk, furmark-knot-gl, furmark-knot-vk, clpeak, hashcat, geekbench gpu
 - Network: netperf, wrk (local HTTP)
 
 Use `--list-benchmarks` to see the exact preset coverage for each entry.
@@ -42,6 +42,9 @@ Use `--list-benchmarks` to see the exact preset coverage for each entry.
 
 ## Notes
 - glmark2 defaults to offscreen; pass `--glmark2-mode onscreen` if you want visible rendering.
+- Geekbench requires internet access to publish results; follow the printed link if scores are missing from stdout.
 
 ## Sample Output
 ![sample output image](docs/sample_output.png)
+
+![7zip sample graph](docs/cpu-7zip-benchmark.png)
