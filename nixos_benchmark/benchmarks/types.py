@@ -39,3 +39,4 @@ class BenchmarkType(StrEnum):
     BONNIE = "bonnie++"
     GEEKBENCH = "geekbench"
     GEEKBENCH_GPU = "geekbench-gpu"
+    GEEKBENCH_GPU_VULKAN = "geekbench-gpu-vulkan"

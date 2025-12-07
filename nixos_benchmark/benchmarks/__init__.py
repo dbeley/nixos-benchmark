@@ -9,7 +9,7 @@ from .cryptsetup import CryptsetupBenchmark
 from .ffmpeg import FFmpegBenchmark
 from .fio import FIOBenchmark
 from .furmark import FurmarkBenchmark
-from .geekbench import GeekbenchBenchmark, GeekbenchGPUBenchmark
+from .geekbench import GeekbenchBenchmark, GeekbenchGPUBenchmark, GeekbenchVulkanBenchmark
 from .glmark2 import GLMark2Benchmark
 from .hashcat import HashcatBenchmark
 from .ioping import IOPingBenchmark
@@ -19,6 +19,7 @@ from .lz4 import LZ4Benchmark
 from .netperf import NetperfBenchmark
 from .openssl import OpenSSLBenchmark
 from .pigz import PigzBenchmark
+from .scoring import CPU_SCORE_RULES, GPU_SCORE_RULES, IO_SCORE_RULES, SCORE_RULES, ScoreRule, get_score_rule
 from .sevenzip import SevenZipBenchmark
 from .sqlite_mixed import SQLiteMixedBenchmark
 from .sqlite_speedtest import SQLiteSpeedtestBenchmark
@@ -72,6 +73,7 @@ ALL_BENCHMARKS = [
     WrkHTTPBenchmark(),
     GeekbenchBenchmark(),
     GeekbenchGPUBenchmark(),
+    GeekbenchVulkanBenchmark(),
 ]
 
 # Create a map from benchmark type to benchmark instance for easy lookup
@@ -179,6 +181,7 @@ PRESETS: dict[str, dict[str, object]] = {
             BenchmarkType.CLPEAK,
             BenchmarkType.HASHCAT_GPU,
             BenchmarkType.GEEKBENCH_GPU,
+            BenchmarkType.GEEKBENCH_GPU_VULKAN,
         ),
     },
     "network": {
@@ -193,6 +196,19 @@ PRESETS: dict[str, dict[str, object]] = {
         "benchmarks": tuple(BENCHMARK_MAP),
     },
 }
+
+
+def get_benchmark_types_for_preset(preset_name: str) -> tuple[BenchmarkType, ...]:
+    """Return the benchmark types associated with a preset."""
+    preset = PRESETS.get(preset_name, {})
+    benchmarks = preset.get("benchmarks", ())
+    if not isinstance(benchmarks, (list, tuple)):
+        return ()
+    return tuple(bench for bench in benchmarks if isinstance(bench, BenchmarkType))
+
+
+CPU_BENCHMARK_TYPES = get_benchmark_types_for_preset("cpu")
+GPU_BENCHMARK_TYPES = get_benchmark_types_for_preset("gpu")
 
 
 def get_presets_for_benchmark(benchmark: BenchmarkBase) -> tuple[str, ...]:
@@ -218,9 +234,18 @@ def get_all_benchmarks():
 __all__ = [
     "ALL_BENCHMARKS",
     "BENCHMARK_MAP",
+    "CPU_BENCHMARK_TYPES",
+    "CPU_SCORE_RULES",
+    "GPU_BENCHMARK_TYPES",
+    "GPU_SCORE_RULES",
+    "IO_SCORE_RULES",
     "PRESETS",
+    "SCORE_RULES",
     "BenchmarkBase",
     "BenchmarkType",
+    "ScoreRule",
     "get_all_benchmarks",
+    "get_benchmark_types_for_preset",
     "get_presets_for_benchmark",
+    "get_score_rule",
 ]
