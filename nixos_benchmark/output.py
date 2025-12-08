@@ -21,7 +21,7 @@ from .benchmarks import (
     DATABASE_BENCHMARK_TYPES,
     ENCODE_BENCHMARK_TYPES,
     GPU_BENCHMARK_TYPES,
-    IO_SCORE_RULES,
+    IO_BENCHMARK_TYPES,
     MEMORY_BENCHMARK_TYPES,
     NETWORK_BENCHMARK_TYPES,
     BenchmarkType,
@@ -111,7 +111,7 @@ def _get_benchmark_category(bench_type: BenchmarkType) -> str:
         return "Encoding"
     elif bench_type in MEMORY_BENCHMARK_TYPES:
         return "Memory"
-    elif bench_type in IO_SCORE_RULES.keys():
+    elif bench_type in IO_BENCHMARK_TYPES:
         return "I/O"
     elif bench_type in GPU_BENCHMARK_TYPES:
         return "GPU"

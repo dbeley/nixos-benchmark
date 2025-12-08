@@ -291,6 +291,13 @@ IO_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
 SCORE_RULES: dict[BenchmarkType, ScoreRule] = {**CPU_SCORE_RULES, **GPU_SCORE_RULES, **IO_SCORE_RULES}
 
 # Benchmark categories for grouping in reports
+IO_BENCHMARK_TYPES = (
+    BenchmarkType.FIO_SEQ,
+    BenchmarkType.BONNIE,
+    BenchmarkType.IOZONE,
+    BenchmarkType.IOPING,
+)
+
 MEMORY_BENCHMARK_TYPES = (
     BenchmarkType.SYSBENCH_MEMORY,
     BenchmarkType.STRESSAPPTEST,
@@ -340,6 +347,7 @@ __all__ = [
     "DATABASE_BENCHMARK_TYPES",
     "ENCODE_BENCHMARK_TYPES",
     "GPU_SCORE_RULES",
+    "IO_BENCHMARK_TYPES",
     "IO_SCORE_RULES",
     "MEMORY_BENCHMARK_TYPES",
     "NETWORK_BENCHMARK_TYPES",
