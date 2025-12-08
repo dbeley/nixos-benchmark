@@ -97,28 +97,23 @@ def _benchmark_type_from_name(name: str) -> BenchmarkType | None:
 
 
 def _get_benchmark_category(bench_type: BenchmarkType) -> str:
-    """Determine the category for a benchmark type."""
-    # Check more specific categories first
-    if bench_type in COMPRESSION_BENCHMARK_TYPES:
-        return "Compression"
-    elif bench_type in CRYPTO_BENCHMARK_TYPES:
-        return "Crypto"
-    elif bench_type in DATABASE_BENCHMARK_TYPES:
-        return "Database"
-    elif bench_type in NETWORK_BENCHMARK_TYPES:
+    """Determine the category for a benchmark type.
+    
+    Categories are hardware-focused: CPU, GPU, Network, I/O, Memory.
+    Software benchmarks (compression, crypto, encoding, database) are categorized as CPU.
+    """
+    # Hardware-specific categories first
+    if bench_type in NETWORK_BENCHMARK_TYPES:
         return "Network"
-    elif bench_type in ENCODE_BENCHMARK_TYPES:
-        return "Encoding"
     elif bench_type in MEMORY_BENCHMARK_TYPES:
         return "Memory"
     elif bench_type in IO_BENCHMARK_TYPES:
         return "I/O"
     elif bench_type in GPU_BENCHMARK_TYPES:
         return "GPU"
-    elif bench_type in CPU_BENCHMARK_TYPES:
-        return "CPU"
+    # Everything else is CPU (includes compression, crypto, encoding, database, and pure CPU benchmarks)
     else:
-        return "Other"
+        return "CPU"
 
 
 def write_json_report(report: BenchmarkReport, output_path: Path) -> None:
@@ -378,6 +373,34 @@ def _system_meta_line_short(system: dict[str, object]) -> str:
         cpu_short = " ".join(cpu_short.split())  # Normalize whitespace
         parts.append(cpu_short)
     
+    # GPU - show simplified GPU info
+    gpus = system.get("gpus") or []
+    if isinstance(gpus, (list, tuple)) and gpus:
+        # Take first GPU and simplify (remove Mesa prefix and technical details)
+        gpu_label = str(gpus[0])
+        # Remove "Mesa " prefix and technical IDs like "(0x591e)"
+        gpu_short = gpu_label.replace("Mesa ", "")
+        # Remove hex IDs in parentheses
+        import re
+        gpu_short = re.sub(r'\s*\([^)]*0x[^)]*\)', '', gpu_short)
+        # Remove duplicate parts (e.g., "(KBL GT2) (KBL GT2)" -> "(KBL GT2)")
+        gpu_parts = gpu_short.split()
+        seen = set()
+        unique = []
+        for part in gpu_parts:
+            if part not in seen:
+                seen.add(part)
+                unique.append(part)
+        gpu_short = " ".join(unique)
+        if gpu_short and gpu_short.strip():
+            parts.append(gpu_short.strip())
+    elif isinstance(gpus, str) and gpus:
+        gpu_short = str(gpus).replace("Mesa ", "")
+        import re
+        gpu_short = re.sub(r'\s*\([^)]*0x[^)]*\)', '', gpu_short)
+        if gpu_short and gpu_short.strip():
+            parts.append(gpu_short.strip())
+    
     # RAM
     ram_label = _format_memory_label(system.get("memory_total_bytes"))
     if ram_label and not ram_label.lower().startswith("unknown"):
@@ -441,8 +464,8 @@ def _build_header_cells(
         else:
             categories["Other"].append(name)
     
-    # Define category order
-    category_order = ["CPU", "GPU", "Memory", "I/O", "Compression", "Crypto", "Encoding", "Database", "Network", "Other"]
+    # Define category order (hardware-focused)
+    category_order = ["CPU", "GPU", "Memory", "I/O", "Network"]
     
     # Build header cells grouped by category
     header_cells = ""
@@ -1055,7 +1078,7 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
     
     # Flatten categories in order for benchmark headers
     ordered_bench_columns = []
-    category_order = ["CPU", "GPU", "Memory", "I/O", "Compression", "Crypto", "Encoding", "Database", "Network", "Other"]
+    category_order = ["CPU", "GPU", "Memory", "I/O", "Network"]
     for category in category_order:
         if category in category_map:
             ordered_bench_columns.extend(category_map[category])
