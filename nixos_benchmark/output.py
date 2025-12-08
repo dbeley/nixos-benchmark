@@ -15,16 +15,9 @@ from typing import Any, TypedDict
 
 from .benchmarks import (
     BENCHMARK_MAP,
-    COMPRESSION_BENCHMARK_TYPES,
-    CPU_BENCHMARK_TYPES,
-    CRYPTO_BENCHMARK_TYPES,
-    DATABASE_BENCHMARK_TYPES,
-    GPU_BENCHMARK_TYPES,
-    IO_BENCHMARK_TYPES,
-    MEMORY_BENCHMARK_TYPES,
-    NETWORK_BENCHMARK_TYPES,
     BenchmarkType,
     ScoreRule,
+    get_benchmark_types_for_preset,
     get_score_rule,
 )
 from .benchmarks.base import BenchmarkBase
@@ -37,10 +30,27 @@ from .models import (
 
 
 UNKNOWN_TIMESTAMP = datetime.min.replace(tzinfo=UTC)
-CPU_RELATED_BENCHMARK_TYPES: tuple[BenchmarkType, ...] = (
-    CPU_BENCHMARK_TYPES + COMPRESSION_BENCHMARK_TYPES + CRYPTO_BENCHMARK_TYPES + DATABASE_BENCHMARK_TYPES
-)
-CATEGORY_ORDER = ["CPU", "GPU", "Memory", "I/O", "Network"]
+CATEGORY_PRESETS = {
+    "CPU": ("cpu", "compression", "crypto", "database"),
+    "GPU": ("gpu",),
+    "Memory": ("memory",),
+    "I/O": ("io",),
+    "Network": ("network",),
+}
+_CATEGORY_BENCHMARKS_CACHE: dict[str, set[BenchmarkType]] = {}
+
+
+def _get_benchmarks_for_category(category: str) -> set[BenchmarkType]:
+    if category in _CATEGORY_BENCHMARKS_CACHE:
+        return _CATEGORY_BENCHMARKS_CACHE[category]
+
+    presets = CATEGORY_PRESETS.get(category, ())
+    benchmarks: set[BenchmarkType] = set()
+    for preset in presets:
+        benchmarks.update(get_benchmark_types_for_preset(preset))
+
+    _CATEGORY_BENCHMARKS_CACHE[category] = benchmarks
+    return benchmarks
 
 
 class ReportRow(TypedDict):
@@ -77,17 +87,14 @@ class GraphBar(TypedDict):
 
 
 def sanitize_for_filename(value: str) -> str:
-    """Sanitize a string to be safe for use in filenames."""
     return re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip("-")
 
 
 def describe_benchmark(bench: BenchmarkResult) -> str:
-    """Extract the human-readable score of a benchmark result."""
     benchmark_instance = BENCHMARK_MAP.get(bench.benchmark_type)
     if benchmark_instance:
         return benchmark_instance.format_result(bench)
 
-    # Fallback for unknown benchmarks
     status_message = BenchmarkBase.format_status_message(bench)
     return status_message or ""
 
@@ -100,32 +107,18 @@ def _benchmark_type_from_name(name: str) -> BenchmarkType | None:
 
 
 def _get_benchmark_category(bench_type: BenchmarkType) -> str:
-    """
-    Determine the category for a benchmark type based on presets.
-    Priority: GPU > CPU-related > Memory > Network > I/O
-    """
-    if bench_type in GPU_BENCHMARK_TYPES:
-        return "GPU"
-    if bench_type in CPU_RELATED_BENCHMARK_TYPES:
-        return "CPU"
-    if bench_type in MEMORY_BENCHMARK_TYPES:
-        return "Memory"
-    if bench_type in NETWORK_BENCHMARK_TYPES:
-        return "Network"
-    if bench_type in IO_BENCHMARK_TYPES:
-        return "I/O"
-
-    return "CPU"
+    for category in sorted(CATEGORY_PRESETS.keys()):
+        if bench_type in _get_benchmarks_for_category(category):
+            return category
+    return "CPU"  # Default fallback
 
 
 def write_json_report(report: BenchmarkReport, output_path: Path) -> None:
-    """Write benchmark report to JSON file."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(report.to_dict(), indent=2))
 
 
 def _parse_generated(value: str, default_timestamp: datetime) -> datetime:
-    """Parse an ISO timestamp, falling back to a default value."""
     try:
         return datetime.fromisoformat(value)
     except ValueError:
@@ -133,20 +126,17 @@ def _parse_generated(value: str, default_timestamp: datetime) -> datetime:
 
 
 def _as_str(value: object, default: str = "") -> str:
-    """Coerce a value to string for safer typing."""
     text = str(value) if value is not None else ""
     return text if text else default
 
 
 def _as_str_list(value: object) -> list[str]:
-    """Ensure presets/labels are string lists."""
     if isinstance(value, (list, tuple, set)):
         return [str(item) for item in value if str(item)]
     return []
 
 
 def _as_metrics_dict(value: object) -> dict[str, float | str | int]:
-    """Filter metrics payload to supported primitive values."""
     if not isinstance(value, dict):
         return {}
     filtered: dict[str, float | str | int] = {}
@@ -157,14 +147,12 @@ def _as_metrics_dict(value: object) -> dict[str, float | str | int]:
 
 
 def _as_parameters_dict(value: object) -> dict[str, Any]:
-    """Coerce parameters payload into a string-keyed dict."""
     if not isinstance(value, dict):
         return {}
     return {str(key): val for key, val in value.items()}
 
 
 def _as_float(value: object, default: float = 0.0) -> float:
-    """Safely convert duration-like values to float."""
     try:
         return float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
@@ -172,7 +160,6 @@ def _as_float(value: object, default: float = 0.0) -> float:
 
 
 def _parse_benchmark_result(bench_dict: dict[str, object]) -> BenchmarkResult | None:
-    """Convert a raw benchmark dictionary into a BenchmarkResult object."""
     bench_type = _benchmark_type_from_name(_as_str(bench_dict.get("name", "")))
     if bench_type is None:
         return None
@@ -194,7 +181,6 @@ def _load_reports_and_metadata(
     json_files: list[Path],
     default_timestamp: datetime,
 ) -> tuple[list[ReportRow], dict[str, dict[str, set[str]]]]:
-    """Load JSON reports and collect per-benchmark metadata."""
     reports: list[ReportRow] = []
     bench_metadata: dict[str, dict[str, set[str]]] = {}
 
@@ -246,7 +232,6 @@ def _build_rows(
     reports: list[ReportRow],
     bench_columns: list[str],
 ) -> list[RowWithCells]:
-    """Build table rows from loaded reports and benchmark columns."""
     rows: list[RowWithCells] = []
 
     for report in reports:
@@ -335,100 +320,25 @@ def _format_cpu_label(system: dict[str, object]) -> str:
 
 
 def _system_meta_line(system: dict[str, object]) -> str:
-    """Full system details for tooltips."""
+    """Simple system summary."""
     parts = []
     cpu_label = system.get("cpu_model") or system.get("processor")
     if cpu_label:
         parts.append(str(cpu_label))
-
     gpu_label = _format_gpu_label(system)
     if gpu_label:
         parts.append(gpu_label)
-
     ram_label = _format_memory_label(system.get("memory_total_bytes"))
     if ram_label and not ram_label.lower().startswith("unknown"):
         parts.append(ram_label)
-
     os_name = system.get("os_name") or system.get("platform")
     os_version = system.get("os_version") or ""
     if os_name:
         parts.append(f"{os_name} {os_version}".strip())
-
     kernel = system.get("kernel_version") or ""
     if kernel:
         label = str(kernel)
         parts.append(label if label.lower().startswith("linux") else f"Linux {label}")
-
-    return " · ".join(str(part) for part in parts if str(part).strip())
-
-
-def _system_meta_line_short(system: dict[str, object]) -> str:
-    """Short system summary for display (full details on hover)."""
-    parts = []
-
-    # CPU - use short version if available (extract before first '·' or '(' or '@')
-    cpu_label = str(system.get("cpu_model") or system.get("processor") or "")
-    if cpu_label:
-        # Shorten CPU name - remove frequency and extra details
-        cpu_short = cpu_label.split("@")[0].strip().replace("(R)", "").replace("(TM)", "")
-        cpu_short = " ".join(cpu_short.split())  # Normalize whitespace
-        parts.append(cpu_short)
-
-    # GPU - show simplified GPU info
-    gpus = system.get("gpus") or []
-    if isinstance(gpus, (list, tuple)) and gpus:
-        # Take first GPU and simplify (remove Mesa prefix and technical details)
-        gpu_label = str(gpus[0])
-        # Remove "Mesa " prefix and technical IDs like "(0x591e)"
-        gpu_short = gpu_label.replace("Mesa ", "").replace("(R)", "").replace("(TM)", "")  # Remove trademarks
-        # Remove hex IDs in parentheses
-        gpu_short = re.sub(r"\s*\([^)]*0x[^)]*\)", "", gpu_short)
-        # Remove duplicate parts (e.g., "(KBL GT2) (KBL GT2)" -> "(KBL GT2)")
-        gpu_parts = gpu_short.split()
-        seen = set()
-        unique = []
-        for part in gpu_parts:
-            if part not in seen:
-                seen.add(part)
-                unique.append(part)
-        gpu_short = " ".join(unique)
-        parts.append(gpu_short.strip())
-    elif isinstance(gpus, str) and gpus:
-        gpu_short = str(gpus).replace("Mesa ", "")
-        gpu_short = re.sub(r"\s*\([^)]*0x[^)]*\)", "", gpu_short)
-        if gpu_short and gpu_short.strip():
-            parts.append(gpu_short.strip())
-
-    # RAM
-    ram_label = _format_memory_label(system.get("memory_total_bytes"))
-    if ram_label and not ram_label.lower().startswith("unknown"):
-        parts.append(ram_label)
-
-    # OS - deduplicate version info
-    os_name = system.get("os_name") or system.get("platform") or ""
-    os_version = system.get("os_version") or ""
-    if os_name and os_version:
-        # Remove duplicate version strings (e.g., "26.05 (Yarara) 26.05 (Yarara)" -> "26.05 (Yarara)")
-        version_parts = str(os_version).split()
-        # Keep only unique parts
-        seen = set()
-        unique_parts = []
-        for part in version_parts:
-            if part not in seen:
-                seen.add(part)
-                unique_parts.append(part)
-        os_version_clean = " ".join(unique_parts)
-        parts.append(f"{os_name} {os_version_clean}".strip())
-    elif os_name:
-        parts.append(str(os_name))
-
-    # Kernel - simplified
-    kernel = system.get("kernel_version") or ""
-    if kernel:
-        label = str(kernel)
-        # Just show version number, not "Linux" prefix since it's redundant with OS
-        parts.append(label if label.lower().startswith("linux") else f"Linux {label}")
-
     return " · ".join(str(part) for part in parts if str(part).strip())
 
 
@@ -461,14 +371,10 @@ def _build_header_cells(
         else:
             categories["Other"].append(name)
 
-    # Build header cells grouped by category
     header_cells = ""
     category_map: dict[str, list[str]] = {}
 
-    for category in CATEGORY_ORDER:
-        if category not in categories:
-            continue
-
+    for category in sorted(categories.keys()):
         bench_names = sorted(categories[category])
         category_map[category] = bench_names
 
@@ -486,7 +392,6 @@ def _build_benchmark_header_cells(
     bench_columns: list[str],
     bench_metadata: dict[str, dict[str, set[str]]],
 ) -> str:
-    """Build individual benchmark column headers."""
     header_cells = ""
     for name in bench_columns:
         meta = bench_metadata.get(name, {"presets": set(), "versions": set()})
@@ -572,11 +477,11 @@ def _build_body_rows(rows: list[RowWithCells], bench_columns: list[str]) -> list
 
 
 def _graph_label_for_system(system: dict[str, object], bench_type: BenchmarkType) -> str:
-    """Build a compact label (CPU/GPU with hostname)."""
     hostname = _as_str(system.get("hostname", ""))
-    base_label = _format_cpu_label(system) if bench_type in CPU_BENCHMARK_TYPES else _format_gpu_label(system)
+    is_cpu = bench_type in _get_benchmarks_for_category("CPU")
+    base_label = _format_cpu_label(system) if is_cpu else _format_gpu_label(system)
     if not base_label:
-        base_label = "Unknown CPU" if bench_type in CPU_BENCHMARK_TYPES else "Unknown GPU"
+        base_label = "Unknown CPU" if is_cpu else "Unknown GPU"
     suffix_parts = [part for part in (hostname, _as_str(system.get("machine", ""))) if part]
     suffix = f" ({', '.join(suffix_parts)})" if suffix_parts else ""
     return f"{base_label}{suffix}"
@@ -586,7 +491,6 @@ def _collect_graph_series(
     reports: list[ReportRow],
     benchmark_types: Iterable[BenchmarkType],
 ) -> dict[BenchmarkType, list[GraphBar]]:
-    """Collect per-benchmark series for chart rendering."""
     series: dict[BenchmarkType, list[GraphBar]] = defaultdict(list)
     for report in reports:
         system = report["system"]
@@ -614,7 +518,6 @@ def _collect_graph_series(
 
 
 def _normalize_width(value: float, min_value: float, max_value: float, higher_is_better: bool) -> float:
-    """Convert raw values to a bar width percentage."""
     min_width = 10.0
     if higher_is_better:
         if max_value <= 0:
@@ -691,12 +594,13 @@ def _build_graph_section(
 
 
 def _build_graphs(reports: list[ReportRow]) -> str:
-    """Build HTML for CPU/GPU comparison charts."""
-    cpu_series = _collect_graph_series(reports, CPU_BENCHMARK_TYPES)
-    gpu_series = _collect_graph_series(reports, GPU_BENCHMARK_TYPES)
+    cpu_benchmarks = _get_benchmarks_for_category("CPU")
+    gpu_benchmarks = _get_benchmarks_for_category("GPU")
+    cpu_series = _collect_graph_series(reports, cpu_benchmarks)
+    gpu_series = _collect_graph_series(reports, gpu_benchmarks)
     sections = [
-        _build_graph_section("CPU Benchmarks", CPU_BENCHMARK_TYPES, cpu_series),
-        _build_graph_section("GPU Benchmarks", GPU_BENCHMARK_TYPES, gpu_series),
+        _build_graph_section("CPU Benchmarks", cpu_benchmarks, cpu_series),
+        _build_graph_section("GPU Benchmarks", gpu_benchmarks, gpu_series),
     ]
     return "\n".join(section for section in sections if section)
 
@@ -706,7 +610,6 @@ def _svg_escape(text: str) -> str:
 
 
 def _wrap_label(text: str, max_len: int = 32) -> list[str]:
-    """Wrap labels at word boundaries for better readability."""
     words = text.split()
     if not words:
         return [""]
@@ -726,7 +629,6 @@ def _wrap_label(text: str, max_len: int = 32) -> list[str]:
 
 
 def _render_svg_chart(title: str, subtitle: str, bars: list[GraphBar], rule: ScoreRule) -> str:
-    """Render a single bar chart as an SVG image."""
     bar_height = 28
     bar_gap = 12
     left_pad = 380
@@ -789,7 +691,6 @@ def _render_svg_chart(title: str, subtitle: str, bars: list[GraphBar], rule: Sco
 
 
 def _write_svg_charts(base_dir: Path, category: str, series: dict[BenchmarkType, list[GraphBar]]) -> list[Path]:
-    """Write per-benchmark SVG charts to disk and return generated paths."""
     if not series:
         return []
     charts_dir = base_dir / "charts"
@@ -816,7 +717,6 @@ def _write_svg_charts(base_dir: Path, category: str, series: dict[BenchmarkType,
 
 
 def _convert_svg_to_png(svg_paths: list[Path]) -> list[Path]:
-    """Convert SVG charts to PNG using ImageMagick if available."""
     converter = shutil.which("convert") or shutil.which("magick")
     if not converter:
         return []
@@ -1097,7 +997,6 @@ def _render_html_document(
 
 
 def build_html_summary(results_dir: Path, html_path: Path) -> None:
-    """Build HTML dashboard summarizing all benchmark runs in results_dir."""
     json_files = sorted(results_dir.glob("*.json"))
     default_timestamp = UNKNOWN_TIMESTAMP
 
@@ -1111,11 +1010,10 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
     # Build grouped headers
     category_header_cells, category_map = _build_header_cells(bench_columns, bench_metadata)
 
-    # Flatten categories in order for benchmark headers
+    # Flatten categories in alphabetical order for benchmark headers
     ordered_bench_columns = []
-    for category in CATEGORY_ORDER:
-        if category in category_map:
-            ordered_bench_columns.extend(category_map[category])
+    for category in sorted(category_map.keys()):
+        ordered_bench_columns.extend(category_map[category])
 
     # Build rows with the ordered columns
     rows = _build_rows(reports, ordered_bench_columns)
@@ -1124,11 +1022,13 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
     body_rows = _build_body_rows(rows, ordered_bench_columns)
     table_html = "\n".join(body_rows)
 
-    # Collect categories list for filter UI
-    categories = [cat for cat in CATEGORY_ORDER if cat in category_map]
+    # Collect categories list for filter UI (alphabetical order)
+    categories = sorted(category_map.keys())
 
-    cpu_series = _collect_graph_series(reports, CPU_BENCHMARK_TYPES)
-    gpu_series = _collect_graph_series(reports, GPU_BENCHMARK_TYPES)
+    cpu_benchmarks = _get_benchmarks_for_category("CPU")
+    gpu_benchmarks = _get_benchmarks_for_category("GPU")
+    cpu_series = _collect_graph_series(reports, cpu_benchmarks)
+    gpu_series = _collect_graph_series(reports, gpu_benchmarks)
     generated_svgs = []
     generated_svgs.extend(_write_svg_charts(html_path.parent, "cpu", cpu_series))
     generated_svgs.extend(_write_svg_charts(html_path.parent, "gpu", gpu_series))

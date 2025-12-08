@@ -20,16 +20,9 @@ from .netperf import NetperfBenchmark
 from .openssl import OpenSSLBenchmark
 from .pigz import PigzBenchmark
 from .scoring import (
-    COMPRESSION_BENCHMARK_TYPES,
     CPU_SCORE_RULES,
-    CRYPTO_BENCHMARK_TYPES,
-    DATABASE_BENCHMARK_TYPES,
-    ENCODE_BENCHMARK_TYPES,
     GPU_SCORE_RULES,
-    IO_BENCHMARK_TYPES,
     IO_SCORE_RULES,
-    MEMORY_BENCHMARK_TYPES,
-    NETWORK_BENCHMARK_TYPES,
     SCORE_RULES,
     ScoreRule,
     get_score_rule,
@@ -218,10 +211,6 @@ def get_benchmark_types_for_preset(preset_name: str) -> tuple[BenchmarkType, ...
     return tuple(bench for bench in benchmarks if isinstance(bench, BenchmarkType))
 
 
-CPU_BENCHMARK_TYPES = get_benchmark_types_for_preset("cpu")
-GPU_BENCHMARK_TYPES = get_benchmark_types_for_preset("gpu")
-
-
 def get_presets_for_benchmark(benchmark: BenchmarkBase) -> tuple[str, ...]:
     """Compute which presets include a given benchmark."""
     presets_list: list[str] = []
@@ -245,18 +234,9 @@ def get_all_benchmarks():
 __all__ = [
     "ALL_BENCHMARKS",
     "BENCHMARK_MAP",
-    "COMPRESSION_BENCHMARK_TYPES",
-    "CPU_BENCHMARK_TYPES",
     "CPU_SCORE_RULES",
-    "CRYPTO_BENCHMARK_TYPES",
-    "DATABASE_BENCHMARK_TYPES",
-    "ENCODE_BENCHMARK_TYPES",
-    "GPU_BENCHMARK_TYPES",
     "GPU_SCORE_RULES",
-    "IO_BENCHMARK_TYPES",
     "IO_SCORE_RULES",
-    "MEMORY_BENCHMARK_TYPES",
-    "NETWORK_BENCHMARK_TYPES",
     "PRESETS",
     "SCORE_RULES",
     "BenchmarkBase",
