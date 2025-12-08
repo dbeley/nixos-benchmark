@@ -40,6 +40,7 @@ UNKNOWN_TIMESTAMP = datetime.min.replace(tzinfo=UTC)
 CPU_RELATED_BENCHMARK_TYPES: tuple[BenchmarkType, ...] = (
     CPU_BENCHMARK_TYPES + COMPRESSION_BENCHMARK_TYPES + CRYPTO_BENCHMARK_TYPES + DATABASE_BENCHMARK_TYPES
 )
+CATEGORY_ORDER = ["CPU", "GPU", "Memory", "I/O", "Network"]
 
 
 class ReportRow(TypedDict):
@@ -460,14 +461,11 @@ def _build_header_cells(
         else:
             categories["Other"].append(name)
 
-    # Define category order (hardware-focused)
-    category_order = ["CPU", "GPU", "Memory", "I/O", "Network"]
-
     # Build header cells grouped by category
     header_cells = ""
     category_map: dict[str, list[str]] = {}
 
-    for category in category_order:
+    for category in CATEGORY_ORDER:
         if category not in categories:
             continue
 
@@ -1115,8 +1113,7 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
 
     # Flatten categories in order for benchmark headers
     ordered_bench_columns = []
-    category_order = ["CPU", "GPU", "Memory", "I/O", "Network"]
-    for category in category_order:
+    for category in CATEGORY_ORDER:
         if category in category_map:
             ordered_bench_columns.extend(category_map[category])
 
@@ -1128,7 +1125,7 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
     table_html = "\n".join(body_rows)
 
     # Collect categories list for filter UI
-    categories = [cat for cat in category_order if cat in category_map]
+    categories = [cat for cat in CATEGORY_ORDER if cat in category_map]
 
     cpu_series = _collect_graph_series(reports, CPU_BENCHMARK_TYPES)
     gpu_series = _collect_graph_series(reports, GPU_BENCHMARK_TYPES)
