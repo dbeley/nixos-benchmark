@@ -15,7 +15,10 @@ from typing import Any, TypedDict
 
 from .benchmarks import (
     BENCHMARK_MAP,
+    COMPRESSION_BENCHMARK_TYPES,
     CPU_BENCHMARK_TYPES,
+    CRYPTO_BENCHMARK_TYPES,
+    DATABASE_BENCHMARK_TYPES,
     GPU_BENCHMARK_TYPES,
     IO_BENCHMARK_TYPES,
     MEMORY_BENCHMARK_TYPES,
@@ -34,6 +37,9 @@ from .models import (
 
 
 UNKNOWN_TIMESTAMP = datetime.min.replace(tzinfo=UTC)
+CPU_RELATED_BENCHMARK_TYPES: tuple[BenchmarkType, ...] = (
+    CPU_BENCHMARK_TYPES + COMPRESSION_BENCHMARK_TYPES + CRYPTO_BENCHMARK_TYPES + DATABASE_BENCHMARK_TYPES
+)
 
 
 class ReportRow(TypedDict):
@@ -93,21 +99,21 @@ def _benchmark_type_from_name(name: str) -> BenchmarkType | None:
 
 
 def _get_benchmark_category(bench_type: BenchmarkType) -> str:
-    """Determine the category for a benchmark type.
-
-    Categories are hardware-focused: CPU, GPU, Network, I/O, Memory.
-    Software benchmarks (compression, crypto, encoding, database) are categorized as CPU.
     """
-    # Hardware-specific categories first
-    if bench_type in NETWORK_BENCHMARK_TYPES:
-        return "Network"
-    if bench_type in MEMORY_BENCHMARK_TYPES:
-        return "Memory"
-    if bench_type in IO_BENCHMARK_TYPES:
-        return "I/O"
+    Determine the category for a benchmark type based on presets.
+    Priority: GPU > CPU-related > Memory > Network > I/O
+    """
     if bench_type in GPU_BENCHMARK_TYPES:
         return "GPU"
-    # Everything else is CPU (includes compression, crypto, encoding, database, and pure CPU benchmarks)
+    if bench_type in CPU_RELATED_BENCHMARK_TYPES:
+        return "CPU"
+    if bench_type in MEMORY_BENCHMARK_TYPES:
+        return "Memory"
+    if bench_type in NETWORK_BENCHMARK_TYPES:
+        return "Network"
+    if bench_type in IO_BENCHMARK_TYPES:
+        return "I/O"
+
     return "CPU"
 
 
