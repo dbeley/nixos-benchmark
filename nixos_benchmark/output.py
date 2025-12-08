@@ -939,12 +939,46 @@ def _render_html_document(
   <script>
     document.addEventListener('DOMContentLoaded', function () {{
       const table = document.getElementById('benchmark-table');
-      const headers = Array.from(table.querySelectorAll('thead tr.benchmark-row th'));
       const tbody = table.querySelector('tbody');
       const filterCheckboxes = document.querySelectorAll('.filter-checkbox input');
 
-      // Add fixed headers for system, presets, date columns
-      const categoryRowHeaders = Array.from(table.querySelectorAll('thead tr.category-row th'));
+      // Collect all sortable headers from both header rows and map them to their actual column indices
+      const categoryRow = table.querySelector('thead tr.category-row');
+      const benchmarkRow = table.querySelector('thead tr.benchmark-row');
+      
+      // Build a map of header elements to their actual column indices
+      const headerToColumnIndex = new Map();
+      const allSortableHeaders = [];
+      
+      // Process category row (System, Presets, Run Date, Report with rowspan=2)
+      let colIndex = 0;
+      Array.from(categoryRow.children).forEach(th => {{
+        const colspan = parseInt(th.getAttribute('colspan') || '1', 10);
+        const rowspan = parseInt(th.getAttribute('rowspan') || '1', 10);
+        
+        if (th.classList.contains('sortable')) {{
+          headerToColumnIndex.set(th, colIndex);
+          allSortableHeaders.push(th);
+        }}
+        
+        if (rowspan === 2) {{
+          // This header spans both rows, so it occupies one column
+          colIndex++;
+        }} else {{
+          // This header has benchmark headers below it, skip those columns
+          colIndex += colspan;
+        }}
+      }});
+      
+      // Process benchmark row headers
+      colIndex = 3; // Start after System, Presets, Run Date
+      Array.from(benchmarkRow.children).forEach(th => {{
+        if (th.classList.contains('sortable')) {{
+          headerToColumnIndex.set(th, colIndex);
+          allSortableHeaders.push(th);
+        }}
+        colIndex++;
+      }});
       
       function getCellValue(row, index) {{
         const cell = row.children[index];
@@ -981,20 +1015,21 @@ def _render_html_document(
         rows.forEach(row => tbody.appendChild(row));
       }}
 
-      headers.forEach((header, index) => {{
-        if (!header.classList.contains('sortable')) return;
+      // Add click handlers to all sortable headers
+      allSortableHeaders.forEach(header => {{
         header.addEventListener('click', () => {{
           const currentOrder = header.getAttribute('data-order') === 'asc' ? 'asc' : 'desc';
           const newOrder = currentOrder === 'asc' ? 'desc' : 'asc';
           const type = header.getAttribute('data-type') || 'text';
+          const columnIndex = headerToColumnIndex.get(header);
 
           // reset other headers
-          headers.forEach(h => {{
+          allSortableHeaders.forEach(h => {{
             if (h !== header) h.removeAttribute('data-order');
           }});
 
           header.setAttribute('data-order', newOrder);
-          sortByColumn(index, type, newOrder);
+          sortByColumn(columnIndex, type, newOrder);
         }});
       }});
 
@@ -1007,7 +1042,7 @@ def _render_html_document(
           }});
 
           // Show/hide category headers
-          categoryRowHeaders.forEach(header => {{
+          Array.from(categoryRow.children).forEach(header => {{
             const category = header.getAttribute('data-category');
             if (category) {{
               if (activeCategories.has(category)) {{
@@ -1019,7 +1054,7 @@ def _render_html_document(
           }});
 
           // Show/hide benchmark headers
-          headers.forEach(header => {{
+          Array.from(benchmarkRow.children).forEach(header => {{
             const category = header.getAttribute('data-category');
             if (category) {{
               if (activeCategories.has(category)) {{
@@ -1049,10 +1084,11 @@ def _render_html_document(
       }});
 
       // Default sort: by Run Date column, newest first
-      const generatedIndex = categoryRowHeaders.findIndex(h => h.classList.contains('run-generated-header'));
-      if (generatedIndex >= 0) {{
-        categoryRowHeaders[generatedIndex].setAttribute('data-order', 'desc');
-        sortByColumn(generatedIndex, 'date', 'desc');
+      const runDateHeader = allSortableHeaders.find(h => h.classList.contains('run-generated-header'));
+      if (runDateHeader) {{
+        const runDateIndex = headerToColumnIndex.get(runDateHeader);
+        runDateHeader.setAttribute('data-order', 'desc');
+        sortByColumn(runDateIndex, 'date', 'desc');
       }}
     }});
   </script>
