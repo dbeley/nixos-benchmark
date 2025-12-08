@@ -111,7 +111,7 @@ def _get_benchmark_category(bench_type: BenchmarkType) -> str:
         return "Encoding"
     elif bench_type in MEMORY_BENCHMARK_TYPES:
         return "Memory"
-    elif bench_type in IO_SCORE_RULES:
+    elif bench_type in IO_SCORE_RULES.keys():
         return "I/O"
     elif bench_type in GPU_BENCHMARK_TYPES:
         return "GPU"
@@ -456,7 +456,8 @@ def _build_header_cells(
         category_map[category] = bench_names
         
         # Add category header with colspan
-        header_cells += f'<th colspan="{len(bench_names)}" class="category-header" data-category="{html.escape(category.lower())}">{html.escape(category)}</th>'
+        category_lower = category.lower()
+        header_cells += f'<th colspan="{len(bench_names)}" class="category-header" data-category="{html.escape(category_lower)}">{html.escape(category)}</th>'
     
     return header_cells, category_map
 
@@ -485,7 +486,8 @@ def _build_benchmark_header_cells(
         
         # Add data-category attribute to benchmark headers
         category = _get_benchmark_category(bench_type) if bench_type else "Other"
-        header_cells += f'<th class="sortable benchmark-header" data-type="text" data-category="{html.escape(category.lower())}" title="{tooltip}">{html.escape(name)}</th>'
+        category_lower = category.lower()
+        header_cells += f'<th class="sortable benchmark-header" data-type="text" data-category="{html.escape(category_lower)}" title="{tooltip}">{html.escape(name)}</th>'
     return header_cells
 
 
@@ -521,9 +523,10 @@ def _build_body_rows(rows: list[RowWithCells], bench_columns: list[str]) -> list
             bench_name = bench_columns[idx] if idx < len(bench_columns) else ""
             bench_type = _benchmark_type_from_name(bench_name)
             category = _get_benchmark_category(bench_type) if bench_type else "Other"
+            category_lower = category.lower()
             
             cell_parts.append(
-                f'<td class="benchmark-cell" data-category="{html.escape(category.lower())}" title="Version: {html.escape(version_display)}">'
+                f'<td class="benchmark-cell" data-category="{html.escape(category_lower)}" title="Version: {html.escape(version_display)}">'
                 f'<div class="cell-main">{html.escape(description)}</div>'
                 f'<div class="cell-version">{html.escape(version_text)}</div>'
                 "</td>"
@@ -1045,8 +1048,6 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
     if not reports or not bench_columns:
         return
 
-    rows = _build_rows(reports, bench_columns)
-
     html_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Build grouped headers
@@ -1059,7 +1060,7 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
         if category in category_map:
             ordered_bench_columns.extend(category_map[category])
     
-    # Rebuild rows with the new column order
+    # Build rows with the ordered columns
     rows = _build_rows(reports, ordered_bench_columns)
     
     benchmark_header_cells = _build_benchmark_header_cells(ordered_bench_columns, bench_metadata)
