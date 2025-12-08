@@ -15,11 +15,7 @@ from typing import Any, TypedDict
 
 from .benchmarks import (
     BENCHMARK_MAP,
-    COMPRESSION_BENCHMARK_TYPES,
     CPU_BENCHMARK_TYPES,
-    CRYPTO_BENCHMARK_TYPES,
-    DATABASE_BENCHMARK_TYPES,
-    ENCODE_BENCHMARK_TYPES,
     GPU_BENCHMARK_TYPES,
     IO_BENCHMARK_TYPES,
     MEMORY_BENCHMARK_TYPES,
@@ -98,22 +94,21 @@ def _benchmark_type_from_name(name: str) -> BenchmarkType | None:
 
 def _get_benchmark_category(bench_type: BenchmarkType) -> str:
     """Determine the category for a benchmark type.
-    
+
     Categories are hardware-focused: CPU, GPU, Network, I/O, Memory.
     Software benchmarks (compression, crypto, encoding, database) are categorized as CPU.
     """
     # Hardware-specific categories first
     if bench_type in NETWORK_BENCHMARK_TYPES:
         return "Network"
-    elif bench_type in MEMORY_BENCHMARK_TYPES:
+    if bench_type in MEMORY_BENCHMARK_TYPES:
         return "Memory"
-    elif bench_type in IO_BENCHMARK_TYPES:
+    if bench_type in IO_BENCHMARK_TYPES:
         return "I/O"
-    elif bench_type in GPU_BENCHMARK_TYPES:
+    if bench_type in GPU_BENCHMARK_TYPES:
         return "GPU"
     # Everything else is CPU (includes compression, crypto, encoding, database, and pure CPU benchmarks)
-    else:
-        return "CPU"
+    return "CPU"
 
 
 def write_json_report(report: BenchmarkReport, output_path: Path) -> None:
@@ -363,26 +358,24 @@ def _system_meta_line(system: dict[str, object]) -> str:
 def _system_meta_line_short(system: dict[str, object]) -> str:
     """Short system summary for display (full details on hover)."""
     parts = []
-    
+
     # CPU - use short version if available (extract before first '·' or '(' or '@')
     cpu_label = str(system.get("cpu_model") or system.get("processor") or "")
     if cpu_label:
         # Shorten CPU name - remove frequency and extra details
-        cpu_short = cpu_label.split("@")[0].strip()  # Remove frequency
-        cpu_short = cpu_short.replace("(R)", "").replace("(TM)", "")  # Remove trademarks
+        cpu_short = cpu_label.split("@")[0].strip().replace("(R)", "").replace("(TM)", "")
         cpu_short = " ".join(cpu_short.split())  # Normalize whitespace
         parts.append(cpu_short)
-    
+
     # GPU - show simplified GPU info
     gpus = system.get("gpus") or []
     if isinstance(gpus, (list, tuple)) and gpus:
         # Take first GPU and simplify (remove Mesa prefix and technical details)
         gpu_label = str(gpus[0])
         # Remove "Mesa " prefix and technical IDs like "(0x591e)"
-        gpu_short = gpu_label.replace("Mesa ", "")
+        gpu_short = gpu_label.replace("Mesa ", "").replace("(R)", "").replace("(TM)", "")  # Remove trademarks
         # Remove hex IDs in parentheses
-        import re
-        gpu_short = re.sub(r'\s*\([^)]*0x[^)]*\)', '', gpu_short)
+        gpu_short = re.sub(r"\s*\([^)]*0x[^)]*\)", "", gpu_short)
         # Remove duplicate parts (e.g., "(KBL GT2) (KBL GT2)" -> "(KBL GT2)")
         gpu_parts = gpu_short.split()
         seen = set()
@@ -392,26 +385,24 @@ def _system_meta_line_short(system: dict[str, object]) -> str:
                 seen.add(part)
                 unique.append(part)
         gpu_short = " ".join(unique)
-        if gpu_short and gpu_short.strip():
-            parts.append(gpu_short.strip())
+        parts.append(gpu_short.strip())
     elif isinstance(gpus, str) and gpus:
         gpu_short = str(gpus).replace("Mesa ", "")
-        import re
-        gpu_short = re.sub(r'\s*\([^)]*0x[^)]*\)', '', gpu_short)
+        gpu_short = re.sub(r"\s*\([^)]*0x[^)]*\)", "", gpu_short)
         if gpu_short and gpu_short.strip():
             parts.append(gpu_short.strip())
-    
+
     # RAM
     ram_label = _format_memory_label(system.get("memory_total_bytes"))
     if ram_label and not ram_label.lower().startswith("unknown"):
         parts.append(ram_label)
-    
+
     # OS - deduplicate version info
     os_name = system.get("os_name") or system.get("platform") or ""
     os_version = system.get("os_version") or ""
     if os_name and os_version:
         # Remove duplicate version strings (e.g., "26.05 (Yarara) 26.05 (Yarara)" -> "26.05 (Yarara)")
-        version_parts = os_version.split()
+        version_parts = str(os_version).split()
         # Keep only unique parts
         seen = set()
         unique_parts = []
@@ -423,14 +414,14 @@ def _system_meta_line_short(system: dict[str, object]) -> str:
         parts.append(f"{os_name} {os_version_clean}".strip())
     elif os_name:
         parts.append(str(os_name))
-    
+
     # Kernel - simplified
     kernel = system.get("kernel_version") or ""
     if kernel:
         label = str(kernel)
         # Just show version number, not "Linux" prefix since it's redundant with OS
         parts.append(label if label.lower().startswith("linux") else f"Linux {label}")
-    
+
     return " · ".join(str(part) for part in parts if str(part).strip())
 
 
@@ -448,14 +439,13 @@ def _build_header_cells(
     bench_metadata: dict[str, dict[str, set[str]]],
 ) -> tuple[str, dict[str, list[str]]]:
     """Build header cells grouped by category.
-    
+
     Returns:
         A tuple of (header_html, category_map) where category_map maps category names to benchmark names.
     """
-    # Group benchmarks by category
-    from collections import defaultdict
+
     categories: dict[str, list[str]] = defaultdict(list)
-    
+
     for name in bench_columns:
         bench_type = _benchmark_type_from_name(name)
         if bench_type:
@@ -463,25 +453,28 @@ def _build_header_cells(
             categories[category].append(name)
         else:
             categories["Other"].append(name)
-    
+
     # Define category order (hardware-focused)
     category_order = ["CPU", "GPU", "Memory", "I/O", "Network"]
-    
+
     # Build header cells grouped by category
     header_cells = ""
     category_map: dict[str, list[str]] = {}
-    
+
     for category in category_order:
         if category not in categories:
             continue
-        
+
         bench_names = sorted(categories[category])
         category_map[category] = bench_names
-        
+
         # Add category header with colspan
         category_lower = category.lower()
-        header_cells += f'<th colspan="{len(bench_names)}" class="category-header" data-category="{html.escape(category_lower)}">{html.escape(category)}</th>'
-    
+        header_cells += (
+            f'<th colspan="{len(bench_names)}" class="category-header"'
+            f' data-category="{html.escape(category_lower)}">{html.escape(category)}</th>'
+        )
+
     return header_cells, category_map
 
 
@@ -506,11 +499,14 @@ def _build_benchmark_header_cells(
             direction_text = "Higher is better" if rule.higher_is_better else "Lower is better"
             tooltip_parts.append(f"{rule.label} · {direction_text}")
         tooltip = " &#10;".join(html.escape(part) for part in tooltip_parts)
-        
+
         # Add data-category attribute to benchmark headers
         category = _get_benchmark_category(bench_type) if bench_type else "Other"
         category_lower = category.lower()
-        header_cells += f'<th class="sortable benchmark-header" data-type="text" data-category="{html.escape(category_lower)}" title="{tooltip}">{html.escape(name)}</th>'
+        header_cells += (
+            f'<th class="sortable benchmark-header" data-type="text"'
+            f' data-category="{html.escape(category_lower)}" title="{tooltip}">{html.escape(name)}</th>'
+        )
     return header_cells
 
 
@@ -519,13 +515,11 @@ def _build_body_rows(rows: list[RowWithCells], bench_columns: list[str]) -> list
     for row in rows:
         system = row["system"]
         system_label = _system_cell_label(system)
-        system_meta_short = _system_meta_line_short(system)
-        system_meta_full = _system_meta_line(system)
+        system_meta = _system_meta_line(system)
         system_details = html.escape(_system_details_text(system)).replace("\n", "&#10;")
         system_html = f'<div class="system-label">{html.escape(system_label)}</div>'
-        if system_meta_short:
-            # Show short version with full version in tooltip
-            system_html += f'<div class="system-meta" title="{html.escape(system_meta_full)}">{html.escape(system_meta_short)}</div>'
+        if system_meta:
+            system_html += f'<div class="system-meta">{html.escape(system_meta)}</div>'
 
         preset_label = ", ".join(row["presets"]) or "n/a"
         preset_html = f'<div class="preset-label">{html.escape(preset_label)}</div>'
@@ -541,15 +535,16 @@ def _build_body_rows(rows: list[RowWithCells], bench_columns: list[str]) -> list
             has_result = bool(cell.get("has_result"))
             version_display = (version_value or "unknown") if has_result else ""
             version_text = (version_display if version_value else "version unknown") if has_result else ""
-            
+
             # Get category for this cell
             bench_name = bench_columns[idx] if idx < len(bench_columns) else ""
             bench_type = _benchmark_type_from_name(bench_name)
             category = _get_benchmark_category(bench_type) if bench_type else "Other"
             category_lower = category.lower()
-            
+
             cell_parts.append(
-                f'<td class="benchmark-cell" data-category="{html.escape(category_lower)}" title="Version: {html.escape(version_display)}">'
+                f'<td class="benchmark-cell" data-category="{html.escape(category_lower)}"'
+                f' title="Version: {html.escape(version_display)}">'
                 f'<div class="cell-main">{html.escape(description)}</div>'
                 f'<div class="cell-version">{html.escape(version_text)}</div>'
                 "</td>"
@@ -851,7 +846,7 @@ def _render_html_document(
         f'<label class="filter-checkbox"><input type="checkbox" value="{cat.lower()}" checked> {cat}</label>'
         for cat in categories
     )
-    
+
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -945,22 +940,22 @@ def _render_html_document(
       // Collect all sortable headers from both header rows and map them to their actual column indices
       const categoryRow = table.querySelector('thead tr.category-row');
       const benchmarkRow = table.querySelector('thead tr.benchmark-row');
-      
+
       // Build a map of header elements to their actual column indices
       const headerToColumnIndex = new Map();
       const allSortableHeaders = [];
-      
+
       // Process category row (System, Presets, Run Date, Report with rowspan=2)
       let colIndex = 0;
       Array.from(categoryRow.children).forEach(th => {{
         const colspan = parseInt(th.getAttribute('colspan') || '1', 10);
         const rowspan = parseInt(th.getAttribute('rowspan') || '1', 10);
-        
+
         if (th.classList.contains('sortable')) {{
           headerToColumnIndex.set(th, colIndex);
           allSortableHeaders.push(th);
         }}
-        
+
         if (rowspan === 2) {{
           // This header spans both rows, so it occupies one column
           colIndex++;
@@ -969,7 +964,7 @@ def _render_html_document(
           colIndex += colspan;
         }}
       }});
-      
+
       // Process benchmark row headers
       colIndex = 3; // Start after System, Presets, Run Date
       Array.from(benchmarkRow.children).forEach(th => {{
@@ -979,7 +974,7 @@ def _render_html_document(
         }}
         colIndex++;
       }});
-      
+
       function getCellValue(row, index) {{
         const cell = row.children[index];
         const sortValue = cell.getAttribute('data-sort');
@@ -1111,24 +1106,24 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
 
     # Build grouped headers
     category_header_cells, category_map = _build_header_cells(bench_columns, bench_metadata)
-    
+
     # Flatten categories in order for benchmark headers
     ordered_bench_columns = []
     category_order = ["CPU", "GPU", "Memory", "I/O", "Network"]
     for category in category_order:
         if category in category_map:
             ordered_bench_columns.extend(category_map[category])
-    
+
     # Build rows with the ordered columns
     rows = _build_rows(reports, ordered_bench_columns)
-    
+
     benchmark_header_cells = _build_benchmark_header_cells(ordered_bench_columns, bench_metadata)
     body_rows = _build_body_rows(rows, ordered_bench_columns)
     table_html = "\n".join(body_rows)
-    
+
     # Collect categories list for filter UI
     categories = [cat for cat in category_order if cat in category_map]
-    
+
     cpu_series = _collect_graph_series(reports, CPU_BENCHMARK_TYPES)
     gpu_series = _collect_graph_series(reports, GPU_BENCHMARK_TYPES)
     generated_svgs = []

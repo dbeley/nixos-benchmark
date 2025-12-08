@@ -245,8 +245,6 @@ def get_all_benchmarks():
 __all__ = [
     "ALL_BENCHMARKS",
     "BENCHMARK_MAP",
-    "BenchmarkBase",
-    "BenchmarkType",
     "COMPRESSION_BENCHMARK_TYPES",
     "CPU_BENCHMARK_TYPES",
     "CPU_SCORE_RULES",
@@ -261,6 +259,8 @@ __all__ = [
     "NETWORK_BENCHMARK_TYPES",
     "PRESETS",
     "SCORE_RULES",
+    "BenchmarkBase",
+    "BenchmarkType",
     "ScoreRule",
     "get_all_benchmarks",
     "get_benchmark_types_for_preset",
