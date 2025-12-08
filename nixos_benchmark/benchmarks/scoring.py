@@ -290,6 +290,48 @@ IO_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
 
 SCORE_RULES: dict[BenchmarkType, ScoreRule] = {**CPU_SCORE_RULES, **GPU_SCORE_RULES, **IO_SCORE_RULES}
 
+# Benchmark categories for grouping in reports
+IO_BENCHMARK_TYPES = (
+    BenchmarkType.FIO_SEQ,
+    BenchmarkType.BONNIE,
+    BenchmarkType.IOZONE,
+    BenchmarkType.IOPING,
+)
+
+MEMORY_BENCHMARK_TYPES = (
+    BenchmarkType.SYSBENCH_MEMORY,
+    BenchmarkType.STRESSAPPTEST,
+    BenchmarkType.TINYMEMBENCH,
+)
+
+COMPRESSION_BENCHMARK_TYPES = (
+    BenchmarkType.SEVENZIP,
+    BenchmarkType.ZSTD,
+    BenchmarkType.PIGZ,
+    BenchmarkType.LZ4,
+)
+
+CRYPTO_BENCHMARK_TYPES = (
+    BenchmarkType.OPENSSL_SPEED,
+    BenchmarkType.CRYPTSETUP,
+)
+
+DATABASE_BENCHMARK_TYPES = (
+    BenchmarkType.SQLITE_MIXED,
+    BenchmarkType.SQLITE_SPEEDTEST,
+)
+
+NETWORK_BENCHMARK_TYPES = (
+    BenchmarkType.NETPERF,
+    BenchmarkType.WRK_HTTP,
+)
+
+ENCODE_BENCHMARK_TYPES = (
+    BenchmarkType.FFMPEG_TRANSCODE,
+    BenchmarkType.X264,
+    BenchmarkType.X265,
+)
+
 
 def get_score_rule(bench_type: BenchmarkType | None) -> ScoreRule | None:
     """Return the scoring rule for a benchmark, if defined."""
@@ -299,9 +341,16 @@ def get_score_rule(bench_type: BenchmarkType | None) -> ScoreRule | None:
 
 
 __all__ = [
+    "COMPRESSION_BENCHMARK_TYPES",
     "CPU_SCORE_RULES",
+    "CRYPTO_BENCHMARK_TYPES",
+    "DATABASE_BENCHMARK_TYPES",
+    "ENCODE_BENCHMARK_TYPES",
     "GPU_SCORE_RULES",
+    "IO_BENCHMARK_TYPES",
     "IO_SCORE_RULES",
+    "MEMORY_BENCHMARK_TYPES",
+    "NETWORK_BENCHMARK_TYPES",
     "SCORE_RULES",
     "ScoreRule",
     "get_score_rule",

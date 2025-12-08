@@ -19,7 +19,21 @@ from .lz4 import LZ4Benchmark
 from .netperf import NetperfBenchmark
 from .openssl import OpenSSLBenchmark
 from .pigz import PigzBenchmark
-from .scoring import CPU_SCORE_RULES, GPU_SCORE_RULES, IO_SCORE_RULES, SCORE_RULES, ScoreRule, get_score_rule
+from .scoring import (
+    COMPRESSION_BENCHMARK_TYPES,
+    CPU_SCORE_RULES,
+    CRYPTO_BENCHMARK_TYPES,
+    DATABASE_BENCHMARK_TYPES,
+    ENCODE_BENCHMARK_TYPES,
+    GPU_SCORE_RULES,
+    IO_BENCHMARK_TYPES,
+    IO_SCORE_RULES,
+    MEMORY_BENCHMARK_TYPES,
+    NETWORK_BENCHMARK_TYPES,
+    SCORE_RULES,
+    ScoreRule,
+    get_score_rule,
+)
 from .sevenzip import SevenZipBenchmark
 from .sqlite_mixed import SQLiteMixedBenchmark
 from .sqlite_speedtest import SQLiteSpeedtestBenchmark
@@ -231,11 +245,18 @@ def get_all_benchmarks():
 __all__ = [
     "ALL_BENCHMARKS",
     "BENCHMARK_MAP",
+    "COMPRESSION_BENCHMARK_TYPES",
     "CPU_BENCHMARK_TYPES",
     "CPU_SCORE_RULES",
+    "CRYPTO_BENCHMARK_TYPES",
+    "DATABASE_BENCHMARK_TYPES",
+    "ENCODE_BENCHMARK_TYPES",
     "GPU_BENCHMARK_TYPES",
     "GPU_SCORE_RULES",
+    "IO_BENCHMARK_TYPES",
     "IO_SCORE_RULES",
+    "MEMORY_BENCHMARK_TYPES",
+    "NETWORK_BENCHMARK_TYPES",
     "PRESETS",
     "SCORE_RULES",
     "BenchmarkBase",

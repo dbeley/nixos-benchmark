@@ -15,8 +15,14 @@ from typing import Any, TypedDict
 
 from .benchmarks import (
     BENCHMARK_MAP,
+    COMPRESSION_BENCHMARK_TYPES,
     CPU_BENCHMARK_TYPES,
+    CRYPTO_BENCHMARK_TYPES,
+    DATABASE_BENCHMARK_TYPES,
     GPU_BENCHMARK_TYPES,
+    IO_BENCHMARK_TYPES,
+    MEMORY_BENCHMARK_TYPES,
+    NETWORK_BENCHMARK_TYPES,
     BenchmarkType,
     ScoreRule,
     get_score_rule,
@@ -31,6 +37,9 @@ from .models import (
 
 
 UNKNOWN_TIMESTAMP = datetime.min.replace(tzinfo=UTC)
+CPU_RELATED_BENCHMARK_TYPES: tuple[BenchmarkType, ...] = (
+    CPU_BENCHMARK_TYPES + COMPRESSION_BENCHMARK_TYPES + CRYPTO_BENCHMARK_TYPES + DATABASE_BENCHMARK_TYPES
+)
 
 
 class ReportRow(TypedDict):
@@ -87,6 +96,25 @@ def _benchmark_type_from_name(name: str) -> BenchmarkType | None:
         return BenchmarkType(name)
     except ValueError:
         return None
+
+
+def _get_benchmark_category(bench_type: BenchmarkType) -> str:
+    """
+    Determine the category for a benchmark type based on presets.
+    Priority: GPU > CPU-related > Memory > Network > I/O
+    """
+    if bench_type in GPU_BENCHMARK_TYPES:
+        return "GPU"
+    if bench_type in CPU_RELATED_BENCHMARK_TYPES:
+        return "CPU"
+    if bench_type in MEMORY_BENCHMARK_TYPES:
+        return "Memory"
+    if bench_type in NETWORK_BENCHMARK_TYPES:
+        return "Network"
+    if bench_type in IO_BENCHMARK_TYPES:
+        return "I/O"
+
+    return "CPU"
 
 
 def write_json_report(report: BenchmarkReport, output_path: Path) -> None:
@@ -306,6 +334,7 @@ def _format_cpu_label(system: dict[str, object]) -> str:
 
 
 def _system_meta_line(system: dict[str, object]) -> str:
+    """Full system details for tooltips."""
     parts = []
     cpu_label = system.get("cpu_model") or system.get("processor")
     if cpu_label:
@@ -332,6 +361,76 @@ def _system_meta_line(system: dict[str, object]) -> str:
     return " · ".join(str(part) for part in parts if str(part).strip())
 
 
+def _system_meta_line_short(system: dict[str, object]) -> str:
+    """Short system summary for display (full details on hover)."""
+    parts = []
+
+    # CPU - use short version if available (extract before first '·' or '(' or '@')
+    cpu_label = str(system.get("cpu_model") or system.get("processor") or "")
+    if cpu_label:
+        # Shorten CPU name - remove frequency and extra details
+        cpu_short = cpu_label.split("@")[0].strip().replace("(R)", "").replace("(TM)", "")
+        cpu_short = " ".join(cpu_short.split())  # Normalize whitespace
+        parts.append(cpu_short)
+
+    # GPU - show simplified GPU info
+    gpus = system.get("gpus") or []
+    if isinstance(gpus, (list, tuple)) and gpus:
+        # Take first GPU and simplify (remove Mesa prefix and technical details)
+        gpu_label = str(gpus[0])
+        # Remove "Mesa " prefix and technical IDs like "(0x591e)"
+        gpu_short = gpu_label.replace("Mesa ", "").replace("(R)", "").replace("(TM)", "")  # Remove trademarks
+        # Remove hex IDs in parentheses
+        gpu_short = re.sub(r"\s*\([^)]*0x[^)]*\)", "", gpu_short)
+        # Remove duplicate parts (e.g., "(KBL GT2) (KBL GT2)" -> "(KBL GT2)")
+        gpu_parts = gpu_short.split()
+        seen = set()
+        unique = []
+        for part in gpu_parts:
+            if part not in seen:
+                seen.add(part)
+                unique.append(part)
+        gpu_short = " ".join(unique)
+        parts.append(gpu_short.strip())
+    elif isinstance(gpus, str) and gpus:
+        gpu_short = str(gpus).replace("Mesa ", "")
+        gpu_short = re.sub(r"\s*\([^)]*0x[^)]*\)", "", gpu_short)
+        if gpu_short and gpu_short.strip():
+            parts.append(gpu_short.strip())
+
+    # RAM
+    ram_label = _format_memory_label(system.get("memory_total_bytes"))
+    if ram_label and not ram_label.lower().startswith("unknown"):
+        parts.append(ram_label)
+
+    # OS - deduplicate version info
+    os_name = system.get("os_name") or system.get("platform") or ""
+    os_version = system.get("os_version") or ""
+    if os_name and os_version:
+        # Remove duplicate version strings (e.g., "26.05 (Yarara) 26.05 (Yarara)" -> "26.05 (Yarara)")
+        version_parts = str(os_version).split()
+        # Keep only unique parts
+        seen = set()
+        unique_parts = []
+        for part in version_parts:
+            if part not in seen:
+                seen.add(part)
+                unique_parts.append(part)
+        os_version_clean = " ".join(unique_parts)
+        parts.append(f"{os_name} {os_version_clean}".strip())
+    elif os_name:
+        parts.append(str(os_name))
+
+    # Kernel - simplified
+    kernel = system.get("kernel_version") or ""
+    if kernel:
+        label = str(kernel)
+        # Just show version number, not "Linux" prefix since it's redundant with OS
+        parts.append(label if label.lower().startswith("linux") else f"Linux {label}")
+
+    return " · ".join(str(part) for part in parts if str(part).strip())
+
+
 def _format_generated_cell(generated: str, generated_dt: datetime) -> tuple[str, str, str]:
     """Return display text, sort value, and tooltip label for generated column."""
     raw_label = generated or "unknown"
@@ -344,7 +443,52 @@ def _format_generated_cell(generated: str, generated_dt: datetime) -> tuple[str,
 def _build_header_cells(
     bench_columns: list[str],
     bench_metadata: dict[str, dict[str, set[str]]],
+) -> tuple[str, dict[str, list[str]]]:
+    """Build header cells grouped by category.
+
+    Returns:
+        A tuple of (header_html, category_map) where category_map maps category names to benchmark names.
+    """
+
+    categories: dict[str, list[str]] = defaultdict(list)
+
+    for name in bench_columns:
+        bench_type = _benchmark_type_from_name(name)
+        if bench_type:
+            category = _get_benchmark_category(bench_type)
+            categories[category].append(name)
+        else:
+            categories["Other"].append(name)
+
+    # Define category order (hardware-focused)
+    category_order = ["CPU", "GPU", "Memory", "I/O", "Network"]
+
+    # Build header cells grouped by category
+    header_cells = ""
+    category_map: dict[str, list[str]] = {}
+
+    for category in category_order:
+        if category not in categories:
+            continue
+
+        bench_names = sorted(categories[category])
+        category_map[category] = bench_names
+
+        # Add category header with colspan
+        category_lower = category.lower()
+        header_cells += (
+            f'<th colspan="{len(bench_names)}" class="category-header"'
+            f' data-category="{html.escape(category_lower)}">{html.escape(category)}</th>'
+        )
+
+    return header_cells, category_map
+
+
+def _build_benchmark_header_cells(
+    bench_columns: list[str],
+    bench_metadata: dict[str, dict[str, set[str]]],
 ) -> str:
+    """Build individual benchmark column headers."""
     header_cells = ""
     for name in bench_columns:
         meta = bench_metadata.get(name, {"presets": set(), "versions": set()})
@@ -361,11 +505,18 @@ def _build_header_cells(
             direction_text = "Higher is better" if rule.higher_is_better else "Lower is better"
             tooltip_parts.append(f"{rule.label} · {direction_text}")
         tooltip = " &#10;".join(html.escape(part) for part in tooltip_parts)
-        header_cells += f'<th class="sortable" data-type="text" title="{tooltip}">{html.escape(name)}</th>'
+
+        # Add data-category attribute to benchmark headers
+        category = _get_benchmark_category(bench_type) if bench_type else "Other"
+        category_lower = category.lower()
+        header_cells += (
+            f'<th class="sortable benchmark-header" data-type="text"'
+            f' data-category="{html.escape(category_lower)}" title="{tooltip}">{html.escape(name)}</th>'
+        )
     return header_cells
 
 
-def _build_body_rows(rows: list[RowWithCells]) -> list[str]:
+def _build_body_rows(rows: list[RowWithCells], bench_columns: list[str]) -> list[str]:
     body_rows: list[str] = []
     for row in rows:
         system = row["system"]
@@ -384,14 +535,22 @@ def _build_body_rows(rows: list[RowWithCells]) -> list[str]:
         )
 
         cell_parts: list[str] = []
-        for cell in row["cells"]:
+        for idx, cell in enumerate(row["cells"]):
             version_value = _as_str(cell.get("version", ""))
             description = _as_str(cell.get("text", "—")) or "—"
             has_result = bool(cell.get("has_result"))
             version_display = (version_value or "unknown") if has_result else ""
             version_text = (version_display if version_value else "version unknown") if has_result else ""
+
+            # Get category for this cell
+            bench_name = bench_columns[idx] if idx < len(bench_columns) else ""
+            bench_type = _benchmark_type_from_name(bench_name)
+            category = _get_benchmark_category(bench_type) if bench_type else "Other"
+            category_lower = category.lower()
+
             cell_parts.append(
-                f'<td title="Version: {html.escape(version_display)}">'
+                f'<td class="benchmark-cell" data-category="{html.escape(category_lower)}"'
+                f' title="Version: {html.escape(version_display)}">'
                 f'<div class="cell-main">{html.escape(description)}</div>'
                 f'<div class="cell-version">{html.escape(version_text)}</div>'
                 "</td>"
@@ -683,9 +842,17 @@ def _convert_svg_to_png(svg_paths: list[Path]) -> list[Path]:
 
 
 def _render_html_document(
-    header_cells: str,
+    category_header_cells: str,
+    benchmark_header_cells: str,
     table_html: str,
+    categories: list[str],
 ) -> str:
+    # Build filter checkboxes
+    filter_checkboxes = "".join(
+        f'<label class="filter-checkbox"><input type="checkbox" value="{cat.lower()}" checked> {cat}</label>'
+        for cat in categories
+    )
+
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -693,21 +860,33 @@ def _render_html_document(
   <title>NixOS Benchmark Runs</title>
   <style>
     body {{ font-family: system-ui, sans-serif; margin: 2rem; color: #1f2429; background: #fdfdfd; }}
-    h1 {{ margin: 0 0 1rem; }}
-    table {{ border-collapse: collapse; width: 100%; background: #fff; border: 1px solid #d9d9d9; }}
+    h1 {{ margin: 0 0 0.5rem; }}
+    .filters {{ margin: 1rem 0; padding: 1rem; background: #f8f9fa; border: 1px solid #e3e3e3; border-radius: 4px; }}
+    .filters h2 {{ margin: 0 0 0.75rem; font-size: 1rem; }}
+    .filter-checkboxes {{ display: flex; flex-wrap: wrap; gap: 1rem; }}
+    .filter-checkbox {{ display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; }}
+    .filter-checkbox input {{ cursor: pointer; }}
+    table {{ border-collapse: collapse; width: 100%; background: #fff; border: 1px solid #d9d9d9; margin-top: 1rem; }}
     th, td {{ border: 1px solid #e3e3e3; padding: 0.45rem 0.6rem; text-align: left; vertical-align: top; }}
     th {{ background: #f4f6f8; font-weight: 700; }}
     tr:nth-child(even) {{ background: #fbfbfc; }}
+
+    /* Category headers */
+    .category-header {{ background: #e8eef5; text-align: center; font-weight: 700; border-bottom: 2px solid #a0aec0; }}
+    .benchmark-header {{ font-size: 0.85rem; }}
 
     .run-file a {{ color: #0b73e0; text-decoration: none; }}
     .run-file a:hover {{ text-decoration: underline; }}
     .run-generated {{ white-space: nowrap; color: #3c4650; }}
     .run-system {{ min-width: 16rem; }}
     .system-label {{ font-weight: 700; }}
-    .system-meta {{ color: #5a646f; font-size: 0.9rem; margin-top: 0.1rem; line-height: 1.25; }}
+    .system-meta {{ color: #5a646f; font-size: 0.9rem; margin-top: 0.1rem; line-height: 1.25; cursor: help; }}
     .run-presets .preset-label {{ color: #1f2429; font-size: 0.95rem; }}
     .cell-main {{ font-weight: 600; }}
     .cell-version {{ color: #5a646f; font-size: 0.8rem; margin-top: 0.2rem; }}
+
+    /* Hidden cells/columns */
+    .hidden {{ display: none; }}
 
     /* Sortable headers */
     th.sortable {{
@@ -735,14 +914,23 @@ def _render_html_document(
 </head>
 <body>
   <h1>Benchmark Runs</h1>
+  <div class="filters">
+    <h2>Filter Benchmarks by Category</h2>
+    <div class="filter-checkboxes">
+      {filter_checkboxes}
+    </div>
+  </div>
   <table id="benchmark-table">
     <thead>
-      <tr>
-        <th class="sortable" data-type="text">System</th>
-        <th class="sortable" data-type="text">Presets</th>
-        <th class="sortable run-generated-header" data-type="date">Run Date</th>
-        {header_cells}
-        <th class="sortable" data-type="text">Report</th>
+      <tr class="category-row">
+        <th rowspan="2" class="sortable" data-type="text">System</th>
+        <th rowspan="2" class="sortable" data-type="text">Presets</th>
+        <th rowspan="2" class="sortable run-generated-header" data-type="date">Run Date</th>
+        {category_header_cells}
+        <th rowspan="2" class="sortable" data-type="text">Report</th>
+      </tr>
+      <tr class="benchmark-row">
+        {benchmark_header_cells}
       </tr>
     </thead>
     <tbody>
@@ -752,8 +940,46 @@ def _render_html_document(
   <script>
     document.addEventListener('DOMContentLoaded', function () {{
       const table = document.getElementById('benchmark-table');
-      const headers = Array.from(table.querySelectorAll('thead th'));
       const tbody = table.querySelector('tbody');
+      const filterCheckboxes = document.querySelectorAll('.filter-checkbox input');
+
+      // Collect all sortable headers from both header rows and map them to their actual column indices
+      const categoryRow = table.querySelector('thead tr.category-row');
+      const benchmarkRow = table.querySelector('thead tr.benchmark-row');
+
+      // Build a map of header elements to their actual column indices
+      const headerToColumnIndex = new Map();
+      const allSortableHeaders = [];
+
+      // Process category row (System, Presets, Run Date, Report with rowspan=2)
+      let colIndex = 0;
+      Array.from(categoryRow.children).forEach(th => {{
+        const colspan = parseInt(th.getAttribute('colspan') || '1', 10);
+        const rowspan = parseInt(th.getAttribute('rowspan') || '1', 10);
+
+        if (th.classList.contains('sortable')) {{
+          headerToColumnIndex.set(th, colIndex);
+          allSortableHeaders.push(th);
+        }}
+
+        if (rowspan === 2) {{
+          // This header spans both rows, so it occupies one column
+          colIndex++;
+        }} else {{
+          // This header has benchmark headers below it, skip those columns
+          colIndex += colspan;
+        }}
+      }});
+
+      // Process benchmark row headers
+      colIndex = 3; // Start after System, Presets, Run Date
+      Array.from(benchmarkRow.children).forEach(th => {{
+        if (th.classList.contains('sortable')) {{
+          headerToColumnIndex.set(th, colIndex);
+          allSortableHeaders.push(th);
+        }}
+        colIndex++;
+      }});
 
       function getCellValue(row, index) {{
         const cell = row.children[index];
@@ -790,29 +1016,80 @@ def _render_html_document(
         rows.forEach(row => tbody.appendChild(row));
       }}
 
-      headers.forEach((header, index) => {{
-        if (!header.classList.contains('sortable')) return;
+      // Add click handlers to all sortable headers
+      allSortableHeaders.forEach(header => {{
         header.addEventListener('click', () => {{
           const currentOrder = header.getAttribute('data-order') === 'asc' ? 'asc' : 'desc';
           const newOrder = currentOrder === 'asc' ? 'desc' : 'asc';
           const type = header.getAttribute('data-type') || 'text';
+          const columnIndex = headerToColumnIndex.get(header);
 
           // reset other headers
-          headers.forEach(h => {{
+          allSortableHeaders.forEach(h => {{
             if (h !== header) h.removeAttribute('data-order');
           }});
 
           header.setAttribute('data-order', newOrder);
-          sortByColumn(index, type, newOrder);
+          sortByColumn(columnIndex, type, newOrder);
+        }});
+      }});
+
+      // Filter functionality
+      filterCheckboxes.forEach(checkbox => {{
+        checkbox.addEventListener('change', () => {{
+          const activeCategories = new Set();
+          filterCheckboxes.forEach(cb => {{
+            if (cb.checked) activeCategories.add(cb.value);
+          }});
+
+          // Show/hide category headers
+          Array.from(categoryRow.children).forEach(header => {{
+            const category = header.getAttribute('data-category');
+            if (category) {{
+              if (activeCategories.has(category)) {{
+                header.classList.remove('hidden');
+              }} else {{
+                header.classList.add('hidden');
+              }}
+            }}
+          }});
+
+          // Show/hide benchmark headers
+          Array.from(benchmarkRow.children).forEach(header => {{
+            const category = header.getAttribute('data-category');
+            if (category) {{
+              if (activeCategories.has(category)) {{
+                header.classList.remove('hidden');
+              }} else {{
+                header.classList.add('hidden');
+              }}
+            }}
+          }});
+
+          // Show/hide cells in body rows
+          const rows = tbody.querySelectorAll('tr');
+          rows.forEach(row => {{
+            const cells = row.querySelectorAll('td.benchmark-cell');
+            cells.forEach(cell => {{
+              const category = cell.getAttribute('data-category');
+              if (category) {{
+                if (activeCategories.has(category)) {{
+                  cell.classList.remove('hidden');
+                }} else {{
+                  cell.classList.add('hidden');
+                }}
+              }}
+            }});
+          }});
         }});
       }});
 
       // Default sort: by Run Date column, newest first
-      const generatedHeader = headers.find(h => h.classList.contains('run-generated-header'));
-      if (generatedHeader) {{
-        const generatedIndex = headers.indexOf(generatedHeader);
-        generatedHeader.setAttribute('data-order', 'desc');
-        sortByColumn(generatedIndex, generatedHeader.getAttribute('data-type') || 'date', 'desc');
+      const runDateHeader = allSortableHeaders.find(h => h.classList.contains('run-generated-header'));
+      if (runDateHeader) {{
+        const runDateIndex = headerToColumnIndex.get(runDateHeader);
+        runDateHeader.setAttribute('data-order', 'desc');
+        sortByColumn(runDateIndex, 'date', 'desc');
       }}
     }});
   </script>
@@ -831,13 +1108,28 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
     if not reports or not bench_columns:
         return
 
-    rows = _build_rows(reports, bench_columns)
-
     html_path.parent.mkdir(parents=True, exist_ok=True)
 
-    header_cells = _build_header_cells(bench_columns, bench_metadata)
-    body_rows = _build_body_rows(rows)
+    # Build grouped headers
+    category_header_cells, category_map = _build_header_cells(bench_columns, bench_metadata)
+
+    # Flatten categories in order for benchmark headers
+    ordered_bench_columns = []
+    category_order = ["CPU", "GPU", "Memory", "I/O", "Network"]
+    for category in category_order:
+        if category in category_map:
+            ordered_bench_columns.extend(category_map[category])
+
+    # Build rows with the ordered columns
+    rows = _build_rows(reports, ordered_bench_columns)
+
+    benchmark_header_cells = _build_benchmark_header_cells(ordered_bench_columns, bench_metadata)
+    body_rows = _build_body_rows(rows, ordered_bench_columns)
     table_html = "\n".join(body_rows)
+
+    # Collect categories list for filter UI
+    categories = [cat for cat in category_order if cat in category_map]
+
     cpu_series = _collect_graph_series(reports, CPU_BENCHMARK_TYPES)
     gpu_series = _collect_graph_series(reports, GPU_BENCHMARK_TYPES)
     generated_svgs = []
@@ -845,7 +1137,7 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
     generated_svgs.extend(_write_svg_charts(html_path.parent, "gpu", gpu_series))
     generated_pngs = _convert_svg_to_png(generated_svgs)
     chart_files = generated_pngs or generated_svgs
-    document = _render_html_document(header_cells, table_html)
+    document = _render_html_document(category_header_cells, benchmark_header_cells, table_html, categories)
 
     html_path.write_text(document)
     print(f"Updated {html_path} ({len(rows)} runs tracked)")
