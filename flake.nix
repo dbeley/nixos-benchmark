@@ -70,7 +70,7 @@
             ruff
             python3Packages.flake8
             typos
-            python3Packages.mypy
+            ty
             # Additional formatting and checking tools
             nixpkgs-fmt
           ]);

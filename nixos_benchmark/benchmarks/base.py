@@ -22,6 +22,7 @@ class BenchmarkBase(ABC):
     benchmark_type: BenchmarkType
     description: str
     version_command: ClassVar[tuple[str, ...] | None] = None
+    _required_commands: ClassVar[Sequence[str] | None] = None
 
     @property
     def name(self) -> str:
@@ -52,7 +53,7 @@ class BenchmarkBase(ABC):
         candidates: list[tuple[str, ...]] = []
         if self.version_command:
             candidates.append(self.version_command)
-        required = getattr(self, "_required_commands", ())
+        required = self._required_commands or ()
         if required:
             primary = required[0]
             candidates.extend(
@@ -77,8 +78,9 @@ class BenchmarkBase(ABC):
 
     def validate(self, args: argparse.Namespace | None = None) -> tuple[bool, str]:
         """Check if benchmark can run."""
-        if hasattr(self, "_required_commands"):
-            ok, reason = check_requirements(self._required_commands)
+        commands = self._required_commands
+        if commands:
+            ok, reason = check_requirements(commands)
             if not ok:
                 return ok, reason
         if hasattr(self, "_availability_check") and args is not None:

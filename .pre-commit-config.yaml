@@ -29,14 +29,14 @@ repos:
         pass_filenames: true
         args: [--max-line-length=120, --extend-ignore="E203"]
 
-      # Python type checking with mypy
-      - id: mypy
-        name: mypy
-        entry: mypy
+      # Python type checking with ty
+      - id: ty
+        name: ty
+        entry: ty check
         language: system
         types: [python]
         pass_filenames: true
-        args: [--no-error-summary]
+        args: [--no-progress, --output-format, concise]
 
       # Spell checking with typos
       - id: typos
