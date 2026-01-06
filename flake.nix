@@ -52,7 +52,7 @@
           runtimeInputs = benchmarkTools;
           text = ''
             export NIXPKGS_ALLOW_UNFREE=1
-            export PYTHONPATH="${src}:$PYTHONPATH"
+            export PYTHONPATH="${src}''${PYTHONPATH:+:$PYTHONPATH}"
             python -m nixos_benchmark "$@"
           '';
         };
