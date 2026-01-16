@@ -1,6 +1,6 @@
 # nixos-benchmark
 
-Easily run benchmarks on NixOS in a quick and reproducible way (CPU, memory, IO, GPU, network, etc.).
+Easily run benchmarks on Nix/NixOS in a quick and reproducible way (CPU, memory, IO, GPU, network, etc.).
 
 ## Quick use
 ```bash
@@ -12,6 +12,7 @@ nix run github:dbeley/nixos-benchmark -- --list-benchmarks
 nix run github:dbeley/nixos-benchmark --
 
 # target presets or specific benches
+# comma-separated syntax or repeated arguments work for both presets and benchmarks options
 nix run github:dbeley/nixos-benchmark -- --presets cpu --presets io
 nix run github:dbeley/nixos-benchmark -- --benchmarks openssl-speed,fio-seq
 ```
