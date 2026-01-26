@@ -11,7 +11,6 @@ from .base import BenchmarkBase
 from .types import BenchmarkType
 
 
-# Default constants
 DEFAULT_OPENSSL_SECONDS = 3
 DEFAULT_OPENSSL_ALGORITHM = "aes-256-cbc"
 

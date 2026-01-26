@@ -12,7 +12,6 @@ from .base import BenchmarkBase
 from .types import BenchmarkType
 
 
-# Default constants
 DEFAULT_NETPERF_DURATION = 3
 
 

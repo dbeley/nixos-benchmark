@@ -11,7 +11,6 @@ from .base import BenchmarkBase
 from .types import BenchmarkType
 
 
-# Default constants
 DEFAULT_SYSBENCH_CPU_MAX_PRIME = 20000
 DEFAULT_SYSBENCH_RUNTIME = 5
 DEFAULT_SYSBENCH_THREADS = 0

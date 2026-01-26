@@ -14,7 +14,6 @@ from .types import BenchmarkType
 from .zstd import DEFAULT_COMPRESS_SIZE_MB
 
 
-# Default constants
 DEFAULT_PIGZ_LEVEL = 3
 
 

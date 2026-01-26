@@ -10,7 +10,6 @@ from .base import BenchmarkBase
 from .types import BenchmarkType
 
 
-# Default constants
 DEFAULT_FFMPEG_RESOLUTION = "1280x720"
 DEFAULT_FFMPEG_DURATION = 5
 DEFAULT_FFMPEG_CODEC = "libx264"

@@ -12,7 +12,6 @@ from .base import BenchmarkBase
 from .types import BenchmarkType
 
 
-# Default constants
 DEFAULT_SQLITE_ROWS = 50_000
 DEFAULT_SQLITE_SELECTS = 1_000
 

@@ -11,7 +11,6 @@ from .base import BenchmarkBase
 from .types import BenchmarkType
 
 
-# Default constants
 DEFAULT_IOPING_COUNT = 5
 
 
@@ -74,7 +73,6 @@ class IOPingBenchmark(BenchmarkBase):
         )
 
     def format_result(self, result: BenchmarkResult) -> str:
-        """Format result for display."""
         status_message = self.format_status_message(result)
         if status_message:
             return status_message

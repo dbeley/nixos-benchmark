@@ -11,7 +11,6 @@ from .base import BenchmarkBase
 from .types import BenchmarkType
 
 
-# Default constants
 DEFAULT_ZSTD_LEVEL = 5
 DEFAULT_COMPRESS_SIZE_MB = 32
 

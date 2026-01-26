@@ -10,7 +10,6 @@ from .base import BenchmarkBase
 from .types import BenchmarkType
 
 
-# Default constants
 DEFAULT_STRESS_NG_SECONDS = 5
 DEFAULT_STRESS_NG_METHOD = "fft"
 

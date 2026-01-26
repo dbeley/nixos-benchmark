@@ -11,7 +11,6 @@ from .base import BenchmarkBase
 from .types import BenchmarkType
 
 
-# Default constants
 DEFAULT_GLMARK2_SIZE = "1920x1080"
 
 

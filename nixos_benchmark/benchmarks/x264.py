@@ -12,7 +12,6 @@ from .base import BenchmarkBase
 from .types import BenchmarkType
 
 
-# Default constants
 DEFAULT_X264_RESOLUTION = "1280x720"
 DEFAULT_X264_FRAMES = 240
 DEFAULT_X264_PRESET = "medium"
