@@ -8,7 +8,7 @@ import sys
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from time import perf_counter
+from time import perf_counter, sleep
 from typing import TypeVar
 
 from .benchmarks import (
@@ -144,6 +144,13 @@ def build_argument_parser() -> argparse.ArgumentParser:
         default="offscreen",
         help="Rendering mode for glmark2 (offscreen avoids taking over the display).",
     )
+    parser.add_argument(
+        "--wait-between",
+        type=int,
+        default=5,
+        metavar="SECONDS",
+        help="Wait time between benchmark runs in seconds (default: 5).",
+    )
     return parser
 
 
@@ -200,7 +207,7 @@ def resolve_selected_benchmarks(args: argparse.Namespace, requested_presets: lis
 def run_selected_benchmarks(selected_benchmarks: Sequence[BenchmarkType], args: argparse.Namespace):
     """Execute benchmarks and keep their instances alongside results."""
     results_with_benchmarks: list[tuple[BenchmarkResult, BenchmarkBase]] = []
-    for benchmark_type in selected_benchmarks:
+    for i, benchmark_type in enumerate(selected_benchmarks):
         print(f"Executing {benchmark_type.value}")
         benchmark = BENCHMARK_MAP[benchmark_type]
         start_time = perf_counter()
@@ -209,6 +216,11 @@ def run_selected_benchmarks(selected_benchmarks: Sequence[BenchmarkType], args: 
         status_note = "" if result.status == "ok" else f" ({result.status})"
         print(f"Finished {benchmark_type.value} in {elapsed_seconds:.2f}s{status_note}")
         results_with_benchmarks.append((result, benchmark))
+
+        # Wait between benchmarks if not the last one
+        if i < len(selected_benchmarks) - 1 and args.wait_between > 0:
+            print(f"Waiting {args.wait_between} seconds before next benchmark...")
+            sleep(args.wait_between)
     return results_with_benchmarks
 
 
