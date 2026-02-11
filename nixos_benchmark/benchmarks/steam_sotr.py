@@ -1,10 +1,59 @@
 from __future__ import annotations
 
+import contextlib
 import csv
+from collections.abc import Iterable
 from pathlib import Path
 
 from .steam_base import SteamBenchmarkBase
 from .types import BenchmarkType
+
+
+def _find_column_index(hdr_lower: list[str], names: Iterable[str]) -> int | None:
+    for name in names:
+        if name in hdr_lower:
+            return hdr_lower.index(name)
+    return None
+
+
+def _parse_csv_for_metrics(csvfile: Path) -> dict[str, float] | None:
+    """Parse a CSV and extract fps metrics if present."""
+    try:
+        with csvfile.open() as fh:
+            reader = csv.reader(fh)
+            headers = None
+            rows: list[list[str]] = []
+            for row in reader:
+                if headers is None:
+                    headers = [h.strip() for h in row]
+                    continue
+                rows.append(row)
+        if not rows or not headers:
+            return None
+
+        hdr_lower = [h.lower() for h in headers]
+        metrics: dict[str, float] = {}
+
+        avg_idx = _find_column_index(hdr_lower, ("average", "avg fps", "avg"))
+        min_idx = _find_column_index(hdr_lower, ("minimum", "min fps", "min"))
+        max_idx = _find_column_index(hdr_lower, ("maximum", "max fps", "max"))
+
+        if avg_idx is not None:
+            with contextlib.suppress(Exception):
+                metrics["fps_avg"] = float(rows[-1][avg_idx])
+        if min_idx is not None:
+            with contextlib.suppress(Exception):
+                metrics["fps_min"] = float(rows[-1][min_idx])
+        if max_idx is not None:
+            with contextlib.suppress(Exception):
+                metrics["fps_max"] = float(rows[-1][max_idx])
+
+        if metrics:
+            metrics.setdefault("total_frames", 0)
+            return metrics
+    except Exception:
+        return None
+    return None
 
 
 class SteamSoTRBenchmark(SteamBenchmarkBase):
@@ -27,57 +76,13 @@ class SteamSoTRBenchmark(SteamBenchmarkBase):
             if not base.exists():
                 continue
             for csvfile in sorted(base.glob("**/*.csv"), key=lambda p: p.stat().st_mtime, reverse=True):
-                # Look for a CSV containing fps or Average
+                # Quick check for likely CSV content then try parsing helper
                 try:
                     text = csvfile.read_text(errors="ignore")
                 except Exception:
                     continue
-                if "Average" in text or "FPS" in text or "Frames" in text:
-                    # Attempt naive CSV parsing for numeric columns
-                    try:
-                        with csvfile.open() as fh:
-                            reader = csv.reader(fh)
-                            headers = None
-                            rows = []
-                            for row in reader:
-                                if not headers:
-                                    headers = [h.strip() for h in row]
-                                    continue
-                                rows.append(row)
-                        if not rows or not headers:
-                            continue
-                        # Try to find average/min/max columns
-                        hdr_lower = [h.lower() for h in headers]
-                        metrics: dict[str, float] = {}
-
-                        def find_column(*names):
-                            for name in names:
-                                if name in hdr_lower:
-                                    return hdr_lower.index(name)
-                            return None
-
-                        avg_idx = find_column("average", "avg fps", "avg")
-                        min_idx = find_column("minimum", "min fps", "min")
-                        max_idx = find_column("maximum", "max fps", "max")
-
-                        if avg_idx is not None:
-                            try:
-                                metrics["fps_avg"] = float(rows[-1][avg_idx])
-                            except Exception:
-                                pass
-                        if min_idx is not None:
-                            try:
-                                metrics["fps_min"] = float(rows[-1][min_idx])
-                            except Exception:
-                                pass
-                        if max_idx is not None:
-                            try:
-                                metrics["fps_max"] = float(rows[-1][max_idx])
-                            except Exception:
-                                pass
-                        if metrics:
-                            metrics.setdefault("total_frames", 0)
-                            return metrics
-                    except Exception:
-                        continue
+                if "average" in text.lower() or "fps" in text.lower() or "frames" in text.lower():
+                    metrics = _parse_csv_for_metrics(csvfile)
+                    if metrics:
+                        return metrics
         return None

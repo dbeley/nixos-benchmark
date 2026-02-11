@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import time
 from pathlib import Path
 from typing import Any
@@ -24,12 +23,13 @@ class SteamBenchmarkBase(BenchmarkBase):
     # Defaults that subclasses may override
     app_id: int = 0
     process_name: str = ""
-    _launch_args: tuple[str, ...] = tuple()
+    _launch_args: tuple[str, ...] = ()
     _result_timeout: float = 600.0
     _start_timeout: float = 120.0
 
     def _find_steam_root(self) -> Path | None:
-        home = Path(os.path.expanduser("~") or ".")
+        # Use Path.expanduser for proper path expansion
+        home = Path("~").expanduser()
         # Common Steam locations, include Flatpak path and alternative roots
         candidates = [
             home / ".local" / "share" / "Steam",
@@ -149,12 +149,12 @@ class SteamBenchmarkBase(BenchmarkBase):
         nums = []
         for line in text.splitlines():
             parts = line.split(",")
-            for tok in parts:
-                tok = tok.strip()
-                if not tok:
+            for part in parts:
+                token = part.strip()
+                if not token:
                     continue
                 try:
-                    f = float(tok)
+                    f = float(token)
                     nums.append(f)
                 except Exception:
                     continue
@@ -177,7 +177,28 @@ class SteamBenchmarkBase(BenchmarkBase):
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         steam_root = self._find_steam_root()
 
+        # Safety: ensure steam_root and installation still present before launching
+        if not steam_root:
+            return BenchmarkResult(
+                benchmark_type=self.benchmark_type,
+                status="skipped",
+                presets=(),
+                metrics=BenchmarkMetrics({}),
+                parameters=BenchmarkParameters({}),
+                message="Steam directory not found",
+            )
+        if not self._is_game_installed(steam_root):
+            return BenchmarkResult(
+                benchmark_type=self.benchmark_type,
+                status="skipped",
+                presets=(),
+                metrics=BenchmarkMetrics({}),
+                parameters=BenchmarkParameters({}),
+                message=f"Game {self.app_id} not installed; aborting launch",
+            )
+
         # Prepare launch command and optional MangoHud env
+        assert steam_root is not None
         command = self._build_launch_command(steam_root, None)
         env: dict[str, str] | None = None
         mangohud_present = command_exists("mangohud")
@@ -186,7 +207,7 @@ class SteamBenchmarkBase(BenchmarkBase):
             env = {"MANGOHUD": "1", "LC_ALL": "C", "LANGUAGE": "C"}
 
         # Launch the game via Steam (steam -applaunch returns quickly)
-        stdout, duration, returncode = run_command(command, env=env)
+        stdout, duration, _returncode = run_command(command, env=env)
 
         # Monitor process and wait for completion
         monitor = self._monitor_game_process(self.process_name, self._start_timeout, self._result_timeout)
@@ -201,6 +222,7 @@ class SteamBenchmarkBase(BenchmarkBase):
             # Try to parse native game output files (subclasses may implement parsing)
             parsed = None
             try:
+                assert steam_root is not None
                 parsed = self._parse_game_results(steam_root, None)
             except Exception:
                 parsed = None
