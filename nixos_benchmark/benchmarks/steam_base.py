@@ -162,27 +162,20 @@ class SteamBenchmarkBase(BenchmarkBase):
             return None
         return {"fps_avg": sum(nums) / len(nums), "fps_min": min(nums), "fps_max": max(nums), "total_frames": len(nums)}
 
-    def execute(self, args: argparse.Namespace) -> BenchmarkResult:
+    def _availability_check(self, args: argparse.Namespace) -> tuple[bool, str]:
+        """Availability check used by BenchmarkBase.validate().
+
+        Ensures Steam root is found and the requested app is installed (or
+        has Proton compatdata). Returns (ok, reason)."""
         steam_root = self._find_steam_root()
         if not steam_root:
-            return BenchmarkResult(
-                benchmark_type=self.benchmark_type,
-                status="skipped",
-                presets=(),
-                metrics=BenchmarkMetrics({}),
-                parameters=BenchmarkParameters({}),
-                message="Steam directory not found",
-            )
-
+            return False, "Command 'steam' found but Steam data directory was not located"
         if not self._is_game_installed(steam_root):
-            return BenchmarkResult(
-                benchmark_type=self.benchmark_type,
-                status="skipped",
-                presets=(),
-                metrics=BenchmarkMetrics({}),
-                parameters=BenchmarkParameters({}),
-                message=f"Game {self.app_id} not installed",
-            )
+            return False, f"Game {self.app_id} not installed"
+        return True, ""
+
+    def execute(self, args: argparse.Namespace) -> BenchmarkResult:
+        steam_root = self._find_steam_root()
 
         # Prepare launch command and optional MangoHud env
         command = self._build_launch_command(steam_root, None)
