@@ -595,15 +595,14 @@ def _build_graph_section(
 
 
 def _build_graphs(reports: list[ReportRow]) -> str:
-    cpu_benchmarks = _get_benchmarks_for_category("CPU")
-    gpu_benchmarks = _get_benchmarks_for_category("GPU")
-    cpu_series = _collect_graph_series(reports, cpu_benchmarks)
-    gpu_series = _collect_graph_series(reports, gpu_benchmarks)
-    sections = [
-        _build_graph_section("CPU Benchmarks", cpu_benchmarks, cpu_series),
-        _build_graph_section("GPU Benchmarks", gpu_benchmarks, gpu_series),
-    ]
-    return "\n".join(section for section in sections if section)
+    sections = []
+    for category in ("CPU", "GPU", "Memory", "I/O", "Network"):
+        benchmarks = _get_benchmarks_for_category(category)
+        series = _collect_graph_series(reports, benchmarks)
+        section = _build_graph_section(f"{category} Benchmarks", benchmarks, series)
+        if section:
+            sections.append(section)
+    return "\n".join(sections)
 
 
 def _svg_escape(text: str) -> str:
@@ -794,13 +793,11 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
     # Collect categories list for filter UI (alphabetical order)
     categories = sorted(category_map.keys())
 
-    cpu_benchmarks = _get_benchmarks_for_category("CPU")
-    gpu_benchmarks = _get_benchmarks_for_category("GPU")
-    cpu_series = _collect_graph_series(reports, cpu_benchmarks)
-    gpu_series = _collect_graph_series(reports, gpu_benchmarks)
     generated_svgs = []
-    generated_svgs.extend(_write_svg_charts(html_path.parent, "cpu", cpu_series))
-    generated_svgs.extend(_write_svg_charts(html_path.parent, "gpu", gpu_series))
+    for category in ("CPU", "GPU", "Memory", "I/O", "Network"):
+        benchmarks = _get_benchmarks_for_category(category)
+        series = _collect_graph_series(reports, benchmarks)
+        generated_svgs.extend(_write_svg_charts(html_path.parent, category.lower(), series))
     generated_pngs = _convert_svg_to_png(generated_svgs)
     chart_files = generated_pngs or generated_svgs
     document = _render_html_document(category_header_cells, benchmark_header_cells, table_html, categories)

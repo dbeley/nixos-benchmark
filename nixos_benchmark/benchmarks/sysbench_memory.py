@@ -13,7 +13,7 @@ from .types import BenchmarkType
 
 
 DEFAULT_SYSBENCH_MEMORY_BLOCK_KB = 1024
-DEFAULT_SYSBENCH_MEMORY_TOTAL_MB = 512
+DEFAULT_SYSBENCH_MEMORY_TOTAL_MB = 4096  # Increased from 512 for more accurate measurement
 DEFAULT_SYSBENCH_MEMORY_OPERATION = "read"
 
 

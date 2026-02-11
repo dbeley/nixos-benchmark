@@ -13,7 +13,7 @@ from .base import BenchmarkBase
 from .types import BenchmarkType
 
 
-DEFAULT_FIO_SIZE_MB = 64
+DEFAULT_FIO_SIZE_MB = 256  # Increased from 64 to reduce cache effects
 DEFAULT_FIO_RUNTIME = 5
 DEFAULT_FIO_BLOCK_KB = 1024
 

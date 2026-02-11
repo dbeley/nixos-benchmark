@@ -11,7 +11,7 @@ from .types import BenchmarkType
 
 
 DEFAULT_STOCKFISH_THREADS = 0  # 0 = auto-detect
-DEFAULT_STOCKFISH_LIMIT = 10  # seconds
+DEFAULT_STOCKFISH_LIMIT = 20  # seconds - increased from 10 for more stable results
 
 
 class StockfishBenchmark(BenchmarkBase):

@@ -12,7 +12,7 @@ from .types import BenchmarkType
 
 
 DEFAULT_ZSTD_LEVEL = 5
-DEFAULT_COMPRESS_SIZE_MB = 32
+DEFAULT_COMPRESS_SIZE_MB = 128  # Increased from 32 for more stable measurements
 
 
 class ZstdBenchmark(BenchmarkBase):

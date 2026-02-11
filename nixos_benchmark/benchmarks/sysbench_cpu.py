@@ -12,7 +12,7 @@ from .types import BenchmarkType
 
 
 DEFAULT_SYSBENCH_CPU_MAX_PRIME = 20000
-DEFAULT_SYSBENCH_RUNTIME = 5
+DEFAULT_SYSBENCH_RUNTIME = 10  # Increased from 5 for more stable results
 DEFAULT_SYSBENCH_THREADS = 0
 
 
