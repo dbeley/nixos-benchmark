@@ -46,7 +46,7 @@ class CommaSeparatedListAction(argparse.Action):
         option_string = option_string or self.option_strings[0]
         current = list(getattr(namespace, self.dest, []) or [])
         raw_values = values if isinstance(values, list) else [values]
-        tokens = [part.strip() for token in raw_values for part in token.split(",") if part.strip()]
+        tokens = [part.strip() for token in raw_values for part in str(token).split(",") if part.strip()]
         if not tokens:
             parser.error(f"{option_string} requires at least one value.")
         for token in tokens:
@@ -152,6 +152,9 @@ def build_argument_parser() -> argparse.ArgumentParser:
         metavar="SECONDS",
         help="Wait time between benchmark runs in seconds (default: 5).",
     )
+    # Generic steam app runner args (used when running the steam-generic benchmark)
+    parser.add_argument("--steam-app-id", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--steam-process-name", type=str, help=argparse.SUPPRESS)
     return parser
 
 

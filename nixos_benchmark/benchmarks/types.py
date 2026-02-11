@@ -38,3 +38,5 @@ class BenchmarkType(StrEnum):
     GEEKBENCH = "geekbench"
     GEEKBENCH_GPU = "geekbench-gpu"
     GEEKBENCH_GPU_VULKAN = "geekbench-gpu-vulkan"
+    STEAM_SOTR = "steam-sotr-benchmark"
+    STEAM_GENERIC = "steam-generic"

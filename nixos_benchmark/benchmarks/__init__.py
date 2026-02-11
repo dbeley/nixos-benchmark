@@ -21,6 +21,7 @@ from .openssl import OpenSSLBenchmark
 from .pigz import PigzBenchmark
 from .scoring import (
     CPU_SCORE_RULES,
+    GAMING_SCORE_RULES,
     GPU_SCORE_RULES,
     IO_SCORE_RULES,
     MEMORY_SCORE_RULES,
@@ -32,6 +33,8 @@ from .scoring import (
 from .sevenzip import SevenZipBenchmark
 from .sqlite_mixed import SQLiteMixedBenchmark
 from .sqlite_speedtest import SQLiteSpeedtestBenchmark
+from .steam_generic import SteamGenericBenchmark
+from .steam_sotr import SteamSoTRBenchmark
 from .stockfish import StockfishBenchmark
 from .stress_ng import StressNGBenchmark
 from .stressapptest import StressAppTestBenchmark
@@ -81,6 +84,11 @@ ALL_BENCHMARKS = [
     GeekbenchBenchmark(),
     GeekbenchGPUBenchmark(),
     GeekbenchVulkanBenchmark(),
+    SteamSoTRBenchmark(),
+    # Generic Steam app runner is not included in default presets but is available
+    # for ad-hoc runs when the user supplies --steam-app-id. Registering the
+    # instance here makes it discoverable via --list-benchmarks.
+    SteamGenericBenchmark(),
 ]
 
 # Create a map from benchmark type to benchmark instance for easy lookup
@@ -197,6 +205,10 @@ PRESETS: dict[str, dict[str, object]] = {
             BenchmarkType.WRK_HTTP,
         ),
     },
+    "gaming": {
+        "description": "Steam game benchmarks (requires installed games).",
+        "benchmarks": (BenchmarkType.STEAM_SOTR,),
+    },
     "all": {
         "description": "Run every available benchmark.",
         "benchmarks": tuple(BENCHMARK_MAP),
@@ -237,6 +249,7 @@ __all__ = [
     "ALL_BENCHMARKS",
     "BENCHMARK_MAP",
     "CPU_SCORE_RULES",
+    "GAMING_SCORE_RULES",
     "GPU_SCORE_RULES",
     "IO_SCORE_RULES",
     "MEMORY_SCORE_RULES",

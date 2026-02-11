@@ -356,12 +356,22 @@ NETWORK_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
     ),
 }
 
+GAMING_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
+    BenchmarkType.STEAM_SOTR: ScoreRule(
+        metric="fps_avg",
+        label="Average FPS",
+        higher_is_better=True,
+        formatter=lambda value: f"{value:.1f} fps",
+    ),
+}
+
 SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
     **CPU_SCORE_RULES,
     **GPU_SCORE_RULES,
     **IO_SCORE_RULES,
     **MEMORY_SCORE_RULES,
     **NETWORK_SCORE_RULES,
+    **GAMING_SCORE_RULES,
 }
 
 
@@ -374,6 +384,7 @@ def get_score_rule(bench_type: BenchmarkType | None) -> ScoreRule | None:
 
 __all__ = [
     "CPU_SCORE_RULES",
+    "GAMING_SCORE_RULES",
     "GPU_SCORE_RULES",
     "IO_SCORE_RULES",
     "MEMORY_SCORE_RULES",

@@ -37,6 +37,7 @@ CATEGORY_PRESETS = {
     "Memory": ("memory",),
     "I/O": ("io",),
     "Network": ("network",),
+    "Gaming": ("gaming",),
 }
 _CATEGORY_BENCHMARKS_CACHE: dict[str, set[BenchmarkType]] = {}
 
