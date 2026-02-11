@@ -11,7 +11,7 @@ from .types import BenchmarkType
 
 
 DEFAULT_FFMPEG_RESOLUTION = "1280x720"
-DEFAULT_FFMPEG_DURATION = 5
+DEFAULT_FFMPEG_DURATION = 15  # Increased from 5 for more stable measurements
 DEFAULT_FFMPEG_CODEC = "libx264"
 
 

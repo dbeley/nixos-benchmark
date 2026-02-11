@@ -12,7 +12,7 @@ from .base import BenchmarkBase
 from .types import BenchmarkType
 
 
-DEFAULT_NETPERF_DURATION = 3
+DEFAULT_NETPERF_DURATION = 10  # Increased from 3 to allow TCP to reach steady state
 
 
 class NetperfBenchmark(BenchmarkBase):

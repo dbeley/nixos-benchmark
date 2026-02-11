@@ -13,7 +13,7 @@ from .types import BenchmarkType
 
 
 DEFAULT_X265_RESOLUTION = "1280x720"
-DEFAULT_X265_FRAMES = 240
+DEFAULT_X265_FRAMES = 600  # Increased from 240 (20s @ 30fps instead of 8s)
 DEFAULT_X265_PRESET = "medium"
 DEFAULT_X265_CRF = 23
 

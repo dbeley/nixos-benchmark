@@ -10,9 +10,9 @@ from .base import BenchmarkBase
 from .types import BenchmarkType
 
 
-DEFAULT_LZ4_SIZE_MB = 64
+DEFAULT_LZ4_SIZE_MB = 256  # Increased from 64 for more stable measurements
 DEFAULT_LZ4_LEVEL = 1
-DEFAULT_LZ4_TIME = 2  # seconds per level
+DEFAULT_LZ4_TIME = 3  # seconds per level - increased from 2
 
 
 class LZ4Benchmark(BenchmarkBase):

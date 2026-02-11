@@ -12,8 +12,8 @@ from .base import BenchmarkBase
 from .types import BenchmarkType
 
 
-DEFAULT_SQLITE_ROWS = 50_000
-DEFAULT_SQLITE_SELECTS = 1_000
+DEFAULT_SQLITE_ROWS = 100_000  # Increased from 50k for more representative testing
+DEFAULT_SQLITE_SELECTS = 2_000  # Increased from 1k
 
 
 class SQLiteMixedBenchmark(BenchmarkBase):

@@ -1,33 +1,93 @@
-# Repository Guidelines
+# AGENTS.md
 
-## Project Structure & Module Organization
-- `nixos_benchmark/` is the Python package; run it via `python -m nixos_benchmark` or `nix run`.
-- `flake.nix` defines the runnable package and dev shell (Python, ffmpeg, fio, glmark2, stress-ng, etc.); `shell.nix` simply imports it for `nix-shell`/direnv.
-- `results/` holds generated reports (JSON and optional HTML dashboard) and remains git-ignored.
+This file provides guidance to LLM agents when working with code in this repository.
 
-## Build, Test, and Development Commands
-- Enter the toolchain with `nix develop` (flakes) or `nix-shell`/`direnv allow`.
-- List presets/benchmarks: `python -m nixos_benchmark --list-presets` and `--list-benchmarks` (or `nix run . -- --list-presets`).
-- Run the default suite: `python -m nixos_benchmark` (uses the `balanced` preset; writes `results/<timestamp>-<host>.json`).
-- Targeted runs: `python -m nixos_benchmark --presets cpu --presets io` or `python -m nixos_benchmark --benchmarks openssl-speed,fio-seq`.
-- HTML dashboard defaults to `results/index.html`; disable with `--html-summary ''` or point it elsewhere with `--html-summary path`.
+## Project Overview
 
-## Coding Style & Naming Conventions
-- Python 3.13+, standard library only at runtime; keep helpers small and pure.
-- Follow PEP 8 with existing type hints/dataclasses; ruff enforces formatting (120-char lines, import ordering).
-- CLI flags use long-form kebab-case (e.g., `--list-presets`, `--output`). Maintain argparse help text clarity.
-- Avoid hard-coding paths beyond `results/` and temp files.
+nixos-benchmark is a modular NixOS-native benchmarking framework (Python 3.13+, standard library only) that runs system performance tests (CPU, GPU, I/O, memory, network, compression, crypto, database) and generates JSON reports plus an interactive HTML dashboard.
 
-## Testing Guidelines
-- There is no separate test suite; validate changes with a minimal preset: `python -m nixos_benchmark --presets cpu --output results/smoke.json --html-summary ''`.
-- For parsing changes, run the specific benchmark the parser targets and inspect the JSON output for expected keys/metrics.
-- Keep `results/` outputs local; do not commit benchmark artifacts.
+## Development Commands
 
-## Commit & Pull Request Guidelines
-- Commit messages are short and imperative (e.g., “add benchmark presets”, “update README”); keep scope focused.
-- Include in PRs: a brief description of the change, sample command(s) you ran, and notable output/behavior differences. Link related issues when applicable.
-- If the change adjusts CLI surface or report format, call that out explicitly and provide before/after examples.
+```bash
+# Enter dev shell (provides all benchmark tools + linters)
+nix develop                    # or nix-shell / direnv allow
 
-## Security & Configuration Tips
-- Some benchmarks touch the GPU/display (`glmark2`). Note any environment assumptions in your PR to avoid surprising reviewers.
-- Do not embed proprietary benchmark binaries; rely on PATH detection. Keep `.envrc` minimal and avoid committing secrets or machine-specific tweaks.
+# Run benchmarks
+python -m nixos_benchmark                              # default "balanced" preset
+python -m nixos_benchmark --presets cpu --presets io    # multiple presets
+python -m nixos_benchmark --benchmarks openssl-speed,fio-seq  # specific benchmarks
+nix run . -- --list-presets                             # list available presets
+nix run . -- --list-benchmarks                          # list all benchmarks
+
+# Smoke test (quick validation of changes)
+python -m nixos_benchmark --presets cpu --output results/smoke.json --html-summary ''
+
+# Refresh HTML dashboard from existing JSON results
+python -m nixos_benchmark --html-only
+
+# Linting & formatting
+ruff check --fix .             # lint with autofix
+ruff format .                  # format code
+flake8 --max-line-length=120 --extend-ignore="E203" .
+ty check                       # type checking
+typos --write-changes          # spell checking
+nixpkgs-fmt *.nix              # nix formatting
+
+# Pre-commit (runs all of the above)
+prek run --all-files
+```
+
+## Architecture
+
+**Entry point**: `nixos_benchmark/__main__.py` → `cli.py` (argparse CLI, orchestration loop)
+
+**Benchmark plugin system** (`nixos_benchmark/benchmarks/`):
+- `base.py`: `BenchmarkBase` ABC — every benchmark subclasses this, implementing `execute(args) → BenchmarkResult` and `format_result(result) → str`
+- `types.py`: `BenchmarkType` StrEnum — canonical identifier for each benchmark
+- `scoring.py`: `ScoreRule` framework mapping BenchmarkType → metric extraction/formatting rules (used by HTML dashboard)
+- `__init__.py`: `BENCHMARK_MAP` (type → class registry), `PRESETS` (named collections of BenchmarkTypes)
+- Individual modules (e.g., `openssl.py`, `fio.py`, `glmark2.py`): one class per benchmark
+
+**Adding a new benchmark**: create a module in `benchmarks/`, subclass `BenchmarkBase` with `benchmark_type`, `description`, `_required_commands`, implement `execute()` and `format_result()`, register it in `BENCHMARK_MAP` in `__init__.py`, add scoring rules in `scoring.py`, and add it to relevant presets.
+
+**Data flow**: CLI expands presets → validates tool availability → runs each benchmark → collects `BenchmarkResult` dataclasses → writes JSON via `output.py` → optionally builds HTML dashboard from all JSON files in `results/`.
+
+**Key modules**:
+- `models.py`: dataclasses (`BenchmarkResult`, `BenchmarkMetrics`, `SystemInfo`, `BenchmarkReport`)
+- `system_info.py`: gathers CPU/GPU/RAM/OS info from `/proc`, `nvidia-smi`, `glxinfo`, `lspci`
+- `utils.py`: `run_command()` (subprocess with timing), temp file creation, port helpers, block device detection
+- `output.py`: JSON serialization + HTML dashboard generation from a dedicated template
+
+## Code Style
+
+- Python 3.13+, standard library only at runtime, type hints and dataclasses throughout
+- 120-char line length, ruff + flake8 enforced (see `pyproject.toml` for full rule sets)
+- CLI flags: long-form kebab-case (`--list-presets`, `--wait-between`)
+- Commit messages: short, imperative (e.g., "add benchmark presets", "fix fio parser")
+- `results/` is git-ignored — never commit benchmark artifacts
+- `NIXPKGS_ALLOW_UNFREE=1` needed for GPU benchmarks like FurMark
+
+## No Test Suite
+
+There is no formal test suite. Validate changes by running the relevant benchmark(s) and inspecting the JSON output for expected keys/metrics. Use `prek run --all-files` to run all linting checks.
+
+## Benchmark Runtimes
+
+Approximate runtimes (Intel i5-1145G7, 8 threads, Iris Xe iGPU, NVMe). Use `--benchmarks <name>` to run a single benchmark. Most benchmarks also add a 5s wait between runs (`--wait-between`).
+
+**NOTE**: Runtimes have been adjusted to improve measurement consistency and reduce variance:
+- Increased test durations for CPU benchmarks (stockfish: 10s→20s, sysbench-cpu: 5s→10s)
+- Larger data sizes for compression (zstd/pigz: 32MB→128MB, lz4: 64MB→256MB)
+- More samples for I/O latency (ioping: 5→20 samples)
+- Longer video encoding tests (x264/x265: 240→600 frames, ffmpeg: 5s→15s)
+- Increased memory test size (sysbench-memory: 512MB→4GB)
+- Increased network test duration (netperf: 3s→10s)
+- Increased database workload (sqlite-mixed: 50k→100k rows)
+
+**Fast (<10s):** sysbench-memory (<1s), zstd-compress (<1s), iozone (<1s), sqlite-speedtest (<1s), hashcat-gpu (<1s), pigz-compress (~1s), ffmpeg-transcode (~2s), x264-encode (~2s), x265-encode (~5s), stress-ng (~5s), stressapptest-memory (~5s), fio-seq (~5s), lz4-benchmark (~7s), john-benchmark (~7s), bonnie++ (~8s)
+
+**Medium (10s–1m):** sysbench-cpu (~10s), netperf (~10s), sqlite-mixed (~14s), ioping (~19s), openssl-speed (~18s), cryptsetup-benchmark (~37s), 7zip-benchmark (~42s), stockfish-bench (~54s), furmark-gl (~66s), furmark-vk (~66s), furmark-knot-gl (~66s), furmark-knot-vk (~66s)
+
+**Slow (>1m):** geekbench-gpu (~2m), geekbench-gpu-vulkan (~2m 45s), clpeak (~2m 47s), glmark2 (~5m 30s), geekbench (~5m 37s), tinymembench (~7m 30s)
+
+**System Environment Checks**: The framework now checks for CPU frequency scaling and other environmental factors that can affect benchmark consistency. Warnings are displayed before benchmark execution.

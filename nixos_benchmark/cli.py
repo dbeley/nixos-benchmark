@@ -30,6 +30,7 @@ from .output import (
     sanitize_for_filename,
     write_json_report,
 )
+from .system_checks import check_system_environment, print_system_warnings
 from .system_info import gather_system_info
 
 
@@ -341,6 +342,11 @@ def main() -> int:
     if not selected_benchmarks:
         print("No benchmarks requested.", file=sys.stderr)
         return 1
+
+    # Check system environment and warn about potential issues
+    system_warnings = check_system_environment()
+    if system_warnings:
+        print_system_warnings(system_warnings)
 
     results_with_benchmarks = run_selected_benchmarks(selected_benchmarks, args)
 

@@ -11,7 +11,7 @@ from .base import BenchmarkBase
 from .types import BenchmarkType
 
 
-DEFAULT_IOPING_COUNT = 5
+DEFAULT_IOPING_COUNT = 20  # Increased from 5 for better statistics, not too slow
 
 
 class IOPingBenchmark(BenchmarkBase):
