@@ -262,15 +262,42 @@ IO_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
     ),
     BenchmarkType.BONNIE: ScoreRule(
         metric="block_read_mb_s",
-        label="Block throughput (MiB/s)",
+        label="Throughput (MiB/s)",
         higher_is_better=True,
         extractor=lambda result: _mean_numeric(
             [
-                _metric_number(result.metrics, "block_read_mb_s"),
-                _metric_number(result.metrics, "block_write_mb_s"),
+                _first_numeric(result.metrics.get("block_read_mb_s"), result.metrics.get("char_read_mb_s")),
+                _first_numeric(result.metrics.get("block_write_mb_s"), result.metrics.get("char_write_mb_s")),
             ]
         ),
         formatter=lambda value: f"{value:.1f} MiB/s",
+    ),
+    BenchmarkType.IOPING: ScoreRule(
+        metric="latency_avg_ms",
+        label="Avg latency (ms)",
+        higher_is_better=False,
+        formatter=lambda value: f"{value:.2f} ms",
+    ),
+    BenchmarkType.CRYPTSETUP: ScoreRule(
+        metric="aes-xts_256_enc_mib_per_s",
+        label="Peak encrypt (MiB/s)",
+        higher_is_better=True,
+        extractor=lambda result: _max_numeric(
+            v for k, v in result.metrics.data.items() if k.endswith("_enc_mib_per_s") and isinstance(v, (int, float))
+        ),
+        formatter=lambda value: f"{value:,.0f} MiB/s",
+    ),
+    BenchmarkType.SQLITE_MIXED: ScoreRule(
+        metric="insert_rows_per_s",
+        label="Insert throughput (rows/s)",
+        higher_is_better=True,
+        formatter=lambda value: f"{value:,.0f} rows/s",
+    ),
+    BenchmarkType.SQLITE_SPEEDTEST: ScoreRule(
+        metric="insert_rows_per_s",
+        label="Insert throughput (rows/s)",
+        higher_is_better=True,
+        formatter=lambda value: f"{value:,.0f} rows/s",
     ),
     BenchmarkType.IOZONE: ScoreRule(
         metric="read_mb_s",
@@ -288,7 +315,54 @@ IO_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
     ),
 }
 
-SCORE_RULES: dict[BenchmarkType, ScoreRule] = {**CPU_SCORE_RULES, **GPU_SCORE_RULES, **IO_SCORE_RULES}
+MEMORY_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
+    BenchmarkType.SYSBENCH_MEMORY: ScoreRule(
+        metric="throughput_mib_per_s",
+        label="Memory throughput (MiB/s)",
+        higher_is_better=True,
+        formatter=lambda value: f"{value:,.0f} MiB/s",
+    ),
+    BenchmarkType.STRESSAPPTEST: ScoreRule(
+        metric="throughput_mb_per_s",
+        label="Memory bandwidth (MB/s)",
+        higher_is_better=True,
+        formatter=lambda value: f"{value:,.1f} MB/s",
+    ),
+    BenchmarkType.TINYMEMBENCH: ScoreRule(
+        metric="standard_memcpy_mb_per_s",
+        label="Memcpy throughput (MB/s)",
+        higher_is_better=True,
+        extractor=lambda result: _first_numeric(
+            result.metrics.get("standard_memcpy_mb_per_s"),
+            result.metrics.get("memcpy_mb_per_s"),
+            _max_numeric(v for v in result.metrics.data.values() if isinstance(v, (int, float))),
+        ),
+        formatter=lambda value: f"{value:,.0f} MB/s",
+    ),
+}
+
+NETWORK_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
+    BenchmarkType.NETPERF: ScoreRule(
+        metric="throughput_mbps",
+        label="TCP throughput (Mb/s)",
+        higher_is_better=True,
+        formatter=lambda value: f"{value:,.1f} Mb/s",
+    ),
+    BenchmarkType.WRK_HTTP: ScoreRule(
+        metric="requests_per_sec",
+        label="HTTP requests/s",
+        higher_is_better=True,
+        formatter=lambda value: f"{value:,.0f} req/s",
+    ),
+}
+
+SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
+    **CPU_SCORE_RULES,
+    **GPU_SCORE_RULES,
+    **IO_SCORE_RULES,
+    **MEMORY_SCORE_RULES,
+    **NETWORK_SCORE_RULES,
+}
 
 
 def get_score_rule(bench_type: BenchmarkType | None) -> ScoreRule | None:
@@ -302,6 +376,8 @@ __all__ = [
     "CPU_SCORE_RULES",
     "GPU_SCORE_RULES",
     "IO_SCORE_RULES",
+    "MEMORY_SCORE_RULES",
+    "NETWORK_SCORE_RULES",
     "SCORE_RULES",
     "ScoreRule",
     "get_score_rule",
