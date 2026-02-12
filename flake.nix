@@ -73,6 +73,7 @@
             ty
             # Additional formatting and checking tools
             nixpkgs-fmt
+            hyperfine
           ]);
           shellHook = ''
             export NIXPKGS_ALLOW_UNFREE=1
