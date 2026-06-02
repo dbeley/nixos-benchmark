@@ -22,9 +22,8 @@ class HashcatBenchmark(BenchmarkBase):
     _required_commands = ("hashcat",)
 
     def _availability_check(self, args: argparse.Namespace) -> tuple[bool, str]:
-        # Quick device probe; if no backends are found, skip gracefully
         stdout, _, returncode = run_command(["hashcat", "-I"])
-        if returncode != 0 or "Device #" not in stdout:
+        if returncode != 0 or ("Device #" not in stdout and "Backend Device ID" not in stdout):
             return False, "hashcat: no usable backend devices detected"
         return True, ""
 
