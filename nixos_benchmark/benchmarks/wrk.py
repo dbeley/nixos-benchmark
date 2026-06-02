@@ -46,6 +46,13 @@ class WrkHTTPBenchmark(BenchmarkBase):
     description = "wrk HTTP load against a local python server"
     _required_commands = ("wrk",)
 
+    def get_version(self) -> str:
+        stdout, _, _ = run_command(["wrk", "--version"])
+        match = re.search(r"wrk\s+([0-9]+(?:\.[0-9]+)+)", stdout)
+        if match:
+            return match.group(1)
+        return super().get_version()
+
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         duration = DEFAULT_WRK_DURATION
         threads = DEFAULT_WRK_THREADS
