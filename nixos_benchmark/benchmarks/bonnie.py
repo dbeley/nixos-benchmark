@@ -61,10 +61,21 @@ class BonnieBenchmark(BenchmarkBase):
             def parse_float(idx: int, key: str) -> None:
                 if idx >= len(fields):
                     return
+                value = fields[idx].strip()
+                if value in ("+++++", "++++", "+++", "++", "+"):
+                    return
                 try:
-                    metrics_data[key] = float(fields[idx]) / 1024.0
+                    metrics_data[key] = float(value) / 1024.0
                 except ValueError:
                     return
+
+            def parse_latency(idx: int, key: str) -> None:
+                if idx >= len(fields):
+                    return
+                value = fields[idx].strip()
+                match = re.match(r"(\d+(?:\.\d+)?)\s*us", value)
+                if match:
+                    metrics_data[key] = float(match.group(1)) / 1000.0
 
             parse_float(9, "char_write_mb_s")
             parse_float(11, "block_write_mb_s")
@@ -72,6 +83,13 @@ class BonnieBenchmark(BenchmarkBase):
             parse_float(15, "char_read_mb_s")
             parse_float(17, "block_read_mb_s")
             parse_float(19, "seeks_per_s")
+
+            parse_latency(38, "char_write_latency_ms")
+            parse_latency(39, "block_write_latency_ms")
+            parse_latency(40, "rewrite_latency_ms")
+            parse_latency(41, "char_read_latency_ms")
+            parse_latency(42, "block_read_latency_ms")
+            parse_latency(43, "seeks_latency_ms")
         else:
             status = "error"
             message = "Unable to parse bonnie++ output"
@@ -95,12 +113,12 @@ class BonnieBenchmark(BenchmarkBase):
         if status_message:
             return status_message
 
-        block_write = result.metrics.get("block_write_mb_s")
-        block_read = result.metrics.get("block_read_mb_s")
-        if block_write is not None and block_read is not None:
-            return f"write {block_write:.1f} MiB/s, read {block_read:.1f} MiB/s"
-        if block_write is not None:
-            return f"write {block_write:.1f} MiB/s"
-        if block_read is not None:
-            return f"read {block_read:.1f} MiB/s"
+        write = result.metrics.get("block_write_mb_s") or result.metrics.get("char_write_mb_s")
+        read = result.metrics.get("block_read_mb_s") or result.metrics.get("char_read_mb_s")
+        if write is not None and read is not None:
+            return f"write {write:.1f} MiB/s, read {read:.1f} MiB/s"
+        if write is not None:
+            return f"write {write:.1f} MiB/s"
+        if read is not None:
+            return f"read {read:.1f} MiB/s"
         return ""
