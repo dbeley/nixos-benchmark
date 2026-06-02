@@ -49,6 +49,7 @@ def run_command(command: list[str], *, env: dict[str, str] | None = None) -> tup
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        errors="replace",
         env=run_env,
     )
     duration = time.perf_counter() - start
@@ -64,6 +65,7 @@ def read_command_version(command: Sequence[str]) -> str:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            errors="replace",
             env={**os.environ, "LC_ALL": "C", "LANGUAGE": "C"},
         )
     except FileNotFoundError:
