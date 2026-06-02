@@ -47,6 +47,9 @@ class CLPeakBenchmark(BenchmarkBase):
         if "no platforms found" in stdout.lower() or "clgetplatformids" in stdout.lower():
             raise ValueError("No OpenCL platforms found")
 
+        if "error:" in stdout.lower() and "undeclared identifier" in stdout.lower():
+            raise ValueError("OpenCL kernel compilation failed (unsupported extension)")
+
         metrics_data: dict[str, float | str | int] = {}
         section_values: dict[str, list[float]] = {
             "bandwidth": [],
