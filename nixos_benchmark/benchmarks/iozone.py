@@ -22,8 +22,10 @@ class IozoneBenchmark(BenchmarkBase):
     _required_commands = ("iozone",)
 
     def get_version(self) -> str:
-        stdout, _, _ = run_command(["iozone", "-h"])
-        version_match = re.search(r"Version\s+([0-9.]+)", stdout)
+        stdout, _, _ = run_command(["iozone", "-v"])
+        version_match = re.search(r"Version\s+\$Revision:\s+([0-9.]+)", stdout)
+        if not version_match:
+            version_match = re.search(r"Version\s+([0-9.]+)", stdout)
         if not version_match:
             version_match = re.search(r"Revision[:\s]+([0-9.]+)", stdout)
         if version_match:
