@@ -21,6 +21,14 @@ class JohnBenchmark(BenchmarkBase):
     _required_commands = ("john",)
     version_command = ("john", "--list=build-info")
 
+    def get_version(self) -> str:
+        stdout, _, _ = run_command(["john", "--list=build-info"])
+        for line in stdout.splitlines():
+            match = re.match(r"Version:\s+(.+)", line.strip())
+            if match:
+                return match.group(1).strip()
+        return super().get_version()
+
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         runtime = DEFAULT_JOHN_RUNTIME
         # Use a temporary HOME to avoid polluting the user's ~/.john directory
