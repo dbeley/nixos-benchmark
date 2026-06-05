@@ -49,3 +49,18 @@ Use `--list-benchmarks` to see the exact preset coverage for each entry.
 ![sample output image](docs/sample_output.png)
 
 ![7zip sample graph](docs/cpu-7zip-benchmark.png)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request or open an issue for bugs, features, or documentation improvements.
+
+### Adding New Benchmarks
+
+New benchmarks can be added by extending the benchmark registry in the Python source code. Each benchmark should:
+- Have a clear name and description
+- Include proper result parsing
+- Be assigned to appropriate preset(s)
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
