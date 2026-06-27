@@ -152,6 +152,17 @@ def build_argument_parser() -> argparse.ArgumentParser:
         metavar="SECONDS",
         help="Wait time between benchmark runs in seconds (default: 5).",
     )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Print detailed benchmark output including command stdout on errors.",
+    )
+    parser.add_argument(
+        "--no-raw-output",
+        action="store_true",
+        help="Exclude raw command output from JSON reports to reduce file size.",
+    )
     return parser
 
 
@@ -210,6 +221,8 @@ def run_selected_benchmarks(selected_benchmarks: Sequence[BenchmarkType], args: 
     results_with_benchmarks: list[tuple[BenchmarkResult, BenchmarkBase]] = []
     for i, benchmark_type in enumerate(selected_benchmarks):
         print(f"Executing {benchmark_type.value}")
+        if args.verbose:
+            print(f"  Description: {BENCHMARK_MAP[benchmark_type].description}")
         benchmark = BENCHMARK_MAP[benchmark_type]
         start_time = perf_counter()
         result = execute_benchmark(benchmark, args)
@@ -282,6 +295,12 @@ def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
         # Preserve command output for debugging
         raw_output = exc.stdout if exc.stdout else ""
         command = BenchmarkBase.format_command(exc.cmd) if exc.cmd else ""
+        if args.verbose and raw_output:
+            print(f"  Command: {command}")
+            print(f"  Exit code: {exc.returncode}")
+            print(f"  Raw output (last 50 lines):")
+            for line in raw_output.splitlines()[-50:]:
+                print(f"    | {line}")
         return BenchmarkResult(
             benchmark_type=benchmark.benchmark_type,
             status="error",
@@ -355,6 +374,9 @@ def main() -> int:
         return 1
 
     results = [result for result, _ in results_with_benchmarks]
+    if args.no_raw_output:
+        for result in results:
+            result.raw_output = ""
     generated_at = datetime.now(UTC)
     system_info = gather_system_info(args.hostname or None)
 
