@@ -298,7 +298,7 @@ def execute_benchmark(benchmark, args: argparse.Namespace) -> BenchmarkResult:
         if args.verbose and raw_output:
             print(f"  Command: {command}")
             print(f"  Exit code: {exc.returncode}")
-            print(f"  Raw output (last 50 lines):")
+            print("  Raw output (last 50 lines):")
             for line in raw_output.splitlines()[-50:]:
                 print(f"    | {line}")
         return BenchmarkResult(

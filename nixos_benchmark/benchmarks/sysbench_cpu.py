@@ -7,7 +7,7 @@ import os
 import re
 import subprocess
 
-from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
+from ..models import BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
 from .types import BenchmarkType

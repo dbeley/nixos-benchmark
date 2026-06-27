@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
 import textwrap
@@ -66,10 +67,8 @@ def check_swap_usage() -> list[str]:
             if len(parts) == 2:
                 key = parts[0].strip()
                 val_str = parts[1].strip().split()[0] if parts[1].strip() else "0"
-                try:
+                with contextlib.suppress(ValueError):
                     meminfo[key] = int(val_str)
-                except ValueError:
-                    pass
 
         swap_total_kb = meminfo.get("SwapTotal", 0)
         swap_free_kb = meminfo.get("SwapFree", 0)
