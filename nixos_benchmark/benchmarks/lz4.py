@@ -1,10 +1,12 @@
+"""lz4 compression/decompression throughput benchmark."""
+
 from __future__ import annotations
 
 import argparse
 import re
 import subprocess
 
-from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
+from ..models import BenchmarkParameters, BenchmarkResult
 from ..utils import run_command, write_temp_data_file
 from .base import BenchmarkBase
 from .types import BenchmarkType
@@ -19,6 +21,17 @@ class LZ4Benchmark(BenchmarkBase):
     benchmark_type = BenchmarkType.LZ4
     description = "lz4 compression/decompression throughput"
     _required_commands = ("lz4",)
+
+    @staticmethod
+    def _parse_speeds(text: str) -> tuple[float, float]:
+        # Search for the last occurrence of ", <comp> MB/s, <decomp> MB/s"
+        matches = list(re.finditer(r",\s*([\d.]+)\s+MB/s(?:,\s*([\d.]+)\s+MB/s)?", text))
+        if not matches:
+            raise ValueError("Unable to parse lz4 benchmark output")
+        comp = float(matches[-1].group(1))
+        decomp_group = matches[-1].group(2)
+        decomp = float(decomp_group) if decomp_group is not None else 0.0
+        return comp, decomp
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         size_mb = DEFAULT_LZ4_SIZE_MB
@@ -38,22 +51,16 @@ class LZ4Benchmark(BenchmarkBase):
             if returncode != 0:
                 raise subprocess.CalledProcessError(returncode, command, stdout)
 
-            try:
-                compress_speed, decompress_speed = self._parse_speeds(stdout)
-                metrics = BenchmarkMetrics(
-                    {
-                        "compress_mb_per_s": compress_speed,
-                        "decompress_mb_per_s": decompress_speed,
-                        "level": level,
-                        "size_mb": size_mb,
-                    }
-                )
-                status = "ok"
-                message = ""
-            except ValueError as exc:
-                metrics = BenchmarkMetrics({})
-                status = "error"
-                message = str(exc)
+            def _parse() -> dict[str, float | str | int]:
+                compress_speed, decompress_speed = LZ4Benchmark._parse_speeds(stdout)
+                return {
+                    "compress_mb_per_s": compress_speed,
+                    "decompress_mb_per_s": decompress_speed,
+                    "level": level,
+                    "size_mb": size_mb,
+                }
+
+            status, metrics, message = self.parse_metrics(_parse)
         finally:
             data_path.unlink(missing_ok=True)
 
@@ -68,17 +75,6 @@ class LZ4Benchmark(BenchmarkBase):
             raw_output=stdout,
             message=message,
         )
-
-    @staticmethod
-    def _parse_speeds(text: str) -> tuple[float, float]:
-        # Search for the last occurrence of ", <comp> MB/s, <decomp> MB/s"
-        matches = list(re.finditer(r",\s*([\d.]+)\s+MB/s(?:,\s*([\d.]+)\s+MB/s)?", text))
-        if not matches:
-            raise ValueError("Unable to parse lz4 benchmark output")
-        comp = float(matches[-1].group(1))
-        decomp_group = matches[-1].group(2)
-        decomp = float(decomp_group) if decomp_group is not None else 0.0
-        return comp, decomp
 
     def format_result(self, result: BenchmarkResult) -> str:
         status_message = self.format_status_message(result)

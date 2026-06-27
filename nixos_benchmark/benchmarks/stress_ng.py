@@ -1,10 +1,12 @@
+"""stress-ng CPU stress test benchmark."""
+
 from __future__ import annotations
 
 import argparse
 import re
 import subprocess
 
-from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
+from ..models import BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
 from .types import BenchmarkType
@@ -18,6 +20,35 @@ class StressNGBenchmark(BenchmarkBase):
     benchmark_type = BenchmarkType.STRESS_NG
     description = "stress-ng CPU stress test"
     _required_commands = ("stress-ng",)
+
+    @staticmethod
+    def _parse_stress_ng(stdout: str) -> dict[str, float | str | int]:
+        pattern = re.compile(
+            r"stress-ng:\s+\w+:\s+\[\d+\]\s+(\S+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"
+            r"\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"
+        )
+        metrics_data: dict[str, float | str | int] = {}
+        for line in stdout.splitlines():
+            match = pattern.search(line)
+            if not match:
+                continue
+            stressor_name = match.group(1)
+            if stressor_name == "stressor" or stressor_name.startswith("("):
+                continue
+            metrics_data = {
+                "stressor": stressor_name,
+                "bogo_ops": float(match.group(2)),
+                "real_time_secs": float(match.group(3)),
+                "user_time_secs": float(match.group(4)),
+                "system_time_secs": float(match.group(5)),
+                "bogo_ops_per_sec_real": float(match.group(6)),
+                "bogo_ops_per_sec_cpu": float(match.group(7)),
+            }
+            break
+
+        if not metrics_data:
+            raise ValueError("Unable to parse stress-ng metrics (try increasing runtime)")
+        return metrics_data
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         seconds = DEFAULT_STRESS_NG_SECONDS
@@ -36,40 +67,7 @@ class StressNGBenchmark(BenchmarkBase):
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
-        try:
-            pattern = re.compile(
-                r"stress-ng:\s+\w+:\s+\[\d+\]\s+(\S+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"
-                r"\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"
-            )
-            metrics_data = {}
-            for line in stdout.splitlines():
-                match = pattern.search(line)
-                if not match:
-                    continue
-                stressor_name = match.group(1)
-                if stressor_name == "stressor" or stressor_name.startswith("("):
-                    continue
-                metrics_data = {
-                    "stressor": stressor_name,
-                    "bogo_ops": float(match.group(2)),
-                    "real_time_secs": float(match.group(3)),
-                    "user_time_secs": float(match.group(4)),
-                    "system_time_secs": float(match.group(5)),
-                    "bogo_ops_per_sec_real": float(match.group(6)),
-                    "bogo_ops_per_sec_cpu": float(match.group(7)),
-                }
-                break
-
-            if not metrics_data:
-                raise ValueError("Unable to parse stress-ng metrics (try increasing runtime)")
-
-            status = "ok"
-            metrics = BenchmarkMetrics(metrics_data)
-            message = ""
-        except ValueError as e:
-            status = "error"
-            metrics = BenchmarkMetrics({})
-            message = str(e)
+        status, metrics, message = self.parse_metrics(lambda: self._parse_stress_ng(stdout))
 
         return BenchmarkResult(
             benchmark_type=self.benchmark_type,
