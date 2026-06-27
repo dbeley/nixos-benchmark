@@ -1,10 +1,11 @@
+"""netperf TCP_STREAM loopback benchmark."""
+
 from __future__ import annotations
 
 import argparse
 import contextlib
 import re
 import subprocess
-from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import find_free_tcp_port, run_command, wait_for_port
@@ -19,6 +20,13 @@ class NetperfBenchmark(BenchmarkBase):
     benchmark_type = BenchmarkType.NETPERF
     description = "netperf TCP_STREAM loopback"
     _required_commands = ("netperf", "netserver")
+
+    @staticmethod
+    def _parse_netperf(stdout: str) -> dict[str, float | str | int]:
+        values = [float(token) for token in re.findall(r"([\d.]+)\s*$", stdout, flags=re.MULTILINE) if token]
+        if not values:
+            raise ValueError("Unable to parse netperf throughput")
+        return {"throughput_mbps": values[-1]}
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         duration = DEFAULT_NETPERF_DURATION
@@ -47,23 +55,9 @@ class NetperfBenchmark(BenchmarkBase):
                 ]
             )
 
-            try:
-                values = [float(token) for token in re.findall(r"([\d.]+)\s*$", stdout, flags=re.MULTILINE) if token]
-                if not values:
-                    raise ValueError("Unable to parse netperf throughput")
-                throughput_mbps = values[-1]
-                metrics_data = {
-                    "throughput_mbps": throughput_mbps,
-                    "duration_s": duration,
-                }
-
-                status = "ok"
-                metrics = BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data))
-                message = ""
-            except ValueError as e:
-                status = "error"
-                metrics = BenchmarkMetrics({})
-                message = str(e)
+            status, metrics, message = self.parse_metrics(lambda: self._parse_netperf(stdout))
+            if status == "ok":
+                metrics.data["duration_s"] = duration
         finally:
             server.terminate()
             with contextlib.suppress(Exception):

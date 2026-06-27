@@ -1,3 +1,5 @@
+"""sysbench memory throughput benchmark."""
+
 from __future__ import annotations
 
 import argparse
@@ -22,6 +24,24 @@ class SysbenchMemoryBenchmark(BenchmarkBase):
     description = "sysbench memory throughput"
     _required_commands = ("sysbench",)
 
+    @staticmethod
+    def _parse_sysbench_memory(stdout: str) -> dict[str, float | str | int]:
+        metrics_data: dict[str, float | str | int] = {}
+        operations = re.search(r"Total operations:\s+([\d.]+)\s+\(([\d.]+)\s+per second\)", stdout)
+        throughput = re.search(r"([\d.]+)\s+MiB transferred\s+\(([\d.]+)\s+MiB/sec\)", stdout)
+        total_time = re.search(r"total time:\s+([\d.]+)s", stdout)
+        if operations:
+            metrics_data["operations"] = float(operations.group(1))
+            metrics_data["operations_per_sec"] = float(operations.group(2))
+        if throughput:
+            metrics_data["transferred_mib"] = float(throughput.group(1))
+            metrics_data["throughput_mib_per_s"] = float(throughput.group(2))
+        if total_time:
+            metrics_data["total_time_secs"] = float(total_time.group(1))
+        if not metrics_data:
+            raise ValueError("Unable to parse sysbench memory output")
+        return metrics_data
+
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         threads = DEFAULT_SYSBENCH_THREADS
         block_kb = DEFAULT_SYSBENCH_MEMORY_BLOCK_KB
@@ -42,33 +62,12 @@ class SysbenchMemoryBenchmark(BenchmarkBase):
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
-        try:
-            metrics_data: dict[str, float | str | int] = {}
-            operations = re.search(r"Total operations:\s+([\d.]+)\s+\(([\d.]+)\s+per second\)", stdout)
-            throughput = re.search(r"([\d.]+)\s+MiB transferred\s+\(([\d.]+)\s+MiB/sec\)", stdout)
-            total_time = re.search(r"total time:\s+([\d.]+)s", stdout)
-            if operations:
-                metrics_data["operations"] = float(operations.group(1))
-                metrics_data["operations_per_sec"] = float(operations.group(2))
-            if throughput:
-                metrics_data["transferred_mib"] = float(throughput.group(1))
-                metrics_data["throughput_mib_per_s"] = float(throughput.group(2))
-            if total_time:
-                metrics_data["total_time_secs"] = float(total_time.group(1))
-            if not metrics_data:
-                raise ValueError("Unable to parse sysbench memory output")
-
-            metrics_data["threads"] = thread_count
-            metrics_data["block_kb"] = block_kb
-            metrics_data["total_mb"] = total_mb
-            metrics_data["operation"] = operation
-            status = "ok"
-            metrics = BenchmarkMetrics(metrics_data)
-            message = ""
-        except ValueError as e:
-            status = "error"
-            metrics = BenchmarkMetrics({})
-            message = str(e)
+        status, metrics, message = self.parse_metrics(lambda: self._parse_sysbench_memory(stdout))
+        if status == "ok":
+            metrics.data["threads"] = thread_count
+            metrics.data["block_kb"] = block_kb
+            metrics.data["total_mb"] = total_mb
+            metrics.data["operation"] = operation
 
         return BenchmarkResult(
             benchmark_type=self.benchmark_type,

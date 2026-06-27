@@ -12,7 +12,7 @@ from ..utils import check_requirements, read_command_version
 
 
 if TYPE_CHECKING:
-    from ..models import BenchmarkResult
+    from ..models import BenchmarkMetrics, BenchmarkResult
     from .types import BenchmarkType
 
 
@@ -34,6 +34,20 @@ class BenchmarkBase(ABC):
         if isinstance(command, str):
             return command
         return shlex.join([str(part) for part in command])
+
+    @staticmethod
+    def parse_metrics(
+        parse_fn: Callable[[], dict[str, float | str | int]],
+    ) -> tuple[str, BenchmarkMetrics, str]:
+        """Execute *parse_fn* and wrap its result.
+
+        Returns ``("ok", metrics, "")`` on success or
+        ``("error", empty_metrics, message)`` on :class:`ValueError`.
+        """
+        try:
+            return "ok", BenchmarkMetrics(parse_fn()), ""
+        except ValueError as exc:
+            return "error", BenchmarkMetrics({}), str(exc)
 
     @staticmethod
     def format_status_message(result: BenchmarkResult) -> str | None:

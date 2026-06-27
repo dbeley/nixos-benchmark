@@ -1,3 +1,5 @@
+"""7-Zip compression benchmark."""
+
 from __future__ import annotations
 
 import argparse
@@ -16,43 +18,40 @@ class SevenZipBenchmark(BenchmarkBase):
     _required_commands = ("7z",)
     version_command = ("7z",)
 
+    @staticmethod
+    def _parse_7z_output(stdout: str) -> dict[str, float | str | int]:
+        totals_match = re.search(r"Tot:\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)", stdout)
+        avg_match = re.search(
+            r"Avr:\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+\|\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)",
+            stdout,
+        )
+        metrics_data: dict[str, float | str | int] = {}
+
+        if totals_match:
+            metrics_data["total_usage_pct"] = float(totals_match.group(1))
+            metrics_data["total_ru"] = float(totals_match.group(2))
+            metrics_data["total_rating_mips"] = float(totals_match.group(3))
+
+        if avg_match:
+            metrics_data["compress_usage_pct"] = float(avg_match.group(1))
+            metrics_data["compress_ru_mips"] = float(avg_match.group(2))
+            metrics_data["compress_rating_mips"] = float(avg_match.group(3))
+            metrics_data["decompress_usage_pct"] = float(avg_match.group(4))
+            metrics_data["decompress_ru_mips"] = float(avg_match.group(5))
+            metrics_data["decompress_rating_mips"] = float(avg_match.group(6))
+
+        if not metrics_data:
+            raise ValueError("Unable to parse 7-Zip benchmark output")
+
+        return metrics_data
+
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         command = ["7z", "b"]
         stdout, duration, returncode = run_command(command)
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
-        try:
-            totals_match = re.search(r"Tot:\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)", stdout)
-            avg_match = re.search(
-                r"Avr:\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+\|\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)",
-                stdout,
-            )
-            metrics_data: dict[str, float | str | int] = {}
-
-            if totals_match:
-                metrics_data["total_usage_pct"] = float(totals_match.group(1))
-                metrics_data["total_ru"] = float(totals_match.group(2))
-                metrics_data["total_rating_mips"] = float(totals_match.group(3))
-
-            if avg_match:
-                metrics_data["compress_usage_pct"] = float(avg_match.group(1))
-                metrics_data["compress_ru_mips"] = float(avg_match.group(2))
-                metrics_data["compress_rating_mips"] = float(avg_match.group(3))
-                metrics_data["decompress_usage_pct"] = float(avg_match.group(4))
-                metrics_data["decompress_ru_mips"] = float(avg_match.group(5))
-                metrics_data["decompress_rating_mips"] = float(avg_match.group(6))
-
-            if not metrics_data:
-                raise ValueError("Unable to parse 7-Zip benchmark output")
-
-            status = "ok"
-            metrics = BenchmarkMetrics(metrics_data)
-            message = ""
-        except ValueError as e:
-            status = "error"
-            metrics = BenchmarkMetrics({})
-            message = str(e)
+        status, metrics, message = self.parse_metrics(lambda: self._parse_7z_output(stdout))
 
         return BenchmarkResult(
             benchmark_type=self.benchmark_type,

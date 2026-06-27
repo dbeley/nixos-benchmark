@@ -1,9 +1,10 @@
+"""glmark2 OpenGL benchmark."""
+
 from __future__ import annotations
 
 import argparse
 import re
 import subprocess
-from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
@@ -19,6 +20,13 @@ class GLMark2Benchmark(BenchmarkBase):
     description = "glmark2 OpenGL benchmark"
     _required_commands = ("glmark2",)
 
+    @staticmethod
+    def _parse_glmark2(stdout: str) -> dict[str, float | str | int]:
+        score_match = re.search(r"glmark2 Score:\s*(\d+)", stdout)
+        if not score_match:
+            raise ValueError("Unable to parse glmark2 score")
+        return {"score": float(score_match.group(1))}
+
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         size = DEFAULT_GLMARK2_SIZE
         offscreen = args.glmark2_mode == "offscreen"
@@ -30,19 +38,7 @@ class GLMark2Benchmark(BenchmarkBase):
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
-        try:
-            score_match = re.search(r"glmark2 Score:\s*(\d+)", stdout)
-            if not score_match:
-                raise ValueError("Unable to parse glmark2 score")
-
-            metrics_data = {"score": float(score_match.group(1))}
-            status = "ok"
-            metrics = BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data))
-            message = ""
-        except ValueError as e:
-            status = "error"
-            metrics = BenchmarkMetrics({})
-            message = str(e)
+        status, metrics, message = self.parse_metrics(lambda: self._parse_glmark2(stdout))
 
         return BenchmarkResult(
             benchmark_type=self.benchmark_type,

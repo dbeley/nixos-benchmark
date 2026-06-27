@@ -1,3 +1,5 @@
+"""sysbench CPU benchmark."""
+
 from __future__ import annotations
 
 import argparse
@@ -21,6 +23,22 @@ class SysbenchCPUBenchmark(BenchmarkBase):
     description = "sysbench CPU benchmark"
     _required_commands = ("sysbench",)
 
+    @staticmethod
+    def _parse_sysbench_cpu(stdout: str) -> dict[str, float | str | int]:
+        metrics_data: dict[str, float | str | int] = {}
+        events_per_sec = re.search(r"events per second:\s+([\d.]+)", stdout)
+        total_time = re.search(r"total time:\s+([\d.]+)s", stdout)
+        total_events = re.search(r"total number of events:\s+([\d.]+)", stdout)
+        if events_per_sec:
+            metrics_data["events_per_sec"] = float(events_per_sec.group(1))
+        if total_time:
+            metrics_data["total_time_secs"] = float(total_time.group(1))
+        if total_events:
+            metrics_data["total_events"] = float(total_events.group(1))
+        if not metrics_data:
+            raise ValueError("Unable to parse sysbench CPU output")
+        return metrics_data
+
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         threads = DEFAULT_SYSBENCH_THREADS
         max_prime = DEFAULT_SYSBENCH_CPU_MAX_PRIME
@@ -39,29 +57,10 @@ class SysbenchCPUBenchmark(BenchmarkBase):
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
-        try:
-            metrics_data: dict[str, float | str | int] = {}
-            events_per_sec = re.search(r"events per second:\s+([\d.]+)", stdout)
-            total_time = re.search(r"total time:\s+([\d.]+)s", stdout)
-            total_events = re.search(r"total number of events:\s+([\d.]+)", stdout)
-            if events_per_sec:
-                metrics_data["events_per_sec"] = float(events_per_sec.group(1))
-            if total_time:
-                metrics_data["total_time_secs"] = float(total_time.group(1))
-            if total_events:
-                metrics_data["total_events"] = float(total_events.group(1))
-            if not metrics_data:
-                raise ValueError("Unable to parse sysbench CPU output")
-
-            metrics_data["threads"] = thread_count
-            metrics_data["cpu_max_prime"] = max_prime
-            status = "ok"
-            metrics = BenchmarkMetrics(metrics_data)
-            message = ""
-        except ValueError as e:
-            status = "error"
-            metrics = BenchmarkMetrics({})
-            message = str(e)
+        status, metrics, message = self.parse_metrics(lambda: self._parse_sysbench_cpu(stdout))
+        if status == "ok":
+            metrics.data["threads"] = thread_count
+            metrics.data["cpu_max_prime"] = max_prime
 
         return BenchmarkResult(
             benchmark_type=self.benchmark_type,

@@ -1,3 +1,5 @@
+"""Stockfish chess engine benchmark."""
+
 from __future__ import annotations
 
 import argparse
@@ -39,6 +41,17 @@ class StockfishBenchmark(BenchmarkBase):
                 return line.split(" ", 2)[2].strip()
         return super().get_version()
 
+    @staticmethod
+    def _parse_stockfish(stdout: str) -> dict[str, float | str | int]:
+        total_time_ms = StockfishBenchmark._parse_value(stdout, r"Total time \(ms\)\s*:\s*([\d.]+)")
+        nodes_searched = StockfishBenchmark._parse_value(stdout, r"Nodes searched\s*:\s*([\d.]+)")
+        nodes_per_second = StockfishBenchmark._parse_value(stdout, r"Nodes/second\s*:\s*([\d.]+)")
+        return {
+            "total_time_ms": total_time_ms,
+            "nodes_searched": nodes_searched,
+            "nodes_per_sec": nodes_per_second,
+        }
+
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         threads = DEFAULT_STOCKFISH_THREADS
         limit_seconds = DEFAULT_STOCKFISH_LIMIT
@@ -54,25 +67,9 @@ class StockfishBenchmark(BenchmarkBase):
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
-        try:
-            total_time_ms = self._parse_value(stdout, r"Total time \(ms\)\s*:\s*([\d.]+)")
-            nodes_searched = self._parse_value(stdout, r"Nodes searched\s*:\s*([\d.]+)")
-            nodes_per_second = self._parse_value(stdout, r"Nodes/second\s*:\s*([\d.]+)")
-
-            metrics = BenchmarkMetrics(
-                {
-                    "total_time_ms": total_time_ms,
-                    "nodes_searched": nodes_searched,
-                    "nodes_per_sec": nodes_per_second,
-                    "threads": threads,
-                }
-            )
-            status = "ok"
-            message = ""
-        except ValueError as exc:
-            metrics = BenchmarkMetrics({})
-            status = "error"
-            message = str(exc)
+        status, metrics, message = self.parse_metrics(lambda: self._parse_stockfish(stdout))
+        if status == "ok":
+            metrics.data["threads"] = threads
 
         return BenchmarkResult(
             benchmark_type=self.benchmark_type,
