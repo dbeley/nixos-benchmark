@@ -12,7 +12,9 @@ from .types import BenchmarkType
 def _coerce_number(value: object) -> float | None:
     """Convert arbitrary values to float when possible."""
     try:
-        return float(value)  # type: ignore[arg-type]
+        if isinstance(value, (int, float, str)):
+            return float(value)
+        return None
     except (TypeError, ValueError):
         return None
 

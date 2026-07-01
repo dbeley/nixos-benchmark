@@ -44,9 +44,7 @@ class OpenSSLBenchmark(BenchmarkBase):
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
-        status, metrics, message = self.parse_metrics(
-            lambda: self._parse_openssl_output(stdout, algorithm)
-        )
+        status, metrics, message = self.parse_metrics(lambda: self._parse_openssl_output(stdout, algorithm))
 
         return BenchmarkResult(
             benchmark_type=self.benchmark_type,

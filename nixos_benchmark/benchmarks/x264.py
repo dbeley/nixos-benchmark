@@ -92,9 +92,7 @@ class X264Benchmark(BenchmarkBase):
             if returncode != 0:
                 raise subprocess.CalledProcessError(returncode, command, stdout)
 
-            status, metrics, message = self.parse_metrics(
-                lambda: self._parse_x264(stdout, preset, crf, resolution)
-            )
+            status, metrics, message = self.parse_metrics(lambda: self._parse_x264(stdout, preset, crf, resolution))
         finally:
             pattern_path.unlink(missing_ok=True)
 

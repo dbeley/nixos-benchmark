@@ -107,8 +107,7 @@ def check_background_load() -> list[str]:
         )
     elif load_avg is not None and load_avg > cpu_count * 0.25:
         warnings_list.append(
-            f"System load average is {load_avg:.2f} (across {cpu_count} cores). "
-            f"Moderate background activity detected."
+            f"System load average is {load_avg:.2f} (across {cpu_count} cores). Moderate background activity detected."
         )
     return warnings_list
 
