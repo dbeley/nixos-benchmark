@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 
@@ -10,8 +11,7 @@ from .base import BenchmarkBase
 from .types import BenchmarkType
 
 
-DEFAULT_STOCKFISH_THREADS = 0  # 0 = auto-detect
-DEFAULT_STOCKFISH_LIMIT = 20  # seconds - increased from 10 for more stable results
+DEFAULT_STOCKFISH_LIMIT = 20  # fixed depth for the built-in bench
 
 
 class StockfishBenchmark(BenchmarkBase):
@@ -40,7 +40,7 @@ class StockfishBenchmark(BenchmarkBase):
         return super().get_version()
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
-        threads = DEFAULT_STOCKFISH_THREADS
+        threads = os.cpu_count() or 1
         limit_seconds = DEFAULT_STOCKFISH_LIMIT
 
         command = [
