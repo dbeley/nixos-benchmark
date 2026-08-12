@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import tempfile
+from pathlib import Path
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
@@ -12,8 +13,15 @@ from .base import BenchmarkBase
 from .types import BenchmarkType
 
 
-DEFAULT_SIZE_MB = 512
-DEFAULT_RAM_MB = 256
+DEFAULT_SIZE_MB = 4096
+DEFAULT_RAM_MB = 512
+
+
+def _bonnie_scratch_dir() -> Path:
+    """Return a directory on a real disk, not tmpfs (/tmp)."""
+    base = Path("results")
+    base.mkdir(parents=True, exist_ok=True)
+    return base
 
 
 class BonnieBenchmark(BenchmarkBase):
@@ -30,7 +38,7 @@ class BonnieBenchmark(BenchmarkBase):
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         uid = os.getuid()
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory(dir=_bonnie_scratch_dir()) as tmpdir:
             command = [
                 "bonnie++",
                 "-d",
@@ -50,6 +58,10 @@ class BonnieBenchmark(BenchmarkBase):
             if returncode != 0:
                 raise subprocess.CalledProcessError(returncode, command, stdout)
 
+        for leftover in Path("results").glob("Bonnie.*"):
+            if leftover.is_file():
+                leftover.unlink(missing_ok=True)
+
         metrics_data: dict[str, float | str | int] = {}
         status = "ok"
         message = ""
@@ -61,8 +73,8 @@ class BonnieBenchmark(BenchmarkBase):
             def parse_float(idx: int, key: str) -> None:
                 if idx >= len(fields):
                     return
-                value = fields[idx].strip()
-                if value in ("+++++", "++++", "+++", "++", "+"):
+                value = fields[idx]
+                if not value or value.startswith("+"):
                     return
                 try:
                     metrics_data[key] = float(value) / 1024.0
@@ -90,6 +102,12 @@ class BonnieBenchmark(BenchmarkBase):
             parse_latency(41, "char_read_latency_ms")
             parse_latency(42, "block_read_latency_ms")
             parse_latency(43, "seeks_latency_ms")
+            if not metrics_data:
+                status = "error"
+                message = (
+                    "bonnie++ could not measure throughput (all values too fast to time). "
+                    "Increase the test file size or use a slower filesystem."
+                )
         else:
             status = "error"
             message = "Unable to parse bonnie++ output"
