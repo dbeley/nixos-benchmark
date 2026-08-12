@@ -14,7 +14,9 @@ from .types import BenchmarkType
 
 DEFAULT_SYSBENCH_MEMORY_BLOCK_KB = 1024
 DEFAULT_SYSBENCH_MEMORY_TOTAL_MB = 4096  # Increased from 512 for more accurate measurement
-DEFAULT_SYSBENCH_MEMORY_OPERATION = "read"
+# 'write' instead of 'read': a read on freshly-allocated memory hits the shared zero
+# page in cache and reports implausible bandwidth (hundreds of GB/s). Writes are real.
+DEFAULT_SYSBENCH_MEMORY_OPERATION = "write"
 
 
 class SysbenchMemoryBenchmark(BenchmarkBase):
