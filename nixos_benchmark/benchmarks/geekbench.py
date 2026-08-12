@@ -313,6 +313,26 @@ def _parse_captured_document(document: dict) -> dict[str, float | str | int]:
     return metrics
 
 
+def _auto_detect_gpu_backend() -> str | None:
+    """Pick a usable GPU backend from `geekbench6 --gpu-list`.
+
+    Plain `--compute` defaults to OpenCL, which is often unavailable (e.g. Vulkan-only
+    RADV). Fall back to the first backend listed by the tool itself.
+    """
+    command = _resolve_command()
+    if not command:
+        return None
+    stdout, _, returncode = run_command([command, "--gpu-list"])
+    if returncode != 0:
+        return None
+    for line in stdout.splitlines():
+        name = line.strip().lower()
+        for backend in ("vulkan", "opencl", "metal", "cuda"):
+            if name.startswith(backend):
+                return backend
+    return None
+
+
 class GeekbenchBase(BenchmarkBase):
     mode_flag: str
     mode_label: str
@@ -472,14 +492,16 @@ class GeekbenchGPUBenchmark(GeekbenchBase):
 
     def _build_command(self) -> list[str]:
         command = super()._build_command()
-        if self.gpu_backend:
-            command.extend(["--gpu", self.gpu_backend])
+        backend = self.gpu_backend or _auto_detect_gpu_backend()
+        if backend:
+            command.extend(["--gpu", backend])
         return command
 
     def build_parameters(self) -> BenchmarkParameters:
         params: dict[str, str] = {"mode": self.mode_label}
-        if self.gpu_backend:
-            params["backend"] = self.gpu_backend
+        backend = self.gpu_backend or _auto_detect_gpu_backend()
+        if backend:
+            params["backend"] = backend
         return BenchmarkParameters(params)
 
     def _parse_metrics(self, stdout: str) -> tuple[dict[str, float | str | int], str, str]:
