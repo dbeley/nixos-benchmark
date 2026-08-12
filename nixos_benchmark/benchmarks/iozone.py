@@ -33,7 +33,9 @@ class IozoneBenchmark(BenchmarkBase):
         return super().get_version()
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
-        with tempfile.TemporaryDirectory() as tmpdir:
+        results_dir = Path("results")
+        results_dir.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=results_dir) as tmpdir:
             data_path = Path(tmpdir) / "iozone.tmp"
             command = [
                 "iozone",
