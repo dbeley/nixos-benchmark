@@ -1,11 +1,12 @@
+"""OpenSSL speed benchmark."""
+
 from __future__ import annotations
 
 import argparse
 import re
 import subprocess
-from typing import cast
 
-from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
+from ..models import BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
 from .types import BenchmarkType
@@ -20,6 +21,21 @@ class OpenSSLBenchmark(BenchmarkBase):
     description = "OpenSSL AES-256 encryption throughput"
     _required_commands = ("openssl",)
 
+    @staticmethod
+    def _parse_openssl_output(stdout: str, algorithm: str) -> dict[str, float | str | int]:
+        pattern = rf"^{re.escape(algorithm)}\s+(.+)$"
+        match = re.search(pattern, stdout, flags=re.MULTILINE)
+        if not match:
+            raise ValueError(f"Unable to find throughput table for {algorithm!r}")
+
+        values_str = match.group(1).split()
+        block_sizes = ["16B", "64B", "256B", "1KiB", "8KiB", "16KiB"]
+        metrics_data: dict[str, float | str | int] = {}
+        for size, token in zip(block_sizes, values_str, strict=False):
+            metrics_data[size] = float(token.rstrip("k"))
+        metrics_data["max_kbytes_per_sec"] = max(metrics_data.values())
+        return metrics_data
+
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         seconds = DEFAULT_OPENSSL_SECONDS
         algorithm = DEFAULT_OPENSSL_ALGORITHM
@@ -28,26 +44,7 @@ class OpenSSLBenchmark(BenchmarkBase):
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
-        try:
-            pattern = rf"^{re.escape(algorithm)}\s+(.+)$"
-            match = re.search(pattern, stdout, flags=re.MULTILINE)
-            if not match:
-                raise ValueError(f"Unable to find throughput table for {algorithm!r}")
-
-            values_str = match.group(1).split()
-            block_sizes = ["16B", "64B", "256B", "1KiB", "8KiB", "16KiB"]
-            metrics_data = {}
-            for size, token in zip(block_sizes, values_str, strict=False):
-                metrics_data[size] = float(token.rstrip("k"))
-            metrics_data["max_kbytes_per_sec"] = max(metrics_data.values())
-
-            status = "ok"
-            metrics = BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data))
-            message = ""
-        except ValueError as e:
-            status = "error"
-            metrics = BenchmarkMetrics({})
-            message = str(e)
+        status, metrics, message = self.parse_metrics(lambda: self._parse_openssl_output(stdout, algorithm))
 
         return BenchmarkResult(
             benchmark_type=self.benchmark_type,

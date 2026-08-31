@@ -1,10 +1,12 @@
+"""TinyMemBench memory throughput benchmark."""
+
 from __future__ import annotations
 
 import argparse
 import re
 import subprocess
 
-from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
+from ..models import BenchmarkParameters, BenchmarkResult
 from ..utils import parse_float, run_command
 from .base import BenchmarkBase
 from .types import BenchmarkType
@@ -15,31 +17,27 @@ class TinyMemBenchBenchmark(BenchmarkBase):
     description = "TinyMemBench memory throughput"
     _required_commands = ("tinymembench",)
 
+    @staticmethod
+    def _parse_tinymembench(stdout: str) -> dict[str, float | str | int]:
+        metrics_data: dict[str, float | str | int] = {}
+        for line in stdout.splitlines():
+            match = re.match(r"\s*([A-Za-z0-9 +/_-]+?)\s*:?\s+([\d.,]+)\s+M(?:i)?B/s", line)
+            if not match:
+                continue
+            label = re.sub(r"\s+", "_", match.group(1).strip().lower())
+            metrics_data[f"{label}_mb_per_s"] = parse_float(match.group(2))
+
+        if not metrics_data:
+            raise ValueError("Unable to parse tinymembench throughput")
+        return metrics_data
+
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         command = ["tinymembench"]
         stdout, duration, returncode = run_command(command)
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
-        try:
-            metrics_data: dict[str, float | str | int] = {}
-            for line in stdout.splitlines():
-                match = re.match(r"\s*([A-Za-z0-9 +/_-]+?)\s*:?\s+([\d.,]+)\s+M(?:i)?B/s", line)
-                if not match:
-                    continue
-                label = re.sub(r"\s+", "_", match.group(1).strip().lower())
-                metrics_data[f"{label}_mb_per_s"] = parse_float(match.group(2))
-
-            if not metrics_data:
-                raise ValueError("Unable to parse tinymembench throughput")
-
-            status = "ok"
-            metrics = BenchmarkMetrics(metrics_data)
-            message = ""
-        except ValueError as e:
-            status = "error"
-            metrics = BenchmarkMetrics({})
-            message = str(e)
+        status, metrics, message = self.parse_metrics(lambda: self._parse_tinymembench(stdout))
 
         return BenchmarkResult(
             benchmark_type=self.benchmark_type,

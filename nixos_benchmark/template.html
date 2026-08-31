@@ -139,7 +139,7 @@
         }
 
         if (type === 'number') {
-          const m = value.match(/-?\\d+(\\.\\d+)?/);
+          const m = value.match(/-?\d+(\.\d+)?/);
           if (m) return parseFloat(m[0]);
         }
 

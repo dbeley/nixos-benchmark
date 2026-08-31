@@ -155,7 +155,9 @@ def _as_parameters_dict(value: object) -> dict[str, Any]:
 
 def _as_float(value: object, default: float = 0.0) -> float:
     try:
-        return float(value)  # type: ignore[arg-type]
+        if isinstance(value, (int, float, str)):
+            return float(value)
+        return default
     except (TypeError, ValueError):
         return default
 
@@ -265,7 +267,10 @@ def _build_rows(
 
 def _format_memory_label(value: object) -> str:
     try:
-        bytes_value = float(value)  # type: ignore[arg-type]
+        if isinstance(value, (int, float, str)):
+            bytes_value = float(value)
+        else:
+            return "Unknown RAM"
     except (TypeError, ValueError):
         return "Unknown RAM"
     if bytes_value <= 0:
