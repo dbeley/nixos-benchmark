@@ -1,3 +1,5 @@
+"""John the Ripper CPU hash benchmark."""
+
 from __future__ import annotations
 
 import argparse
@@ -6,7 +8,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
+from ..models import BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
 from .types import BenchmarkType
@@ -29,6 +31,13 @@ class JohnBenchmark(BenchmarkBase):
                 return match.group(1).strip()
         return super().get_version()
 
+    @staticmethod
+    def _parse_john(stdout: str) -> dict[str, float | str | int]:
+        match = re.search(r"Raw:\s+([\d.]+)\s+c/s\s+real", stdout)
+        if not match:
+            raise ValueError("Unable to parse john benchmark output")
+        return {"c_per_sec": float(match.group(1))}
+
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         runtime = DEFAULT_JOHN_RUNTIME
         # Use a temporary HOME to avoid polluting the user's ~/.john directory
@@ -39,18 +48,7 @@ class JohnBenchmark(BenchmarkBase):
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
-        try:
-            match = re.search(r"Raw:\s+([\d.]+)\s+c/s\s+real", stdout)
-            if not match:
-                raise ValueError("Unable to parse john benchmark output")
-            cps = float(match.group(1))
-            metrics = BenchmarkMetrics({"c_per_sec": cps})
-            status = "ok"
-            message = ""
-        except ValueError as exc:
-            metrics = BenchmarkMetrics({})
-            status = "error"
-            message = str(exc)
+        status, metrics, message = self.parse_metrics(lambda: self._parse_john(stdout))
 
         return BenchmarkResult(
             benchmark_type=self.benchmark_type,

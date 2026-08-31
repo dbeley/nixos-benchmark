@@ -1,3 +1,5 @@
+"""x265 encoder benchmark."""
+
 from __future__ import annotations
 
 import argparse
@@ -6,7 +8,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
+from ..models import BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
 from .types import BenchmarkType
@@ -22,6 +24,25 @@ class X265Benchmark(BenchmarkBase):
     benchmark_type = BenchmarkType.X265
     description = "x265 encoder benchmark"
     _required_commands = ("x265", "ffmpeg")
+
+    @staticmethod
+    def _parse_x265(stdout: str, preset: str, crf: int, resolution: str) -> dict[str, float | str | int]:
+        match = re.search(
+            r"encoded\s+\d+\s+frames\s+in\s+([\d.]+)s\s+\(([\d.]+)\s+fps\)",
+            stdout,
+        )
+        if not match:
+            raise ValueError("Unable to parse x265 output")
+        elapsed = float(match.group(1))
+        fps = float(match.group(2))
+
+        return {
+            "fps": fps,
+            "encode_time_secs": elapsed,
+            "preset": preset,
+            "crf": crf,
+            "resolution": resolution,
+        }
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         resolution = DEFAULT_X265_RESOLUTION
@@ -71,31 +92,9 @@ class X265Benchmark(BenchmarkBase):
             if returncode != 0:
                 raise subprocess.CalledProcessError(returncode, command, stdout)
 
-            try:
-                match = re.search(
-                    r"encoded\s+\d+\s+frames\s+in\s+([\d.]+)s\s+\(([\d.]+)\s+fps\)",
-                    stdout,
-                )
-                if not match:
-                    raise ValueError("Unable to parse x265 output")
-                elapsed = float(match.group(1))
-                fps = float(match.group(2))
-
-                metrics = BenchmarkMetrics(
-                    {
-                        "fps": fps,
-                        "encode_time_secs": elapsed,
-                        "preset": preset,
-                        "crf": crf,
-                        "resolution": resolution,
-                    }
-                )
-                status = "ok"
-                message = ""
-            except ValueError as exc:
-                metrics = BenchmarkMetrics({})
-                status = "error"
-                message = str(exc)
+            status, metrics, message = self.parse_metrics(
+                lambda: self._parse_x265(stdout, preset, crf, resolution)
+            )
         finally:
             pattern_path.unlink(missing_ok=True)
 

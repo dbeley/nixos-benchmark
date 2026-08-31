@@ -1,11 +1,12 @@
+"""ioping latency probe benchmark."""
+
 from __future__ import annotations
 
 import argparse
 import re
 import subprocess
-from typing import cast
 
-from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
+from ..models import BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
 from .types import BenchmarkType
@@ -19,6 +20,34 @@ class IOPingBenchmark(BenchmarkBase):
     description = "ioping latency probe"
     _required_commands = ("ioping",)
 
+    @staticmethod
+    def _to_ms(value: str, unit: str) -> float:
+        unit_lower = unit.lower()
+        if unit_lower.startswith("us"):
+            return float(value) / 1000.0
+        if unit_lower.startswith("ms"):
+            return float(value)
+        if unit_lower.startswith("s"):
+            return float(value) * 1000.0
+        raise ValueError(f"Unknown latency unit: {unit}")
+
+    @staticmethod
+    def _parse_ioping(stdout: str) -> dict[str, float | str | int]:
+        pattern = (
+            r"min/avg/max/mdev = ([\d.]+)\s*(\w+)\s*/\s*([\d.]+)\s*(\w+)\s*/"
+            r"\s*([\d.]+)\s*(\w+)\s*/\s*([\d.]+)\s*(\w+)"
+        )
+        match = re.search(pattern, stdout)
+        if not match:
+            raise ValueError("Unable to parse ioping summary")
+
+        return {
+            "latency_min_ms": IOPingBenchmark._to_ms(match.group(1), match.group(2)),
+            "latency_avg_ms": IOPingBenchmark._to_ms(match.group(3), match.group(4)),
+            "latency_max_ms": IOPingBenchmark._to_ms(match.group(5), match.group(6)),
+            "latency_mdev_ms": IOPingBenchmark._to_ms(match.group(7), match.group(8)),
+        }
+
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         count = DEFAULT_IOPING_COUNT
         command = ["ioping", "-c", str(count), "."]
@@ -26,39 +55,9 @@ class IOPingBenchmark(BenchmarkBase):
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
-        try:
-            pattern = (
-                r"min/avg/max/mdev = ([\d.]+)\s*(\w+)\s*/\s*([\d.]+)\s*(\w+)\s*/"
-                r"\s*([\d.]+)\s*(\w+)\s*/\s*([\d.]+)\s*(\w+)"
-            )
-            match = re.search(pattern, stdout)
-            if not match:
-                raise ValueError("Unable to parse ioping summary")
-
-            def to_ms(value: str, unit: str) -> float:
-                unit_lower = unit.lower()
-                if unit_lower.startswith("us"):
-                    return float(value) / 1000.0
-                if unit_lower.startswith("ms"):
-                    return float(value)
-                if unit_lower.startswith("s"):
-                    return float(value) * 1000.0
-                raise ValueError(f"Unknown latency unit: {unit}")
-
-            metrics_data = {
-                "latency_min_ms": to_ms(match.group(1), match.group(2)),
-                "latency_avg_ms": to_ms(match.group(3), match.group(4)),
-                "latency_max_ms": to_ms(match.group(5), match.group(6)),
-                "latency_mdev_ms": to_ms(match.group(7), match.group(8)),
-                "requests": count,
-            }
-            status = "ok"
-            metrics = BenchmarkMetrics(cast(dict[str, float | str | int], metrics_data))
-            message = ""
-        except ValueError as e:
-            status = "error"
-            metrics = BenchmarkMetrics({})
-            message = str(e)
+        status, metrics, message = self.parse_metrics(lambda: self._parse_ioping(stdout))
+        if status == "ok":
+            metrics.data["requests"] = count
 
         return BenchmarkResult(
             benchmark_type=self.benchmark_type,
