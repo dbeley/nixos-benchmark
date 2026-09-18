@@ -30,6 +30,7 @@
           glmark2
           mesa-demos
           furmark
+          xprop
           geekbench
           openssl
           x265
