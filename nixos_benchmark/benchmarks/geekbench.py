@@ -25,12 +25,12 @@ SCORE_BLOCK_TEMPLATE = (
 )
 
 CAPTURE_HOST = "browser.geekbench.com"
-_UPLOAD_PATH_PATTERN = re.compile(r"/v6/[a-z]+/upload\.json", re.IGNORECASE)
+_UPLOAD_PATH_PATTERN = re.compile(r"/v7/[a-z]+/upload\.json", re.IGNORECASE)
 
 
 def _resolve_command() -> str | None:
     """Locate the geekbench binary."""
-    for candidate in ("geekbench6", "geekbench"):
+    for candidate in ("geekbench7", "geekbench"):
         if shutil.which(candidate):
             return candidate
     return None
@@ -292,7 +292,7 @@ def _parse_captured_document(document: dict) -> dict[str, float | str | int]:
     single = document.get("score")
     multi = document.get("multicore_score")
 
-    is_gpu = "compute_api" in document or "compute_device_name" in document
+    is_gpu = "gpu_api" in document or "gpu_device_name" in document
     if is_gpu:
         api_keys = {"vulkan": "vulkan_score", "opencl": "opencl_score", "metal": "metal_score", "cuda": "cuda_score"}
         for section in document.get("sections", []):
@@ -314,10 +314,11 @@ def _parse_captured_document(document: dict) -> dict[str, float | str | int]:
 
 
 def _auto_detect_gpu_backend() -> str | None:
-    """Pick a usable GPU backend from `geekbench6 --gpu-list`.
+    """Pick a usable GPU backend from `geekbench7 --gpu-list`.
 
-    Plain `--compute` defaults to OpenCL, which is often unavailable (e.g. Vulkan-only
-    RADV). Fall back to the first backend listed by the tool itself.
+    Plain `--gpu` runs the GPU benchmark with the default API, which is often
+    unavailable (e.g. Vulkan-only RADV). Fall back to the first backend listed
+    by the tool itself.
     """
     command = _resolve_command()
     if not command:
@@ -342,7 +343,7 @@ class GeekbenchBase(BenchmarkBase):
     def validate(self, args: argparse.Namespace | None = None) -> tuple[bool, str]:
         command = _resolve_command()
         if not command:
-            return False, "Command 'geekbench6' (or 'geekbench') was not found in PATH"
+            return False, "Command 'geekbench7' (or 'geekbench') was not found in PATH"
         if not shutil.which("openssl"):
             return False, "Command 'openssl' is required to capture Geekbench results offline"
         return True, ""
@@ -358,7 +359,7 @@ class GeekbenchBase(BenchmarkBase):
     def _build_command(self) -> list[str]:
         command_name = _resolve_command()
         if not command_name:
-            raise RuntimeError("geekbench6 not found in PATH")
+            raise RuntimeError("geekbench7 not found in PATH")
         return [command_name, self.mode_flag]
 
     def _parse_metrics(self, stdout: str) -> tuple[dict[str, float | str | int], str, str]:
@@ -409,7 +410,7 @@ class GeekbenchBase(BenchmarkBase):
 
 class GeekbenchBenchmark(GeekbenchBase):
     benchmark_type = BenchmarkType.GEEKBENCH
-    description = "Geekbench 6 CPU benchmark"
+    description = "Geekbench 7 CPU benchmark"
     mode_flag = "--cpu"
     mode_label = "cpu"
 
@@ -470,8 +471,8 @@ class GeekbenchBenchmark(GeekbenchBase):
 
 class GeekbenchGPUBenchmark(GeekbenchBase):
     benchmark_type = BenchmarkType.GEEKBENCH_GPU
-    description = "Geekbench 6 GPU compute benchmark"
-    mode_flag = "--compute"
+    description = "Geekbench 7 GPU compute benchmark"
+    mode_flag = "--gpu"
     mode_label = "gpu"
 
     def __init__(
@@ -494,7 +495,7 @@ class GeekbenchGPUBenchmark(GeekbenchBase):
         command = super()._build_command()
         backend = self.gpu_backend or _auto_detect_gpu_backend()
         if backend:
-            command.extend(["--gpu", backend])
+            command.append(backend)
         return command
 
     def build_parameters(self) -> BenchmarkParameters:
@@ -564,6 +565,6 @@ class GeekbenchVulkanBenchmark(GeekbenchGPUBenchmark):
         super().__init__(
             backend="vulkan",
             benchmark_type=BenchmarkType.GEEKBENCH_GPU_VULKAN,
-            description="Geekbench 6 GPU compute benchmark (Vulkan)",
+            description="Geekbench 7 GPU compute benchmark (Vulkan)",
             mode_label="gpu-vulkan",
         )
