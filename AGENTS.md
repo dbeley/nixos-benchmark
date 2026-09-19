@@ -73,21 +73,39 @@ There is no formal test suite. Validate changes by running the relevant benchmar
 
 ## Benchmark Runtimes
 
-Approximate runtimes (Intel i5-1145G7, 8 threads, Iris Xe iGPU, NVMe). Use `--benchmarks <name>` to run a single benchmark. Most benchmarks also add a 5s wait between runs (`--wait-between`).
+Approximate runtimes (Intel i5-10210U, 8Gb RAM). Use `--benchmarks <name>` to run a single benchmark. Most benchmarks also add a 5s wait between runs (`--wait-between`).
 
-**NOTE**: Runtimes have been adjusted to improve measurement consistency and reduce variance:
-- Increased test durations for CPU benchmarks (stockfish: 10s→20s, sysbench-cpu: 5s→10s)
-- Larger data sizes for compression (zstd/pigz: 32MB→128MB, lz4: 64MB→256MB)
-- More samples for I/O latency (ioping: 5→20 samples)
-- Longer video encoding tests (x264/x265: 240→600 frames, ffmpeg: 5s→15s)
-- Increased memory test size (sysbench-memory: 512MB→4GB)
-- Increased network test duration (netperf: 3s→10s)
-- Increased database workload (sqlite-mixed: 50k→100k rows)
-
-**Fast (<10s):** sysbench-memory (<1s), zstd-compress (<1s), iozone (<1s), sqlite-speedtest (<1s), hashcat-gpu (<1s), pigz-compress (~1s), ffmpeg-transcode (~2s), x264-encode (~2s), x265-encode (~5s), stress-ng (~5s), stressapptest-memory (~5s), fio-seq (~5s), lz4-benchmark (~7s), john-benchmark (~7s), bonnie++ (~8s)
-
-**Medium (10s–1m):** sysbench-cpu (~10s), netperf (~10s), sqlite-mixed (~14s), ioping (~19s), openssl-speed (~18s), cryptsetup-benchmark (~37s), 7zip-benchmark (~42s), stockfish-bench (~54s), furmark-gl (~66s), furmark-vk (~66s), furmark-knot-gl (~66s), furmark-knot-vk (~66s)
-
-**Slow (>1m):** geekbench-gpu (~2m), geekbench-gpu-vulkan (~2m 45s), clpeak (~2m 47s), glmark2 (~5m 30s), geekbench (~5m 37s), tinymembench (~7m 30s)
-
-**System Environment Checks**: The framework now checks for CPU frequency scaling and other environmental factors that can affect benchmark consistency. Warnings are displayed before benchmark execution.
+- openssl-speed 20s
+- 7zip-benchmark 60s
+- john-benchmark 7s
+- stockfish-bench 400s
+- stress-ng 5s
+- sysbench-cpu 10s
+- sysbench-memory 1s
+- stressapptest-memory 5s
+- tinymembench 500s
+- fio-seq 5s
+- iozone 1s
+- bonnie++ 40s
+- ioping 20s
+- glmark2 330s
+- furmark-gl 70s
+- furmark-vk 70s
+- furmark-knot-gl 70s
+- furmark-knot-vk 70s
+- clpeak TODO
+- hashcat-gpu TODO
+- lz4-benchmark 10s
+- zstd-compress 1s
+- pigz-compress 2s
+- cryptsetup-benchmark 30s
+- sqlite-mixed 20s
+- sqlite-speedtest 1s
+- ffmpeg-transcode 3s
+- x264-encode 4s
+- x265-encode 8s
+- netperf 10s
+- wrk-http 5s
+- geekbench 500s
+- geekbench-gpu 650s
+- geekbench-gpu-vulkan 900s
