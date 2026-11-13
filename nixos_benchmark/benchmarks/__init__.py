@@ -88,6 +88,34 @@ BENCHMARK_MAP: dict[BenchmarkType, BenchmarkBase] = {bench.benchmark_type: bench
 
 # Preset definitions - directly list benchmark classes
 PRESETS: dict[str, dict[str, object]] = {
+    "fast": {
+        "description": "Every short-running benchmark, for lots of results quickly.",
+        "benchmarks": (
+            # CPU
+            BenchmarkType.OPENSSL_SPEED,
+            BenchmarkType.JOHN,
+            BenchmarkType.STRESS_NG,
+            BenchmarkType.SYSBENCH_CPU,
+            # MEMORY
+            BenchmarkType.SYSBENCH_MEMORY,
+            BenchmarkType.STRESSAPPTEST,
+            # IO / DATABASE
+            BenchmarkType.FIO_SEQ,
+            BenchmarkType.IOZONE,
+            BenchmarkType.SQLITE_SPEEDTEST,
+            # MEDIA
+            BenchmarkType.FFMPEG_TRANSCODE,
+            BenchmarkType.X264,
+            BenchmarkType.X265,
+            # COMPRESSION
+            BenchmarkType.LZ4,
+            BenchmarkType.ZSTD,
+            BenchmarkType.PIGZ,
+            # NETWORK
+            BenchmarkType.NETPERF,
+            BenchmarkType.WRK_HTTP,
+        ),
+    },
     "balanced": {
         "description": "Quick mix of CPU and IO tests.",
         "benchmarks": (
