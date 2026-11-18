@@ -1,10 +1,12 @@
+"""FFmpeg synthetic video transcode benchmark."""
+
 from __future__ import annotations
 
 import argparse
 import re
 import subprocess
 
-from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
+from ..models import BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
 from .types import BenchmarkType
@@ -19,6 +21,37 @@ class FFmpegBenchmark(BenchmarkBase):
     benchmark_type = BenchmarkType.FFMPEG_TRANSCODE
     description = "FFmpeg synthetic video transcode"
     _required_commands = ("ffmpeg",)
+
+    @staticmethod
+    def _parse_ffmpeg(stdout: str, duration_secs: int) -> dict[str, float | str | int]:
+        metrics_data: dict[str, float | str | int] = {}
+        reported_fps: float | None = None
+        speed_factor: float | None = None
+        fps_matches = re.findall(r"fps=\s*([\d.]+)", stdout)
+        speed_matches = re.findall(r"speed=\s*([\d.]+)x", stdout)
+        if fps_matches:
+            reported_fps = float(fps_matches[-1])
+            metrics_data["reported_fps"] = reported_fps
+        if speed_matches:
+            speed_factor = float(speed_matches[-1])
+            metrics_data["speed_factor"] = speed_factor
+
+        total_frames = duration_secs * 30
+        effective_fps: float | None = None
+        if reported_fps is not None and reported_fps > 0:
+            effective_fps = reported_fps
+        elif speed_factor is not None:
+            effective_fps = 30.0 * speed_factor
+
+        if effective_fps is not None:
+            metrics_data["effective_fps"] = effective_fps
+        if metrics_data:
+            metrics_data["frames"] = total_frames
+
+        if not metrics_data:
+            raise ValueError("Unable to parse FFmpeg output")
+
+        return metrics_data
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         resolution = DEFAULT_FFMPEG_RESOLUTION
@@ -48,44 +81,9 @@ class FFmpegBenchmark(BenchmarkBase):
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
-        try:
-            metrics_data: dict[str, float | str | int] = {}
-            reported_fps: float | None = None
-            speed_factor: float | None = None
-            fps_matches = re.findall(r"fps=\s*([\d.]+)", stdout)
-            speed_matches = re.findall(r"speed=\s*([\d.]+)x", stdout)
-            if fps_matches:
-                reported_fps = float(fps_matches[-1])
-                metrics_data["reported_fps"] = reported_fps
-            if speed_matches:
-                speed_factor = float(speed_matches[-1])
-                metrics_data["speed_factor"] = speed_factor
-
-            total_frames = duration_secs * 30
-            effective_fps: float | None = None
-            if reported_fps is not None and reported_fps > 0:
-                effective_fps = reported_fps
-            elif duration > 0:
-                effective_fps = total_frames / duration
-            elif speed_factor is not None:
-                effective_fps = 30.0 * speed_factor
-
-            if effective_fps is not None:
-                metrics_data["effective_fps"] = effective_fps
-            if metrics_data:
-                metrics_data["frames"] = total_frames
-                metrics_data["codec"] = codec
-
-            if not metrics_data:
-                raise ValueError("Unable to parse FFmpeg output")
-
-            status = "ok"
-            metrics = BenchmarkMetrics(metrics_data)
-            message = ""
-        except ValueError as e:
-            status = "error"
-            metrics = BenchmarkMetrics({})
-            message = str(e)
+        status, metrics, message = self.parse_metrics(lambda: self._parse_ffmpeg(stdout, duration_secs))
+        if status == "ok":
+            metrics.data["codec"] = codec
 
         return BenchmarkResult(
             benchmark_type=self.benchmark_type,

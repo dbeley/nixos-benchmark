@@ -1,3 +1,5 @@
+"""wrk HTTP load benchmark."""
+
 from __future__ import annotations
 
 import argparse
@@ -8,7 +10,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
+from ..models import BenchmarkParameters, BenchmarkResult
 from ..utils import find_free_tcp_port, run_command, wait_for_port
 from .base import BenchmarkBase
 from .types import BenchmarkType
@@ -53,6 +55,25 @@ class WrkHTTPBenchmark(BenchmarkBase):
             return match.group(1)
         return super().get_version()
 
+    @staticmethod
+    def _parse_wrk(stdout: str) -> dict[str, float | str | int]:
+        reqs_match = re.search(r"Requests/sec:\s+([\d.kKmMgG]+)", stdout)
+        xfer_match = re.search(r"Transfer/sec:\s+([\d.]+[KMG]B)", stdout)
+        latency_match = re.search(r"Latency\s+([\d.]+)ms", stdout)
+
+        if not reqs_match or not xfer_match or not latency_match:
+            raise ValueError("Unable to parse wrk output")
+
+        requests_per_sec = _parse_number_with_suffix(reqs_match.group(1))
+        transfer_mib_per_s = _parse_transfer_value(xfer_match.group(1))
+        avg_latency_ms = float(latency_match.group(1))
+
+        return {
+            "requests_per_sec": requests_per_sec,
+            "transfer_mib_per_s": transfer_mib_per_s,
+            "avg_latency_ms": avg_latency_ms,
+        }
+
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         duration = DEFAULT_WRK_DURATION
         threads = DEFAULT_WRK_THREADS
@@ -95,31 +116,7 @@ class WrkHTTPBenchmark(BenchmarkBase):
                 with contextlib.suppress(Exception):
                     server.wait(timeout=5)
 
-        try:
-            reqs_match = re.search(r"Requests/sec:\s+([\d.kKmMgG]+)", stdout)
-            xfer_match = re.search(r"Transfer/sec:\s+([\d.]+[KMG]B)", stdout)
-            latency_match = re.search(r"Latency\s+([\d.]+)ms", stdout)
-
-            if not reqs_match or not xfer_match or not latency_match:
-                raise ValueError("Unable to parse wrk output")
-
-            requests_per_sec = _parse_number_with_suffix(reqs_match.group(1))
-            transfer_mib_per_s = _parse_transfer_value(xfer_match.group(1))
-            avg_latency_ms = float(latency_match.group(1))
-
-            metrics = BenchmarkMetrics(
-                {
-                    "requests_per_sec": requests_per_sec,
-                    "transfer_mib_per_s": transfer_mib_per_s,
-                    "avg_latency_ms": avg_latency_ms,
-                }
-            )
-            status = "ok"
-            message = ""
-        except ValueError as exc:
-            metrics = BenchmarkMetrics({})
-            status = "error"
-            message = str(exc)
+        status, metrics, message = self.parse_metrics(lambda: self._parse_wrk(stdout))
 
         return BenchmarkResult(
             benchmark_type=self.benchmark_type,

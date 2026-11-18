@@ -22,6 +22,12 @@ nix run . -- --list-benchmarks                          # list all benchmarks
 # Smoke test (quick validation of changes)
 python -m nixos_benchmark --presets cpu --output results/smoke.json --html-summary ''
 
+# Run with verbose output for debugging
+python -m nixos_benchmark --benchmarks openssl-speed --verbose
+
+# Exclude raw output from JSON (smaller files)
+python -m nixos_benchmark --presets balanced --no-raw-output
+
 # Refresh HTML dashboard from existing JSON results
 python -m nixos_benchmark --html-only
 
@@ -62,7 +68,7 @@ prek run --all-files
 
 - Python 3.13+, standard library only at runtime, type hints and dataclasses throughout
 - 120-char line length, ruff + flake8 enforced (see `pyproject.toml` for full rule sets)
-- CLI flags: long-form kebab-case (`--list-presets`, `--wait-between`)
+- CLI flags: long-form kebab-case (`--list-presets`, `--wait-between`, `--verbose`, `--no-raw-output`)
 - Commit messages: short, imperative (e.g., "add benchmark presets", "fix fio parser")
 - `results/` is git-ignored — never commit benchmark artifacts
 - `NIXPKGS_ALLOW_UNFREE=1` needed for GPU benchmarks like FurMark

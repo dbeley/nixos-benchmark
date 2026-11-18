@@ -1,3 +1,5 @@
+"""hashcat GPU hash throughput benchmark."""
+
 from __future__ import annotations
 
 import argparse
@@ -6,7 +8,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
+from ..models import BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
 from .types import BenchmarkType
@@ -27,6 +29,17 @@ class HashcatBenchmark(BenchmarkBase):
             return False, "hashcat: no usable backend devices detected"
         return True, ""
 
+    @staticmethod
+    def _parse_hashcat(stdout: str) -> dict[str, float | str | int]:
+        match = re.search(r"Speed.#\d+\.*:\s+([\d.]+)\s+([KMG])H/s", stdout)
+        if not match:
+            raise ValueError("Unable to parse hashcat speed output")
+        value = float(match.group(1))
+        unit = match.group(2)
+        scale = {"K": 1_000.0, "M": 1_000_000.0, "G": 1_000_000_000.0}
+        hashes_per_sec = value * scale[unit]
+        return {"hashes_per_sec": hashes_per_sec}
+
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         runtime = DEFAULT_HASHCAT_RUNTIME
         hash_mode = DEFAULT_HASH_MODE
@@ -46,22 +59,7 @@ class HashcatBenchmark(BenchmarkBase):
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
-        try:
-            match = re.search(r"Speed.#\d+\.*:\s+([\d.]+)\s+([KMG])H/s", stdout)
-            if not match:
-                raise ValueError("Unable to parse hashcat speed output")
-            value = float(match.group(1))
-            unit = match.group(2)
-            scale = {"K": 1_000.0, "M": 1_000_000.0, "G": 1_000_000_000.0}
-            hashes_per_sec = value * scale[unit]
-
-            metrics = BenchmarkMetrics({"hashes_per_sec": hashes_per_sec})
-            status = "ok"
-            message = ""
-        except ValueError as exc:
-            metrics = BenchmarkMetrics({})
-            status = "error"
-            message = str(exc)
+        status, metrics, message = self.parse_metrics(lambda: self._parse_hashcat(stdout))
 
         return BenchmarkResult(
             benchmark_type=self.benchmark_type,

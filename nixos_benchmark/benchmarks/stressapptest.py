@@ -1,10 +1,12 @@
+"""stressapptest memory bandwidth benchmark."""
+
 from __future__ import annotations
 
 import argparse
 import re
 import subprocess
 
-from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
+from ..models import BenchmarkParameters, BenchmarkResult
 from ..utils import parse_float, run_command
 from .base import BenchmarkBase
 from .types import BenchmarkType
@@ -19,6 +21,29 @@ class StressAppTestBenchmark(BenchmarkBase):
     benchmark_type = BenchmarkType.STRESSAPPTEST
     description = "stressapptest memory bandwidth"
     _required_commands = ("stressapptest",)
+
+    @staticmethod
+    def _parse_stressapptest(stdout: str) -> dict[str, float | str | int]:
+        completed = re.search(
+            r"Stats: Completed:\s+([\d.]+)M in ([\d.]+)s ([\d.]+)MB/s, with (\d+) hardware incidents, (\d+) errors",
+            stdout,
+        )
+        if not completed:
+            raise ValueError("Unable to parse stressapptest throughput")
+
+        total_mb = parse_float(completed.group(1))
+        runtime_secs = parse_float(completed.group(2))
+        throughput_mb_s = parse_float(completed.group(3))
+        incidents = int(completed.group(4))
+        errors = int(completed.group(5))
+
+        return {
+            "total_megabytes": total_mb,
+            "runtime_secs": runtime_secs,
+            "throughput_mb_per_s": throughput_mb_s,
+            "hardware_incidents": incidents,
+            "errors": errors,
+        }
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         seconds = DEFAULT_STRESSAPPTEST_SECONDS
@@ -38,35 +63,7 @@ class StressAppTestBenchmark(BenchmarkBase):
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
-        try:
-            completed = re.search(
-                r"Stats: Completed:\s+([\d.]+)M in ([\d.]+)s ([\d.]+)MB/s, with (\d+) hardware incidents, (\d+) errors",
-                stdout,
-            )
-            if not completed:
-                raise ValueError("Unable to parse stressapptest throughput")
-
-            total_mb = parse_float(completed.group(1))
-            runtime_secs = parse_float(completed.group(2))
-            throughput_mb_s = parse_float(completed.group(3))
-            incidents = int(completed.group(4))
-            errors = int(completed.group(5))
-
-            metrics = BenchmarkMetrics(
-                {
-                    "total_megabytes": total_mb,
-                    "runtime_secs": runtime_secs,
-                    "throughput_mb_per_s": throughput_mb_s,
-                    "hardware_incidents": incidents,
-                    "errors": errors,
-                }
-            )
-            status = "ok"
-            message = ""
-        except ValueError as exc:
-            metrics = BenchmarkMetrics({})
-            status = "error"
-            message = str(exc)
+        status, metrics, message = self.parse_metrics(lambda: self._parse_stressapptest(stdout))
 
         return BenchmarkResult(
             benchmark_type=self.benchmark_type,

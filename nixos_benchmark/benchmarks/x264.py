@@ -1,3 +1,5 @@
+"""x264 encoder benchmark."""
+
 from __future__ import annotations
 
 import argparse
@@ -6,7 +8,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
+from ..models import BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
 from .types import BenchmarkType
@@ -22,6 +24,25 @@ class X264Benchmark(BenchmarkBase):
     benchmark_type = BenchmarkType.X264
     description = "x264 encoder benchmark"
     _required_commands = ("x264", "ffmpeg")
+
+    @staticmethod
+    def _parse_x264(stdout: str, preset: str, crf: int, resolution: str) -> dict[str, float | str | int]:
+        metrics_data: dict[str, float | str | int] = {}
+        fps_match = re.search(
+            r"encoded\s+\d+\s+frames,\s+([\d.]+)\s+fps,\s+([\d.]+)\s+kb/s",
+            stdout,
+        )
+        if fps_match:
+            metrics_data["fps"] = float(fps_match.group(1))
+            metrics_data["kb_per_s"] = float(fps_match.group(2))
+            metrics_data["preset"] = preset
+            metrics_data["crf"] = crf
+            metrics_data["resolution"] = resolution
+
+        if not metrics_data:
+            raise ValueError("Unable to parse x264 output")
+
+        return metrics_data
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         resolution = DEFAULT_X264_RESOLUTION
@@ -71,30 +92,9 @@ class X264Benchmark(BenchmarkBase):
             if returncode != 0:
                 raise subprocess.CalledProcessError(returncode, command, stdout)
 
-            try:
-                # Parse encoded fps and bitrate
-                metrics_data: dict[str, float | str | int] = {}
-                fps_match = re.search(
-                    r"encoded\s+\d+\s+frames,\s+([\d.]+)\s+fps,\s+([\d.]+)\s+kb/s",
-                    stdout,
-                )
-                if fps_match:
-                    metrics_data["fps"] = float(fps_match.group(1))
-                    metrics_data["kb_per_s"] = float(fps_match.group(2))
-                    metrics_data["preset"] = preset
-                    metrics_data["crf"] = crf
-                    metrics_data["resolution"] = resolution
-
-                if not metrics_data:
-                    raise ValueError("Unable to parse x264 output")
-
-                status = "ok"
-                metrics = BenchmarkMetrics(metrics_data)
-                message = ""
-            except ValueError as e:
-                status = "error"
-                metrics = BenchmarkMetrics({})
-                message = str(e)
+            status, metrics, message = self.parse_metrics(
+                lambda: self._parse_x264(stdout, preset, crf, resolution)
+            )
         finally:
             pattern_path.unlink(missing_ok=True)
 

@@ -1,10 +1,12 @@
+"""OpenCL peak bandwidth/compute benchmark."""
+
 from __future__ import annotations
 
 import argparse
 import re
 import subprocess
 
-from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
+from ..models import BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
 from .types import BenchmarkType
@@ -15,34 +17,8 @@ class CLPeakBenchmark(BenchmarkBase):
     description = "OpenCL peak bandwidth/compute"
     _required_commands = ("clpeak",)
 
-    def execute(self, args: argparse.Namespace) -> BenchmarkResult:
-        command = ["clpeak"]
-        stdout, duration, returncode = run_command(command)
-        if returncode != 0:
-            raise subprocess.CalledProcessError(returncode, command, stdout)
-
-        try:
-            metrics = self.parse_metrics(stdout)
-            status = "ok"
-            message = ""
-        except ValueError as e:
-            status = "error"
-            metrics = BenchmarkMetrics({})
-            message = str(e)
-
-        return BenchmarkResult(
-            benchmark_type=self.benchmark_type,
-            status=status,
-            presets=(),
-            metrics=metrics,
-            parameters=BenchmarkParameters({}),
-            duration_seconds=duration,
-            command="clpeak",
-            raw_output=stdout,
-            message=message,
-        )
-
-    def parse_metrics(self, stdout: str) -> BenchmarkMetrics:
+    @staticmethod
+    def _parse_clpeak(stdout: str) -> dict[str, float | str | int]:
         """Extract structured metrics from clpeak output."""
         if "no platforms found" in stdout.lower() or "clgetplatformids" in stdout.lower():
             raise ValueError("No OpenCL platforms found")
@@ -60,14 +36,14 @@ class CLPeakBenchmark(BenchmarkBase):
 
         current_section: str | None = None
         for line in stdout.splitlines():
-            section = self._detect_section(line)
+            section = CLPeakBenchmark._detect_section(line)
             if section == "reset":
                 current_section = None
                 continue
             if section:
                 current_section = section
             if current_section:
-                section_values[current_section].extend(self._extract_numbers(line))
+                section_values[current_section].extend(CLPeakBenchmark._extract_numbers(line))
 
         if section_values["bandwidth"]:
             metrics_data["global_memory_bandwidth_gb_per_s"] = max(section_values["bandwidth"])
@@ -81,7 +57,7 @@ class CLPeakBenchmark(BenchmarkBase):
         if not metrics_data:
             raise ValueError("Unable to parse clpeak metrics")
 
-        return BenchmarkMetrics(metrics_data)
+        return metrics_data
 
     @staticmethod
     def _extract_numbers(text: str) -> list[float]:
@@ -101,6 +77,26 @@ class CLPeakBenchmark(BenchmarkBase):
         if "integer compute" in lower_line:
             return "compute_int"
         return None
+
+    def execute(self, args: argparse.Namespace) -> BenchmarkResult:
+        command = ["clpeak"]
+        stdout, duration, returncode = run_command(command)
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, command, stdout)
+
+        status, metrics, message = self.parse_metrics(lambda: self._parse_clpeak(stdout))
+
+        return BenchmarkResult(
+            benchmark_type=self.benchmark_type,
+            status=status,
+            presets=(),
+            metrics=metrics,
+            parameters=BenchmarkParameters({}),
+            duration_seconds=duration,
+            command="clpeak",
+            raw_output=stdout,
+            message=message,
+        )
 
     def format_result(self, result: BenchmarkResult) -> str:
         """Format result for display."""

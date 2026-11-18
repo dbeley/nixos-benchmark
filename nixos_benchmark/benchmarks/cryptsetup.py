@@ -1,10 +1,12 @@
+"""cryptsetup cipher benchmark."""
+
 from __future__ import annotations
 
 import argparse
 import re
 import subprocess
 
-from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
+from ..models import BenchmarkParameters, BenchmarkResult
 from ..utils import run_command
 from .base import BenchmarkBase
 from .types import BenchmarkType
@@ -15,39 +17,35 @@ class CryptsetupBenchmark(BenchmarkBase):
     description = "cryptsetup cipher benchmark"
     _required_commands = ("cryptsetup",)
 
+    @staticmethod
+    def _parse_cryptsetup(stdout: str) -> dict[str, float | str | int]:
+        metrics_data: dict[str, float | str | int] = {}
+        pattern = re.compile(
+            r"^\s*(?P<cipher>[a-z0-9-]+)\s+(?P<keybits>\d+)b\s+(?P<enc>[\d.]+)\s+MiB/s\s+(?P<dec>[\d.]+)\s+MiB/s",
+            flags=re.IGNORECASE,
+        )
+        for line in stdout.splitlines():
+            match = pattern.search(line)
+            if not match:
+                continue
+            cipher = match.group("cipher")
+            keybits = int(match.group("keybits"))
+            enc = float(match.group("enc"))
+            dec = float(match.group("dec"))
+            metrics_data[f"{cipher}_{keybits}_enc_mib_per_s"] = enc
+            metrics_data[f"{cipher}_{keybits}_dec_mib_per_s"] = dec
+
+        if not metrics_data:
+            raise ValueError("Unable to parse cryptsetup benchmark results")
+        return metrics_data
+
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         command = ["cryptsetup", "benchmark"]
         stdout, duration, returncode = run_command(command)
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
 
-        try:
-            metrics_data: dict[str, float | str | int] = {}
-            pattern = re.compile(
-                r"^\s*(?P<cipher>[a-z0-9-]+)\s+(?P<keybits>\d+)b\s+(?P<enc>[\d.]+)\s+MiB/s\s+(?P<dec>[\d.]+)\s+MiB/s",
-                flags=re.IGNORECASE,
-            )
-            for line in stdout.splitlines():
-                match = pattern.search(line)
-                if not match:
-                    continue
-                cipher = match.group("cipher")
-                keybits = int(match.group("keybits"))
-                enc = float(match.group("enc"))
-                dec = float(match.group("dec"))
-                metrics_data[f"{cipher}_{keybits}_enc_mib_per_s"] = enc
-                metrics_data[f"{cipher}_{keybits}_dec_mib_per_s"] = dec
-
-            if not metrics_data:
-                raise ValueError("Unable to parse cryptsetup benchmark results")
-
-            status = "ok"
-            metrics = BenchmarkMetrics(metrics_data)
-            message = ""
-        except ValueError as e:
-            status = "error"
-            metrics = BenchmarkMetrics({})
-            message = str(e)
+        status, metrics, message = self.parse_metrics(lambda: self._parse_cryptsetup(stdout))
 
         return BenchmarkResult(
             benchmark_type=self.benchmark_type,
