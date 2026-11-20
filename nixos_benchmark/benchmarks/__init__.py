@@ -8,6 +8,7 @@ from .base import BenchmarkBase
 from .bonnie import BonnieBenchmark
 from .clpeak import CLPeakBenchmark
 from .cryptsetup import CryptsetupBenchmark
+from .encoder import EncoderBenchmark
 from .ffmpeg import FFmpegBenchmark
 from .fio import FIOBenchmark
 from .furmark import FurmarkBenchmark
@@ -32,8 +33,7 @@ from .scoring import (
     get_score_rule,
 )
 from .sevenzip import SevenZipBenchmark
-from .sqlite_mixed import SQLiteMixedBenchmark
-from .sqlite_speedtest import SQLiteSpeedtestBenchmark
+from .sqlite import SQLiteBenchmark
 from .stockfish import StockfishBenchmark
 from .stress_ng import StressNGBenchmark
 from .stressapptest import StressAppTestBenchmark
@@ -42,8 +42,6 @@ from .sysbench_memory import SysbenchMemoryBenchmark
 from .tinymembench import TinyMemBenchBenchmark
 from .types import BenchmarkType
 from .wrk import WrkHTTPBenchmark
-from .x264 import X264Benchmark
-from .x265 import X265Benchmark
 from .zstd import ZstdBenchmark
 
 
@@ -73,11 +71,21 @@ ALL_BENCHMARKS = [
     ZstdBenchmark(),
     PigzBenchmark(),
     CryptsetupBenchmark(),
-    SQLiteMixedBenchmark(),
-    SQLiteSpeedtestBenchmark(),
+    SQLiteBenchmark(
+        BenchmarkType.SQLITE_MIXED,
+        "SQLite insert/select mix",
+        indexed=False,
+        select_key="selects_per_s",
+    ),
+    SQLiteBenchmark(
+        BenchmarkType.SQLITE_SPEEDTEST,
+        "SQLite speedtest-style insert/select",
+        indexed=True,
+        select_key="indexed_selects_per_s",
+    ),
     FFmpegBenchmark(),
-    X264Benchmark(),
-    X265Benchmark(),
+    EncoderBenchmark(BenchmarkType.X264, "x264 encoder benchmark", "x264"),
+    EncoderBenchmark(BenchmarkType.X265, "x265 encoder benchmark", "x265"),
     NetperfBenchmark(),
     WrkHTTPBenchmark(),
     GeekbenchBenchmark(),

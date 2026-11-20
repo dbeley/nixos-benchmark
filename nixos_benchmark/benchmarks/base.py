@@ -22,7 +22,8 @@ class BenchmarkBase(ABC):
     benchmark_type: BenchmarkType
     description: str
     version_command: ClassVar[tuple[str, ...] | None] = None
-    _required_commands: ClassVar[Sequence[str] | None] = None
+    # Not a ClassVar: benchmarks that wrap one tool per instance set it per run.
+    _required_commands: Sequence[str] | None = None
 
     @property
     def name(self) -> str:

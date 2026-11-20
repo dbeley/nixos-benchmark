@@ -12,27 +12,46 @@ from .base import BenchmarkBase
 from .types import BenchmarkType
 
 
-DEFAULT_X265_RESOLUTION = "1280x720"
-DEFAULT_X265_FRAMES = 600  # Increased from 240 (20s @ 30fps instead of 8s)
-DEFAULT_X265_PRESET = "medium"
-DEFAULT_X265_CRF = 23
+DEFAULT_ENCODER_RESOLUTION = "1280x720"
+DEFAULT_ENCODER_FRAMES = 600  # Increased from 240 (20s @ 30fps instead of 8s)
+DEFAULT_ENCODER_PRESET = "medium"
+DEFAULT_ENCODER_CRF = 23
+
+X264_SUMMARY_PATTERN = re.compile(r"encoded\s+\d+\s+frames,\s+([\d.]+)\s+fps,\s+([\d.]+)\s+kb/s")
+X265_SUMMARY_PATTERN = re.compile(r"encoded\s+\d+\s+frames\s+in\s+([\d.]+)s\s+\(([\d.]+)\s+fps\)")
 
 
-class X265Benchmark(BenchmarkBase):
-    benchmark_type = BenchmarkType.X265
-    description = "x265 encoder benchmark"
-    _required_commands = ("x265", "ffmpeg")
+def _parse_encoder_summary(stdout: str) -> dict[str, float | str | int]:
+    """Read the fps/bitrate summary line, whichever encoder printed it."""
+    x264_match = X264_SUMMARY_PATTERN.search(stdout)
+    if x264_match:
+        return {"fps": float(x264_match.group(1)), "kb_per_s": float(x264_match.group(2))}
+
+    x265_match = X265_SUMMARY_PATTERN.search(stdout)
+    if x265_match:
+        return {"fps": float(x265_match.group(2)), "encode_time_secs": float(x265_match.group(1))}
+
+    return {}
+
+
+class EncoderBenchmark(BenchmarkBase):
+    """Encode a synthetic clip with x264 or x265 on a single thread set."""
+
+    def __init__(self, benchmark_type: BenchmarkType, description: str, encoder: str) -> None:
+        self.benchmark_type = benchmark_type
+        self.description = description
+        self.encoder = encoder
+        self._required_commands = (encoder, "ffmpeg")
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
-        resolution = DEFAULT_X265_RESOLUTION
-        frames = DEFAULT_X265_FRAMES
-        preset = DEFAULT_X265_PRESET
-        crf = DEFAULT_X265_CRF
+        resolution = DEFAULT_ENCODER_RESOLUTION
+        frames = DEFAULT_ENCODER_FRAMES
+        preset = DEFAULT_ENCODER_PRESET
+        crf = DEFAULT_ENCODER_CRF
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".y4m") as tmp:
             pattern_path = Path(tmp.name)
 
-        # Generate a synthetic input clip
         gen_command = [
             "ffmpeg",
             "-hide_banner",
@@ -56,7 +75,7 @@ class X265Benchmark(BenchmarkBase):
 
         try:
             command = [
-                "x265",
+                self.encoder,
                 "--preset",
                 preset,
                 "--crf",
@@ -72,29 +91,18 @@ class X265Benchmark(BenchmarkBase):
                 raise subprocess.CalledProcessError(returncode, command, stdout)
 
             try:
-                match = re.search(
-                    r"encoded\s+\d+\s+frames\s+in\s+([\d.]+)s\s+\(([\d.]+)\s+fps\)",
-                    stdout,
-                )
-                if not match:
-                    raise ValueError("Unable to parse x265 output")
-                elapsed = float(match.group(1))
-                fps = float(match.group(2))
-
-                metrics = BenchmarkMetrics(
-                    {
-                        "fps": fps,
-                        "encode_time_secs": elapsed,
-                        "preset": preset,
-                        "crf": crf,
-                        "resolution": resolution,
-                    }
-                )
+                metrics_data: dict[str, float | str | int] = _parse_encoder_summary(stdout)
+                if not metrics_data:
+                    raise ValueError(f"Unable to parse {self.encoder} output")
+                metrics_data["preset"] = preset
+                metrics_data["crf"] = crf
+                metrics_data["resolution"] = resolution
                 status = "ok"
+                metrics = BenchmarkMetrics(metrics_data)
                 message = ""
             except ValueError as exc:
-                metrics = BenchmarkMetrics({})
                 status = "error"
+                metrics = BenchmarkMetrics({})
                 message = str(exc)
         finally:
             pattern_path.unlink(missing_ok=True)
@@ -119,6 +127,7 @@ class X265Benchmark(BenchmarkBase):
         )
 
     def format_result(self, result: BenchmarkResult) -> str:
+        """Format result for display."""
         status_message = self.format_status_message(result)
         if status_message:
             return status_message
