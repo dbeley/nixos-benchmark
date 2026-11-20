@@ -42,8 +42,6 @@
           ffmpeg
           x264
           sqlite
-          php
-          gnumake
           sysbench
           python3
         ];
