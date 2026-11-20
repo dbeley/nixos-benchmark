@@ -128,23 +128,54 @@
 
       function getCellValue(row, index) {
         const cell = row.children[index];
+        if (!cell) return '';
         const sortValue = cell.getAttribute('data-sort');
-        return (sortValue || cell.textContent).trim();
+        return (sortValue !== null && sortValue !== '' ? sortValue : cell.textContent).trim();
+      }
+
+      function parseNumber(value) {
+        if (!value) return null;
+        const cleaned = value.replace(/,/g, '').trim();
+        if (!cleaned) return null;
+        const direct = Number(cleaned);
+        if (Number.isFinite(direct)) return direct;
+        // Fall back to the leading number in strings like "317.0 fps"
+        const m = cleaned.match(/-?\d+(?:\.\d+)?/);
+        if (!m) return null;
+        const parsed = parseFloat(m[0]);
+        return Number.isFinite(parsed) ? parsed : null;
       }
 
       function parseValue(value, type) {
         if (type === 'date') {
           const t = Date.parse(value);
-          return isNaN(t) ? 0 : t;
+          return isNaN(t) ? null : t;
         }
 
         if (type === 'number') {
-          const m = value.match(/-?\\d+(\\.\\d+)?/);
-          if (m) return parseFloat(m[0]);
+          return parseNumber(value);
         }
 
         // default: text
         return value.toLowerCase();
+      }
+
+      function isMissing(value) {
+        return value === null || value === undefined || (typeof value === 'number' && !Number.isFinite(value));
+      }
+
+      function compareValues(va, vb, order) {
+        const aMissing = isMissing(va);
+        const bMissing = isMissing(vb);
+        // Cells without a usable value (e.g. failed runs) always sink to the bottom
+        if (aMissing || bMissing) {
+          if (aMissing && bMissing) return 0;
+          return aMissing ? 1 : -1;
+        }
+
+        if (va < vb) return order === 'asc' ? -1 : 1;
+        if (va > vb) return order === 'asc' ? 1 : -1;
+        return 0;
       }
 
       function sortByColumn(index, type, order) {
@@ -152,10 +183,7 @@
         rows.sort((a, b) => {
           const va = parseValue(getCellValue(a, index), type);
           const vb = parseValue(getCellValue(b, index), type);
-
-          if (va < vb) return order === 'asc' ? -1 : 1;
-          if (va > vb) return order === 'asc' ? 1 : -1;
-          return 0;
+          return compareValues(va, vb, order);
         });
 
         rows.forEach(row => tbody.appendChild(row));

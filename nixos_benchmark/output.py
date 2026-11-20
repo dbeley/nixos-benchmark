@@ -68,6 +68,7 @@ class Cell(TypedDict):
     text: str
     version: str
     has_result: bool
+    sort: str
 
 
 class RowWithCells(TypedDict):
@@ -247,7 +248,20 @@ def _build_rows(
             version_value = bench_result.version if bench_result else _as_str(raw_bench.get("version", ""))
             description = describe_benchmark(bench_result) if bench_result else ""
             has_result = bool(bench_result or raw_bench)
-            cells.append({"text": description or "—", "version": version_value, "has_result": has_result})
+            sort_value = ""
+            if bench_result is not None:
+                rule = get_score_rule(bench_result.benchmark_type)
+                numeric = rule.extract(bench_result) if rule else None
+                if numeric is not None:
+                    sort_value = f"{numeric:.10g}"
+            cells.append(
+                {
+                    "text": description or "—",
+                    "version": version_value,
+                    "has_result": has_result,
+                    "sort": sort_value,
+                }
+            )
 
         rows.append(
             {
@@ -413,8 +427,9 @@ def _build_benchmark_header_cells(
         # Add data-category attribute to benchmark headers
         category = _get_benchmark_category(bench_type) if bench_type else "Other"
         category_lower = category.lower()
+        sort_type = "number" if rule else "text"
         header_cells += (
-            f'<th class="sortable benchmark-header" data-type="text"'
+            f'<th class="sortable benchmark-header" data-type="{sort_type}"'
             f' data-category="{html.escape(category_lower)}" title="{tooltip}">{html.escape(name)}</th>'
         )
     return header_cells
@@ -454,6 +469,7 @@ def _build_body_rows(rows: list[RowWithCells], bench_columns: list[str]) -> list
 
             cell_parts.append(
                 f'<td class="benchmark-cell" data-category="{html.escape(category_lower)}"'
+                f' data-sort="{html.escape(_as_str(cell.get("sort", "")))}"'
                 f' title="Version: {html.escape(version_display)}">'
                 f'<div class="cell-main">{html.escape(description)}</div>'
                 f'<div class="cell-version">{html.escape(version_text)}</div>'
