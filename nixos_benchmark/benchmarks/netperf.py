@@ -23,8 +23,11 @@ class NetperfBenchmark(BenchmarkBase):
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         duration = DEFAULT_NETPERF_DURATION
         port = find_free_tcp_port()
+        # -D keeps netserver in the foreground: without it, netserver daemonizes
+        # and the Popen we hold is an already-exited parent, so terminate() would
+        # leave a stray server listening on the port after every run.
         server = subprocess.Popen(
-            ["netserver", "-p", str(port)],
+            ["netserver", "-D", "-p", str(port)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -44,7 +47,8 @@ class NetperfBenchmark(BenchmarkBase):
                     str(duration),
                     "-t",
                     "TCP_STREAM",
-                ]
+                ],
+                timeout=duration + 60,
             )
 
             try:
@@ -68,6 +72,8 @@ class NetperfBenchmark(BenchmarkBase):
             server.terminate()
             with contextlib.suppress(Exception):
                 server.wait(timeout=5)
+            with contextlib.suppress(Exception):
+                server.kill()
 
         return BenchmarkResult(
             benchmark_type=self.benchmark_type,
