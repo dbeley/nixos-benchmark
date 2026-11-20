@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import re
 import subprocess
+from pathlib import Path
 from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
@@ -21,7 +22,11 @@ class IOPingBenchmark(BenchmarkBase):
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         count = DEFAULT_IOPING_COUNT
-        command = ["ioping", "-c", str(count), "."]
+        # Probe the results directory (a real disk) instead of whatever the
+        # current directory happens to be.
+        results_dir = Path("results")
+        results_dir.mkdir(parents=True, exist_ok=True)
+        command = ["ioping", "-c", str(count), str(results_dir)]
         stdout, duration, returncode = run_command(command)
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
@@ -67,7 +72,7 @@ class IOPingBenchmark(BenchmarkBase):
             metrics=metrics,
             parameters=BenchmarkParameters({"count": count}),
             duration_seconds=duration,
-            command=f"ioping -c {count} .",
+            command=self.format_command(command),
             raw_output=stdout,
             message=message,
         )

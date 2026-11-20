@@ -270,11 +270,6 @@ def get_presets_for_benchmark(benchmark: BenchmarkBase) -> tuple[str, ...]:
     return tuple(sorted(presets_list))
 
 
-def get_all_benchmarks():
-    """Get all benchmark instances."""
-    return ALL_BENCHMARKS
-
-
 __all__ = [
     "ALL_BENCHMARKS",
     "BENCHMARK_MAP",
@@ -288,7 +283,6 @@ __all__ = [
     "BenchmarkBase",
     "BenchmarkType",
     "ScoreRule",
-    "get_all_benchmarks",
     "get_benchmark_types_for_preset",
     "get_presets_for_benchmark",
     "get_score_rule",

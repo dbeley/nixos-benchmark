@@ -128,19 +128,3 @@ def wait_for_port(host: str, port: int, timeout: float = 5.0) -> bool:
             except OSError:
                 time.sleep(0.05)
     return False
-
-
-def find_first_block_device() -> str | None:
-    """Find the first suitable block device for benchmarking."""
-    skip_prefixes = ("loop", "ram", "dm-", "zd", "nbd", "sr", "md")
-    sys_block = Path("/sys/block")
-    if not sys_block.exists():
-        return None
-    for path in sorted(sys_block.iterdir()):
-        name = path.name
-        if name.startswith(skip_prefixes):
-            continue
-        device = Path("/dev") / name
-        if device.exists():
-            return str(device)
-    return None

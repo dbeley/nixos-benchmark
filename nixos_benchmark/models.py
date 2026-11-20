@@ -17,9 +17,6 @@ class BenchmarkMetrics:
 
     data: dict[str, float | str | int]
 
-    def __getitem__(self, key: str) -> float | str | int:
-        return self.data[key]
-
     def get(self, key: str, default: Any = None) -> Any:
         return self.data.get(key, default)
 
@@ -33,9 +30,6 @@ class BenchmarkParameters:
     """Type-safe container for benchmark parameters."""
 
     data: dict[str, Any]
-
-    def __getitem__(self, key: str) -> Any:
-        return self.data[key]
 
     def get(self, key: str, default: Any = None) -> Any:
         return self.data.get(key, default)
