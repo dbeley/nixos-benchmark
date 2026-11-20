@@ -110,7 +110,7 @@ class FurmarkBenchmark(BenchmarkBase):
 
         command_list = ["furmark", "--demo", self.demo, "--benchmark", "--no-score-box", "--p1080"]
 
-        stdout, duration, returncode = run_command(command_list)
+        stdout, duration, returncode = run_command(command_list, timeout=300)
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command_list, stdout)
 

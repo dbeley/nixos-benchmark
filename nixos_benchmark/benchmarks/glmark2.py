@@ -26,7 +26,7 @@ class GLMark2Benchmark(BenchmarkBase):
         if offscreen:
             command.append("--off-screen")
 
-        stdout, duration, returncode = run_command(command)
+        stdout, duration, returncode = run_command(command, timeout=900)
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
 

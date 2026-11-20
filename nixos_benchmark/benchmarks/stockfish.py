@@ -50,7 +50,7 @@ class StockfishBenchmark(BenchmarkBase):
             str(threads),
             str(limit_seconds),
         ]
-        stdout, duration, returncode = run_command(command)
+        stdout, duration, returncode = run_command(command, timeout=1200)
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command, stdout)
 

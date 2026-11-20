@@ -86,7 +86,7 @@ class WrkHTTPBenchmark(BenchmarkBase):
                     f"{duration}s",
                     f"http://127.0.0.1:{port}/",
                 ]
-                stdout, wrk_duration, returncode = run_command(command)
+                stdout, wrk_duration, returncode = run_command(command, timeout=duration + 60)
                 if returncode != 0:
                     raise subprocess.CalledProcessError(returncode, command, stdout)
             finally:

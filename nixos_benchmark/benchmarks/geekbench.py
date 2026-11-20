@@ -25,6 +25,7 @@ SCORE_BLOCK_TEMPLATE = (
 )
 
 CAPTURE_HOST = "browser.geekbench.com"
+GEEKBENCH_TIMEOUT = 1800  # the CPU/GPU suite is slow; never wait forever on a stuck run
 _UPLOAD_PATH_PATTERN = re.compile(r"/v7/[a-z]+/upload\.json", re.IGNORECASE)
 
 
@@ -227,14 +228,14 @@ def _run_with_upload_capture(command: list[str]) -> tuple[str, float, int, dict 
     """
     openssl = shutil.which("openssl")
     if not openssl:
-        stdout, duration, returncode = run_command(command)
+        stdout, duration, returncode = run_command(command, timeout=GEEKBENCH_TIMEOUT)
         return stdout, duration, returncode, None
 
     with tempfile.TemporaryDirectory(prefix="geekbench-capture-") as tmpdir:
         try:
             ca_crt, srv_crt, srv_key = _generate_capture_certs(openssl, tmpdir)
         except subprocess.CalledProcessError:
-            stdout, duration, returncode = run_command(command)
+            stdout, duration, returncode = run_command(command, timeout=GEEKBENCH_TIMEOUT)
             return stdout, duration, returncode, None
 
         server = _UploadCaptureServer(("127.0.0.1", 0), srv_crt, srv_key)
@@ -248,7 +249,7 @@ def _run_with_upload_capture(command: list[str]) -> tuple[str, float, int, dict 
                 "ALL_PROXY": f"http://127.0.0.1:{port}",
                 "SSL_CERT_FILE": ca_crt,
             }
-            stdout, duration, returncode = run_command(command, env=env)
+            stdout, duration, returncode = run_command(command, env=env, timeout=GEEKBENCH_TIMEOUT)
         finally:
             server.shutdown()
             server.server_close()
