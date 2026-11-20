@@ -27,10 +27,10 @@ nix run github:dbeley/nixos-benchmark -- --benchmarks openssl-speed,fio-seq
 
 Available presets: `fast`, `balanced` (default), `cpu`, `io`, `memory`, `compression`, `crypto`, `database`, `gpu-light`, `gpu`, `network`, `all`. Use `--presets all` if you want every benchmark.
 
-- CPU: openssl speed, 7-Zip, John, Stockfish, stress-ng, sysbench cpu, geekbench
+- CPU: openssl speed, 7-Zip, John, Stockfish, stress-ng, sysbench cpu, geekbench, x264, x265, ffmpeg transcode
 - Memory: sysbench memory, stressapptest, tinymembench
-- IO / storage: fio seq, ioping, iozone, bonnie++, sqlite mixed, sqlite speedtest, cryptsetup
-- Compression: zstd, pigz, lz4, x264, x265, ffmpeg transcode
+- IO / storage: fio seq, ioping (in `results/`), iozone, bonnie++, sqlite mixed, sqlite speedtest, cryptsetup
+- Compression: zstd, pigz, lz4
 - GPU: glmark2, furmark-gl, furmark-vk, furmark-knot-gl, furmark-knot-vk, clpeak, hashcat, geekbench gpu (default + vulkan)
 - Network: netperf, wrk (local HTTP)
 
