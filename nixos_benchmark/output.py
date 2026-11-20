@@ -636,7 +636,15 @@ def _svg_escape(text: str) -> str:
 
 
 def _wrap_label(text: str, max_len: int = 32) -> list[str]:
-    words = text.split()
+    words: list[str] = []
+    for token in text.split():
+        # Break single words that are longer than a line, or they run over the bars.
+        remaining = token
+        while len(remaining) > max_len:
+            words.append(remaining[:max_len])
+            remaining = remaining[max_len:]
+        if remaining:
+            words.append(remaining)
     if not words:
         return [""]
     lines: list[str] = []
@@ -657,26 +665,35 @@ def _wrap_label(text: str, max_len: int = 32) -> list[str]:
 def _render_svg_chart(title: str, subtitle: str, bars: list[GraphBar], rule: ScoreRule) -> str:
     bar_height = 28
     bar_gap = 12
+    line_height = 16
     left_pad = 380
     right_pad = 150
     track_width = 760
     chart_width = left_pad + track_width + right_pad
     header_height = 54
-    body_height = len(bars) * (bar_height + bar_gap)
-    total_height = header_height + body_height + 20
 
     values = [bar["value"] for bar in bars]
     max_value = max(values)
     min_value = min(values)
 
+    # A row grows with its wrapped label so long CPU/GPU names do not overlap
+    # the bars below them.
+    rows = []
+    for bar in bars:
+        label_lines = _wrap_label(bar["label"])
+        row_height = max(bar_height, line_height * len(label_lines) + 10)
+        rows.append((bar, label_lines, row_height))
+
+    body_height = sum(row_height + bar_gap for _, _, row_height in rows)
+    total_height = header_height + body_height + 20
+
     bar_elements: list[str] = []
     y = header_height
-    for bar in bars:
+    for bar, label_lines, row_height in rows:
         width_pct = _normalize_width(bar["value"], min_value, max_value, rule.higher_is_better)
         fill_width = (width_pct / 100.0) * track_width
-        label_lines = _wrap_label(bar["label"])
         label_text = "".join(
-            f'<tspan x="12" dy="{0 if idx == 0 else 16}">{_svg_escape(line)}</tspan>'
+            f'<tspan x="12" dy="{0 if idx == 0 else line_height}">{_svg_escape(line)}</tspan>'
             for idx, line in enumerate(label_lines)
         )
         bar_elements.append(
@@ -693,7 +710,7 @@ def _render_svg_chart(title: str, subtitle: str, bars: list[GraphBar], rule: Sco
             "</text>"
             "</g>"
         )
-        y += bar_height + bar_gap
+        y += row_height + bar_gap
 
     direction_text = "Higher is better" if rule.higher_is_better else "Lower is better"
     return (
