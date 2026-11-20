@@ -182,7 +182,9 @@ def handle_early_exit(args: argparse.Namespace) -> int | None:
             print("Cannot refresh HTML without an output path. Provide --html-summary.", file=sys.stderr)
             return 1
         html_path = Path(args.html_summary)
-        build_html_summary(html_path.parent, html_path)
+        if not build_html_summary(html_path.parent, html_path):
+            print(f"No benchmark reports found in {html_path.parent}", file=sys.stderr)
+            return 1
         return 0
     return None
 

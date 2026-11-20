@@ -731,14 +731,15 @@ def _render_html_document(
     )
 
 
-def build_html_summary(results_dir: Path, html_path: Path) -> None:
+def build_html_summary(results_dir: Path, html_path: Path) -> bool:
+    """Rebuild the dashboard from every report in results_dir. False when there was nothing to read."""
     json_files = sorted(results_dir.glob("*.json"))
     default_timestamp = UNKNOWN_TIMESTAMP
 
     reports, bench_metadata = _load_reports_and_metadata(json_files, default_timestamp)
     bench_columns = sorted(bench_metadata.keys())
     if not reports or not bench_columns:
-        return
+        return False
 
     html_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -777,3 +778,4 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
             f"Only {len(generated_pngs)} of {len(generated_svgs)} charts could be converted to PNG",
             file=sys.stderr,
         )
+    return True
