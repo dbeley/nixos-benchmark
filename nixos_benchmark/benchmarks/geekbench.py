@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import threading
 from pathlib import Path
+from typing import cast
 from urllib import error, request
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
@@ -164,8 +165,9 @@ class _UploadCaptureHandler(socketserver.BaseRequestHandler):
                 return
 
             conn.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
+            server = cast(_UploadCaptureServer, self.server)
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-            ctx.load_cert_chain(self.server.srv_crt, self.server.srv_key)
+            ctx.load_cert_chain(server.srv_crt, server.srv_key)
             tls = ctx.wrap_socket(conn, server_side=True)
             tls.settimeout(60)
 
@@ -176,7 +178,7 @@ class _UploadCaptureHandler(socketserver.BaseRequestHandler):
             if _UPLOAD_PATH_PATTERN.search(headers.decode("latin-1")):
                 full = self._read_upload_body(tls, headers, body)
                 if full:
-                    self.server.captured_body = full
+                    server.captured_body = full
 
             tls.sendall(
                 b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}"
@@ -253,6 +255,9 @@ class _UploadCaptureHandler(socketserver.BaseRequestHandler):
 class _UploadCaptureServer(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
+    srv_crt: str
+    srv_key: str
+    captured_body: bytes | None = None
 
     def __init__(self, addr: tuple[str, int], srv_crt: str, srv_key: str):
         self.srv_crt = srv_crt

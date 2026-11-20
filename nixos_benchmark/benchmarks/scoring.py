@@ -10,10 +10,12 @@ from .types import BenchmarkType
 
 
 def _coerce_number(value: object) -> float | None:
-    """Convert arbitrary values to float when possible."""
+    """Convert numeric values to float, ignoring bools and unparsable text."""
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        return None
     try:
-        return float(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
+        return float(value)
+    except ValueError:
         return None
 
 
