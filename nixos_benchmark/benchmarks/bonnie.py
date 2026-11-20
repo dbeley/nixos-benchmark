@@ -58,10 +58,6 @@ class BonnieBenchmark(BenchmarkBase):
             if returncode != 0:
                 raise subprocess.CalledProcessError(returncode, command, stdout)
 
-        for leftover in Path("results").glob("Bonnie.*"):
-            if leftover.is_file():
-                leftover.unlink(missing_ok=True)
-
         metrics_data: dict[str, float | str | int] = {}
         status = "ok"
         message = ""
@@ -102,7 +98,10 @@ class BonnieBenchmark(BenchmarkBase):
             parse_latency(41, "char_read_latency_ms")
             parse_latency(42, "block_read_latency_ms")
             parse_latency(43, "seeks_latency_ms")
-            if not metrics_data:
+            # Latencies always parse; a run is only usable when at least one
+            # throughput number was measured as well.
+            throughput_keys = ("char_write_mb_s", "block_write_mb_s", "char_read_mb_s", "block_read_mb_s")
+            if not any(key in metrics_data for key in throughput_keys):
                 status = "error"
                 message = (
                     "bonnie++ could not measure throughput (all values too fast to time). "
