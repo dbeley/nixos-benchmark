@@ -203,9 +203,16 @@ def resolve_selected_benchmarks(args: argparse.Namespace, requested_presets: lis
     return expand_presets(requested_presets)
 
 
-def run_selected_benchmarks(selected_benchmarks: Sequence[BenchmarkType], args: argparse.Namespace):
-    """Execute benchmarks and keep their instances alongside results."""
-    results_with_benchmarks: list[tuple[BenchmarkResult, BenchmarkBase]] = []
+def run_selected_benchmarks(
+    selected_benchmarks: Sequence[BenchmarkType],
+    args: argparse.Namespace,
+    collected: list[tuple[BenchmarkResult, BenchmarkBase]] | None = None,
+):
+    """Execute benchmarks and keep their instances alongside results.
+
+    ``collected`` lets the caller keep the results of an interrupted run.
+    """
+    results_with_benchmarks: list[tuple[BenchmarkResult, BenchmarkBase]] = collected if collected is not None else []
     for i, benchmark_type in enumerate(selected_benchmarks):
         print(f"Executing {benchmark_type.value}")
         benchmark = BENCHMARK_MAP[benchmark_type]
@@ -346,7 +353,13 @@ def main() -> int:
     if system_warnings:
         print_system_warnings(system_warnings)
 
-    results_with_benchmarks = run_selected_benchmarks(selected_benchmarks, args)
+    results_with_benchmarks: list[tuple[BenchmarkResult, BenchmarkBase]] = []
+    interrupted = False
+    try:
+        run_selected_benchmarks(selected_benchmarks, args, results_with_benchmarks)
+    except KeyboardInterrupt:
+        interrupted = True
+        print("\nInterrupted: writing the results collected so far.", file=sys.stderr)
 
     if not results_with_benchmarks:
         print("No benchmarks executed.", file=sys.stderr)
@@ -371,4 +384,4 @@ def main() -> int:
     print_result_summaries(results_with_benchmarks)
     write_html_summary_if_requested(output_path, args.html_summary)
 
-    return 0
+    return 130 if interrupted else 0
