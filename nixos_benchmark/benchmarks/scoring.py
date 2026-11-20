@@ -168,6 +168,20 @@ CPU_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
     ),
 }
 
+
+def _geekbench_gpu_score(*keys: str) -> Callable[[BenchmarkResult], float | None]:
+    """Return the first score Geekbench recorded for any of the given APIs."""
+    return lambda result: _first_numeric(*(result.metrics.get(key) for key in keys))
+
+
+# The four FurMark demos report the same metric; one frozen rule serves them all.
+_FURMARK_RULE = ScoreRule(
+    metric="fps_avg",
+    label="Average FPS",
+    higher_is_better=True,
+    formatter=lambda value: f"{value:.1f} fps",
+)
+
 GPU_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
     BenchmarkType.GLMARK2: ScoreRule(
         metric="score",
@@ -175,42 +189,14 @@ GPU_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
         higher_is_better=True,
         formatter=lambda value: f"{value:.0f} pts",
     ),
-    BenchmarkType.FURMARK_GL: ScoreRule(
-        metric="fps_avg",
-        label="Average FPS",
-        higher_is_better=True,
-        extractor=lambda result: _first_numeric(result.metrics.get("fps_avg")),
-        formatter=lambda value: f"{value:.1f} fps",
-    ),
-    BenchmarkType.FURMARK_VK: ScoreRule(
-        metric="fps_avg",
-        label="Average FPS",
-        higher_is_better=True,
-        extractor=lambda result: _first_numeric(result.metrics.get("fps_avg")),
-        formatter=lambda value: f"{value:.1f} fps",
-    ),
-    BenchmarkType.FURMARK_KNOT_GL: ScoreRule(
-        metric="fps_avg",
-        label="Average FPS",
-        higher_is_better=True,
-        extractor=lambda result: _first_numeric(result.metrics.get("fps_avg")),
-        formatter=lambda value: f"{value:.1f} fps",
-    ),
-    BenchmarkType.FURMARK_KNOT_VK: ScoreRule(
-        metric="fps_avg",
-        label="Average FPS",
-        higher_is_better=True,
-        extractor=lambda result: _first_numeric(result.metrics.get("fps_avg")),
-        formatter=lambda value: f"{value:.1f} fps",
-    ),
+    BenchmarkType.FURMARK_GL: _FURMARK_RULE,
+    BenchmarkType.FURMARK_VK: _FURMARK_RULE,
+    BenchmarkType.FURMARK_KNOT_GL: _FURMARK_RULE,
+    BenchmarkType.FURMARK_KNOT_VK: _FURMARK_RULE,
     BenchmarkType.CLPEAK: ScoreRule(
         metric="global_memory_bandwidth_gb_per_s",
         label="Peak bandwidth (GB/s)",
         higher_is_better=True,
-        extractor=lambda result: _first_numeric(
-            result.metrics.get("global_memory_bandwidth_gb_per_s"),
-            _max_numeric(v for v in result.metrics.data.values() if isinstance(v, (int, float))),
-        ),
         formatter=lambda value: f"{value:.1f} GB/s",
     ),
     BenchmarkType.HASHCAT_GPU: ScoreRule(
@@ -223,29 +209,18 @@ GPU_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
         metric="compute_score",
         label="Compute score",
         higher_is_better=True,
-        extractor=lambda result: _first_numeric(
-            result.metrics.get("compute_score"),
-            result.metrics.get("vulkan_score"),
-            result.metrics.get("opencl_score"),
-            result.metrics.get("metal_score"),
-            result.metrics.get("cuda_score"),
-        ),
+        extractor=_geekbench_gpu_score("compute_score", "vulkan_score", "opencl_score", "metal_score", "cuda_score"),
         formatter=lambda value: f"{value:,.0f} pts",
     ),
     BenchmarkType.GEEKBENCH_GPU_VULKAN: ScoreRule(
         metric="compute_score",
         label="Compute score",
         higher_is_better=True,
-        extractor=lambda result: _first_numeric(
-            result.metrics.get("vulkan_score"),
-            result.metrics.get("compute_score"),
-            result.metrics.get("opencl_score"),
-            result.metrics.get("metal_score"),
-            result.metrics.get("cuda_score"),
-        ),
+        extractor=_geekbench_gpu_score("vulkan_score", "compute_score", "opencl_score", "metal_score", "cuda_score"),
         formatter=lambda value: f"{value:,.0f} pts",
     ),
 }
+
 
 IO_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
     BenchmarkType.FIO_SEQ: ScoreRule(
@@ -335,7 +310,6 @@ MEMORY_SCORE_RULES: dict[BenchmarkType, ScoreRule] = {
         extractor=lambda result: _first_numeric(
             result.metrics.get("standard_memcpy_mb_per_s"),
             result.metrics.get("memcpy_mb_per_s"),
-            _max_numeric(v for v in result.metrics.data.values() if isinstance(v, (int, float))),
         ),
         formatter=lambda value: f"{value:,.0f} MB/s",
     ),

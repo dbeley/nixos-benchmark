@@ -59,13 +59,9 @@ class TinyMemBenchBenchmark(BenchmarkBase):
         if status_message:
             return status_message
 
-        memcpy = result.metrics.get("memcpy_mb_per_s")
+        memcpy = result.metrics.get("standard_memcpy_mb_per_s")
         if memcpy is None:
-            memcpy = result.metrics.get("memcpy_-_aligned_mb_per_s")
-        if memcpy is None and result.metrics.data:
-            numeric_values = [v for v in result.metrics.data.values() if isinstance(v, (int, float))]
-            if numeric_values:
-                memcpy = max(numeric_values)
+            memcpy = result.metrics.get("memcpy_mb_per_s")
         if memcpy is not None:
             return f"{memcpy:,.0f} MB/s"
         return ""
