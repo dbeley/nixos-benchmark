@@ -5,6 +5,7 @@ import contextlib
 import json
 import re
 import shutil
+import socket
 import socketserver
 import ssl
 import subprocess
@@ -25,6 +26,7 @@ SCORE_BLOCK_TEMPLATE = (
 )
 
 CAPTURE_HOST = "browser.geekbench.com"
+TUNNEL_TIMEOUT = 60
 GEEKBENCH_TIMEOUT = 1800  # the CPU/GPU suite is slow; never wait forever on a stuck run
 _UPLOAD_PATH_PATTERN = re.compile(r"/v7/[a-z]+/upload\.json", re.IGNORECASE)
 
@@ -155,8 +157,10 @@ class _UploadCaptureHandler(socketserver.BaseRequestHandler):
                     return
                 connect_line += chunk
             hostport = connect_line.split(b" ", 2)[1]
-            if not hostport.lower().startswith(b"browser.geekbench.com"):
-                conn.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
+            if not hostport.lower().startswith(CAPTURE_HOST.encode("ascii")):
+                # Anything else the tool needs (licence, update checks) is
+                # forwarded to the real endpoint instead of being dropped.
+                self._tunnel(conn, hostport)
                 return
 
             conn.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
@@ -182,6 +186,43 @@ class _UploadCaptureHandler(socketserver.BaseRequestHandler):
         finally:
             with contextlib.suppress(OSError):
                 conn.close()
+
+    @staticmethod
+    def _tunnel(conn: socket.socket, hostport: bytes) -> None:
+        """Forward a CONNECT for an unrelated host to its real endpoint."""
+        host, _, port_text = hostport.partition(b":")
+        try:
+            port = int(port_text or b"443")
+            upstream = socket.create_connection((host.decode("ascii"), port), timeout=10)
+        except (OSError, ValueError, UnicodeDecodeError):
+            conn.sendall(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
+            return
+
+        conn.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
+
+        def pump(source: socket.socket, sink: socket.socket) -> None:
+            try:
+                while True:
+                    chunk = source.recv(65536)
+                    if not chunk:
+                        break
+                    sink.sendall(chunk)
+            except OSError:
+                pass
+            finally:
+                with contextlib.suppress(OSError):
+                    sink.shutdown(socket.SHUT_WR)
+
+        threads = [
+            threading.Thread(target=pump, args=(conn, upstream), daemon=True),
+            threading.Thread(target=pump, args=(upstream, conn), daemon=True),
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=TUNNEL_TIMEOUT)
+        with contextlib.suppress(OSError):
+            upstream.close()
 
     @staticmethod
     def _read_request(tls: ssl.SSLSocket) -> bytes:
@@ -485,6 +526,7 @@ class GeekbenchGPUBenchmark(GeekbenchBase):
         mode_label: str | None = None,
     ):
         self.gpu_backend = backend
+        self._detected_backend: str | None = None
         if benchmark_type:
             self.benchmark_type = benchmark_type
         if description:
@@ -492,16 +534,28 @@ class GeekbenchGPUBenchmark(GeekbenchBase):
         if mode_label:
             self.mode_label = mode_label
 
+    def _resolve_backend(self) -> str | None:
+        """Detect the GPU backend once per run.
+
+        ``--gpu-list`` costs a process launch, and asking twice could report a
+        backend that differs from the one actually used.
+        """
+        if self.gpu_backend:
+            return self.gpu_backend
+        if self._detected_backend is None:
+            self._detected_backend = _auto_detect_gpu_backend() or ""
+        return self._detected_backend or None
+
     def _build_command(self) -> list[str]:
         command = super()._build_command()
-        backend = self.gpu_backend or _auto_detect_gpu_backend()
+        backend = self._resolve_backend()
         if backend:
             command.append(backend)
         return command
 
     def build_parameters(self) -> BenchmarkParameters:
         params: dict[str, str] = {"mode": self.mode_label}
-        backend = self.gpu_backend or _auto_detect_gpu_backend()
+        backend = self._resolve_backend()
         if backend:
             params["backend"] = backend
         return BenchmarkParameters(params)
