@@ -72,13 +72,8 @@ def expand_presets(presets: Sequence[str]) -> list[BenchmarkType]:
         presets = ["balanced"]
     for preset in presets:
         config = PRESETS.get(preset)
-        if not config:
-            continue
-        benchmarks = config.get("benchmarks", [])
-        if isinstance(benchmarks, (list, tuple)):
-            for bench_type in benchmarks:
-                if isinstance(bench_type, BenchmarkType):
-                    selected.append(bench_type)
+        if config:
+            selected.extend(config["benchmarks"])
     return unique_ordered(selected)
 
 

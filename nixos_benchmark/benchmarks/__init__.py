@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TypedDict
+
 from .base import BenchmarkBase
 from .bonnie import BonnieBenchmark
 from .clpeak import CLPeakBenchmark
@@ -86,8 +88,16 @@ ALL_BENCHMARKS = [
 # Create a map from benchmark type to benchmark instance for easy lookup
 BENCHMARK_MAP: dict[BenchmarkType, BenchmarkBase] = {bench.benchmark_type: bench for bench in ALL_BENCHMARKS}
 
+
+class Preset(TypedDict):
+    """A named collection of benchmarks plus its one-line description."""
+
+    description: str
+    benchmarks: tuple[BenchmarkType, ...]
+
+
 # Preset definitions - directly list benchmark classes
-PRESETS: dict[str, dict[str, object]] = {
+PRESETS: dict[str, Preset] = {
     "fast": {
         "description": "Every short-running benchmark, for lots of results quickly.",
         "benchmarks": (
@@ -234,22 +244,18 @@ PRESETS: dict[str, dict[str, object]] = {
 
 def get_benchmark_types_for_preset(preset_name: str) -> tuple[BenchmarkType, ...]:
     """Return the benchmark types associated with a preset."""
-    preset = PRESETS.get(preset_name, {})
-    benchmarks = preset.get("benchmarks", ())
-    if not isinstance(benchmarks, (list, tuple)):
-        return ()
-    return tuple(bench for bench in benchmarks if isinstance(bench, BenchmarkType))
+    preset = PRESETS.get(preset_name)
+    return preset["benchmarks"] if preset else ()
 
 
 def get_presets_for_benchmark(benchmark: BenchmarkBase) -> tuple[str, ...]:
     """Compute which presets include a given benchmark."""
     presets_list: list[str] = []
-    for preset_name, preset_config in PRESETS.items():
+    for preset_name, preset in PRESETS.items():
         # Skip "all" preset in loop since we always add it at the end
         if preset_name == "all":
             continue
-        benchmarks = preset_config.get("benchmarks", [])
-        if isinstance(benchmarks, (list, tuple)) and benchmark.benchmark_type in benchmarks:
+        if benchmark.benchmark_type in preset["benchmarks"]:
             presets_list.append(preset_name)
     # "all" preset includes all benchmarks, so always add it
     presets_list.append("all")
