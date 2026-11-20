@@ -94,8 +94,10 @@ repos:
         entry: bash -c 'for file in "$@"; do size=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file" 2>/dev/null || echo 0); if [ "$size" -gt 500000 ]; then echo "File $file is larger than 500KB"; exit 1; fi; done' --
         language: system
         pass_filenames: true
+        # docs/ holds screenshots that are meant to be in the repository.
         exclude: |
           (?x)^(
               \.git/.*|
-              results/.*
+              results/.*|
+              docs/.*
           )$
