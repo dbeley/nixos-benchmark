@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import argparse
-import contextlib
 import os
 import re
 import shutil
 import subprocess
-from pathlib import Path
 from typing import cast
 
 from ..models import BenchmarkMetrics, BenchmarkParameters, BenchmarkResult
@@ -24,44 +22,50 @@ SCORE_PATTERN = re.compile(r"Score\s*[:=]\s*([\d.]+)", flags=re.IGNORECASE)
 FPS_FALLBACK_PATTERN = re.compile(r"FPS[^\d]*([\d.]+)", flags=re.IGNORECASE)
 
 # FurMark records "demo X is already running" in a SysV shared memory segment
-# keyed by this value, plus POSIX shm files under /dev/shm. A crashed or
-# killed run leaves these behind, and every later run then aborts with
-# "In benchmark mode, only one instance is allowed." Clean them up first.
+# keyed by this value. A crashed or killed run leaves it behind, and every later
+# run then aborts with "In benchmark mode, only one instance is allowed."
+# Only that exact key is removed: /dev/shm holds other programs' segments too.
 FURMARK_SHM_KEY = "0x0000023e"
-FURMARK_SHM_PATTERNS = ("sf_*", "sfshm_*")
 
 
 def _cleanup_stale_shm() -> None:
     """Remove leftover FurMark shared-memory state from a crashed/killed run."""
-    shm_dir = Path("/dev/shm")
-    for pattern in FURMARK_SHM_PATTERNS:
-        for path in shm_dir.glob(pattern):
-            with contextlib.suppress(OSError):
-                path.unlink()
     ipcrm = shutil.which("ipcrm")
     if ipcrm:
         subprocess.run([ipcrm, "-M", FURMARK_SHM_KEY], capture_output=True, check=False)
 
 
-def _ensure_x_resources() -> None:
+def _ensure_x_resources() -> bool:
     """Ensure the X root window has a RESOURCE_MANAGER property.
 
     FurMark 2.10.2 segfaults (SIGSEGV) in X11_GetMonitorDPI when the property
     is absent: it passes a NULL string to XrmGetStringDatabase. Creating an
     empty property sidesteps the crash.
+
+    Returns True when this call created the property, so the caller can remove
+    it again instead of leaving the change in the user's session.
     """
     if not os.environ.get("DISPLAY"):
-        return
+        return False
     xprop = shutil.which("xprop")
     if not xprop:
-        return
+        return False
     check = subprocess.run([xprop, "-root", "RESOURCE_MANAGER"], capture_output=True, text=True, check=False)
-    if "not found" in check.stdout:
-        subprocess.run(
-            [xprop, "-root", "-f", "RESOURCE_MANAGER", "8s", "-set", "RESOURCE_MANAGER", ""],
-            capture_output=True,
-            check=False,
-        )
+    if "not found" not in check.stdout:
+        return False
+    subprocess.run(
+        [xprop, "-root", "-f", "RESOURCE_MANAGER", "8s", "-set", "RESOURCE_MANAGER", ""],
+        capture_output=True,
+        check=False,
+    )
+    return True
+
+
+def _remove_x_resources() -> None:
+    """Remove the RESOURCE_MANAGER placeholder so the session is left as found."""
+    xprop = shutil.which("xprop")
+    if xprop:
+        subprocess.run([xprop, "-root", "-remove", "RESOURCE_MANAGER"], capture_output=True, check=False)
 
 
 class FurmarkBenchmark(BenchmarkBase):
@@ -106,11 +110,15 @@ class FurmarkBenchmark(BenchmarkBase):
 
     def execute(self, args: argparse.Namespace) -> BenchmarkResult:
         _cleanup_stale_shm()
-        _ensure_x_resources()
+        created_property = _ensure_x_resources()
 
         command_list = ["furmark", "--demo", self.demo, "--benchmark", "--no-score-box", "--p1080"]
 
-        stdout, duration, returncode = run_command(command_list, timeout=300)
+        try:
+            stdout, duration, returncode = run_command(command_list, timeout=300)
+        finally:
+            if created_property:
+                _remove_x_resources()
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command_list, stdout)
 
