@@ -30,8 +30,16 @@ def check_requirements(commands: Sequence[str]) -> tuple[bool, str]:
     return True, ""
 
 
-def run_command(command: list[str], *, env: dict[str, str] | None = None) -> tuple[str, float, int]:
-    """Run a command and return its output, duration, and return code."""
+def run_command(
+    command: list[str],
+    *,
+    env: dict[str, str] | None = None,
+    timeout: float | None = None,
+) -> tuple[str, float, int]:
+    """Run a command and return its output, duration, and return code.
+
+    Raises subprocess.TimeoutExpired when the command outlives ``timeout``.
+    """
     start = time.perf_counter()
 
     # Force English locale to ensure parseable output
@@ -51,6 +59,7 @@ def run_command(command: list[str], *, env: dict[str, str] | None = None) -> tup
         text=True,
         errors="replace",
         env=run_env,
+        timeout=timeout,
     )
     duration = time.perf_counter() - start
     return completed.stdout, duration, completed.returncode
@@ -88,10 +97,15 @@ def write_temp_data_file(size_mb: int, randomize: bool = True) -> Path:
     block_size = 1024 * 1024
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         pattern_path = Path(tmp.name)
-    with pattern_path.open("wb") as handle:
-        for _ in range(size_mb):
-            block = os.urandom(block_size) if randomize else b"\0" * block_size
-            handle.write(block)
+    try:
+        with pattern_path.open("wb") as handle:
+            for _ in range(size_mb):
+                block = os.urandom(block_size) if randomize else b"\0" * block_size
+                handle.write(block)
+    except OSError:
+        # Never leave a half-written multi-hundred-megabyte file behind.
+        pattern_path.unlink(missing_ok=True)
+        raise
     return pattern_path
 
 
