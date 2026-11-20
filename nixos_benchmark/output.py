@@ -120,7 +120,9 @@ def write_json_report(report: BenchmarkReport, output_path: Path) -> None:
     output_path.write_text(json.dumps(report.to_dict(), indent=2))
 
 
-def _parse_generated(value: str, default_timestamp: datetime) -> datetime:
+def _parse_generated(value: object, default_timestamp: datetime) -> datetime:
+    if not isinstance(value, str):
+        return default_timestamp
     try:
         return datetime.fromisoformat(value)
     except ValueError:
@@ -189,9 +191,17 @@ def _load_reports_and_metadata(
     for path in json_files:
         try:
             raw = path.read_text()
-            data: dict[str, Any] = json.loads(raw)
+            data: Any = json.loads(raw)
         except (json.JSONDecodeError, OSError):
             continue
+
+        # Skip anything that is not a benchmark report: the results directory can
+        # hold unrelated JSON files, and one of them must not break the dashboard.
+        if not isinstance(data, dict):
+            continue
+
+        system_raw = data.get("system")
+        system: dict[str, object] = system_raw if isinstance(system_raw, dict) else {}
 
         presets_raw = data.get("presets_requested", []) or []
         presets = [str(p) for p in presets_raw] if isinstance(presets_raw, list) else []
@@ -207,9 +217,9 @@ def _load_reports_and_metadata(
         reports.append(
             {
                 "file": path.name,
-                "generated": data.get("generated_at", "unknown"),
-                "generated_dt": _parse_generated(data.get("generated_at", "unknown"), default_timestamp),
-                "system": data.get("system", {}) or {},
+                "generated": _as_str(data.get("generated_at"), "unknown"),
+                "generated_dt": _parse_generated(data.get("generated_at"), default_timestamp),
+                "system": system,
                 "presets": presets,
                 "benchmarks": benchmarks,
                 "benchmark_results": benchmark_results,
