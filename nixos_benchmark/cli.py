@@ -38,9 +38,10 @@ class CommaSeparatedListAction(argparse.Action):
     """Parse comma-separated values and accumulate across repeated flags."""
 
     def __init__(self, option_strings, dest, **kwargs):
+        # Keep choices away from argparse: it validates raw values before splitting
+        # on commas, which would reject "--benchmarks a,b".
         self.valid_choices = kwargs.pop("choices", None)
         super().__init__(option_strings, dest, **kwargs)
-        self.choices = self.valid_choices
 
     def __call__(self, parser, namespace, values, option_string=None) -> None:
         option_string = option_string or self.option_strings[0]
@@ -114,6 +115,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
         action=CommaSeparatedListAction,
         metavar="PRESET",
         default=[],
+        choices=sorted(PRESETS),
         help="Comma-separated preset names (defaults to 'balanced').",
     )
     parser.add_argument(
@@ -122,6 +124,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
         action=CommaSeparatedListAction,
         metavar="BENCHMARK",
         default=[],
+        choices=[benchmark.value for benchmark in BenchmarkType],
         help="Comma-separated benchmark names to run (skips preset expansion).",
     )
     parser.add_argument(
