@@ -8,6 +8,7 @@ import re
 import shutil
 import string
 import subprocess
+import sys
 from collections import defaultdict
 from collections.abc import Iterable
 from datetime import UTC, datetime
@@ -376,10 +377,7 @@ def _format_generated_cell(generated: str, generated_dt: datetime) -> tuple[str,
     return raw_label, raw_label, raw_label
 
 
-def _build_header_cells(
-    bench_columns: list[str],
-    bench_metadata: dict[str, dict[str, set[str]]],
-) -> tuple[str, dict[str, list[str]]]:
+def _build_header_cells(bench_columns: list[str]) -> tuple[str, dict[str, list[str]]]:
     """Build header cells grouped by category.
 
     Returns:
@@ -555,80 +553,6 @@ def _normalize_width(value: float, min_value: float, max_value: float, higher_is
         baseline = positive_min if positive_min is not None else (min_value if min_value != 0 else 1.0)
         width = (baseline / value) * 100 if value else 100.0
     return max(min_width, min(100.0, width))
-
-
-def _build_graph_section(
-    title: str,
-    bench_types: Iterable[BenchmarkType],
-    series: dict[BenchmarkType, list[GraphBar]],
-) -> str:
-    cards: list[str] = []
-    for bench_type in bench_types:
-        bars = series.get(bench_type, [])
-        if not bars:
-            continue
-        rule = get_score_rule(bench_type)
-        if not rule:
-            continue
-        sorted_bars = sorted(bars, key=lambda bar: bar["value"], reverse=rule.higher_is_better)
-        values = [bar["value"] for bar in sorted_bars]
-        max_value = max(values)
-        min_value = min(values)
-        direction_text = "Higher is better" if rule.higher_is_better else "Lower is better"
-        bench_instance = BENCHMARK_MAP.get(bench_type)
-        bench_title = bench_instance.description if bench_instance else bench_type.value
-
-        bar_html_parts: list[str] = []
-        for bar in sorted_bars:
-            width_pct = _normalize_width(bar["value"], min_value, max_value, rule.higher_is_better)
-            tooltip_lines = [
-                f"Score: {bar['display']}",
-                direction_text,
-                f"Report: {bar['report_file']}",
-                bar["system_meta"],
-            ]
-            tooltip = " &#10;".join(html.escape(line) for line in tooltip_lines if line)
-            bar_html_parts.append(
-                f'<div class="bar-row" title="{tooltip}">'
-                f'<div class="bar-label">{html.escape(bar["label"])}</div>'
-                f'<div class="bar-track"><div class="bar-fill" style="width:{width_pct:.1f}%;"></div></div>'
-                f'<div class="bar-value">{html.escape(bar["display"])}</div>'
-                "</div>"
-            )
-
-        cards.append(
-            '<section class="chart-card">'
-            '<header class="chart-card-header">'
-            f'<div class="chart-title">{html.escape(bench_title)}</div>'
-            f'<div class="chart-subtitle">{html.escape(rule.label)} · {html.escape(direction_text)}</div>'
-            "</header>"
-            f'<div class="bar-list">{"".join(bar_html_parts)}</div>'
-            "</section>"
-        )
-
-    if not cards:
-        return ""
-
-    return (
-        '<section class="chart-section">'
-        '<div class="chart-heading">'
-        f"<h2>{html.escape(title)}</h2>"
-        '<p class="chart-note">Sorted best to worst based on reported scores.</p>'
-        "</div>"
-        f'<div class="chart-grid">{"".join(cards)}</div>'
-        "</section>"
-    )
-
-
-def _build_graphs(reports: list[ReportRow]) -> str:
-    sections = []
-    for category in ("CPU", "GPU", "Memory", "I/O", "Network"):
-        benchmarks = _get_benchmarks_for_category(category)
-        series = _collect_graph_series(reports, benchmarks)
-        section = _build_graph_section(f"{category} Benchmarks", benchmarks, series)
-        if section:
-            sections.append(section)
-    return "\n".join(sections)
 
 
 def _svg_escape(text: str) -> str:
@@ -819,7 +743,7 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
     html_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Build grouped headers
-    category_header_cells, category_map = _build_header_cells(bench_columns, bench_metadata)
+    category_header_cells, category_map = _build_header_cells(bench_columns)
 
     # Flatten categories in alphabetical order for benchmark headers
     ordered_bench_columns = []
@@ -842,10 +766,14 @@ def build_html_summary(results_dir: Path, html_path: Path) -> None:
         series = _collect_graph_series(reports, benchmarks)
         generated_svgs.extend(_write_svg_charts(html_path.parent, category.lower(), series))
     generated_pngs = _convert_svg_to_png(generated_svgs)
-    chart_files = generated_pngs or generated_svgs
     document = _render_html_document(category_header_cells, benchmark_header_cells, table_html, categories)
 
     html_path.write_text(document)
     print(f"Updated {html_path} ({len(rows)} runs tracked)")
-    if chart_files:
-        print(f"Wrote {len(chart_files)} chart file(s) to {chart_files[0].parent}/")
+    if generated_svgs:
+        print(f"Wrote {len(generated_svgs)} chart file(s) to {generated_svgs[0].parent}/")
+    if generated_pngs and len(generated_pngs) < len(generated_svgs):
+        print(
+            f"Only {len(generated_pngs)} of {len(generated_svgs)} charts could be converted to PNG",
+            file=sys.stderr,
+        )
