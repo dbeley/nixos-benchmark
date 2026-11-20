@@ -10,6 +10,21 @@
         pkgs = import nixpkgs {
           inherit system;
           config.allowUnfree = true;
+          overlays = [
+            (final: prev: {
+              furmark = prev.furmark.overrideAttrs (old: {
+                unpackPhase = ''
+                  runHook preUnpack
+                  7z x $src
+                  for d in FurMark_*/; do
+                    mv "$d"* .
+                    rmdir "$d"
+                  done
+                  runHook postUnpack
+                '';
+              });
+            })
+          ];
         };
         src = pkgs.lib.cleanSource ./.;
 
